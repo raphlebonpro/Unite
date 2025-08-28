@@ -5,7 +5,9 @@ node_modules/
 
 # Expo
 .expo/
+.expo-shared/
 dist/
+build/
 web-build/
 expo-env.d.ts
 
@@ -31,7 +33,30 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.*
 .env*.local
 
 # typescript
 *.tsbuildinfo
+
+# iOS
+ios/Pods/
+ios/build/
+
+# Android
+android/app/build/
+android/.gradle/
+android/.idea/
+
+# IDE & OS
+.idea/
+.vscode/
+*.iml
+
+# Divers
+*.tmp
+*.log
+
+# Expo Application Services
+eas.json
