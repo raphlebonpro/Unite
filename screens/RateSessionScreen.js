@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabaseClient';
 import { FontAwesome } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { notifyReviewReceived } from '../helpers/notifications';
 
 const StarRating = ({ rating, onChange }) => (
   <View style={{ flexDirection: 'row' }}>
@@ -71,52 +72,60 @@ export default function RateSessionScreen({ sessionId: initialSessionId, current
   const handleRate = (userId, value) => setRatings({ ...ratings, [userId]: value });
   const handleComment = (userId, value) => setComments({ ...comments, [userId]: value });
 
-  const handleSubmit = async () => {
-    setLoading(true);
-    let ok = true;
-    for (let ratedId of Object.keys(ratings)) {
-      const value = ratings[ratedId];
-      const comment = comments[ratedId] || null;
-      // Vérifie si déjà noté
-      const { data: existing, error: fetchError } = await supabase
-        .from('user_ratings')
-        .select('id')
-        .eq('session_id', sessionId)
-        .eq('rater_id', currentUserId)
-        .eq('rated_id', ratedId)
-        .single();
+const handleSubmit = async () => {
+  setLoading(true);
+  let ok = true;
 
-      let resp;
-      if (existing) {
-        resp = await supabase
-          .from('user_ratings')
-          .update({ rating: value, comment })
-          .eq('id', existing.id);
+  for (let ratedId of Object.keys(ratings)) {
+    const value = ratings[ratedId];
+    const comment = comments[ratedId] || null;
+
+    const { error } = await supabase
+      .from('user_ratings')
+      .insert([{
+        session_id: sessionId,
+        rater_id: currentUserId,
+        rated_id: ratedId,
+        rating: value,
+        comment
+      }]);
+
+    if (error) {
+      if (error.code === '23505') {
+        Alert.alert("Attention", "Tu as déjà laissé un avis pour cette session.");
       } else {
-        resp = await supabase
-          .from('user_ratings')
-          .insert([{
-            session_id: sessionId,
-            rater_id: currentUserId,
-            rated_id: ratedId,
-            rating: value,
-            comment
-          }]);
+        ok = false;
       }
-      if (fetchError && fetchError.code !== 'PGRST116') ok = false;
-      if (resp?.error) ok = false;
+    } else {
+      // ✅ Notif à l'utilisateur noté
+      let reviewerName = "Un utilisateur";
+      try {
+        const { data: me } = await supabase
+          .from('users')
+          .select('username, pseudo')
+          .eq('id', currentUserId)
+          .single();
+        reviewerName = me?.pseudo || me?.username || "Un utilisateur";
+      } catch {}
+
+      await notifyReviewReceived({
+        recipientId: ratedId,
+        reviewerName,
+        sessionId
+      });
     }
-    setLoading(false);
-    if (ok) {
-      Alert.alert("Merci !", "Notes envoyées.", [
-        {
-          text: "OK",
-          onPress: () => navigation?.navigate('MainTabs')
-        }
-      ]);
-      if (onFinished) onFinished();
-    }
-  };
+  }
+
+  setLoading(false);
+
+  if (ok) {
+    Alert.alert("Merci !", "Notes envoyées.", [
+      { text: "OK", onPress: () => navigation?.navigate('MainTabs') }
+    ]);
+    if (onFinished) onFinished();
+  }
+};
+
 
   return (
     <View style={styles.container}>

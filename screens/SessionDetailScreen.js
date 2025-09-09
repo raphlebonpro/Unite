@@ -17,7 +17,13 @@ import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import Toast from 'react-native-toast-message';
-import { notifyUser, notifyParticipants } from '../helpers/notifications';
+import {
+  notifyYouJoinedSession,
+  notifyParticipantJoinedCreator,
+  notifyParticipantJoinedOthers,
+  notifyParticipantLeft,
+  notifyExclusion
+} from '../helpers/notifications';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const STATIC_MAP_KEY = Constants.expoConfig.extra.GOOGLE_MAPS_API_KEY;
@@ -76,6 +82,8 @@ const SessionDetailScreen = () => {
   const [isKicked, setIsKicked] = useState(false);
   const [checkingKick, setCheckingKick] = useState(true);
 
+  const [participantsLoading, setParticipantsLoading] = useState(true);
+
   useEffect(() => {
     const fetchUser = async () => {
       const { data, error } = await supabase.auth.getUser();
@@ -126,65 +134,68 @@ const SessionDetailScreen = () => {
   }, [session?.id]);
 
   // PATCH: toujours afficher le créateur dans les participants
-  const fetchParticipants = async () => {
-    if (!session) return;
+const fetchParticipants = async () => {
+  if (!session) return;
+  setParticipantsLoading(true);
 
-    // 1. Participants via session_participants
-    const { data: participantRows } = await supabase
-      .from('session_participants')
-      .select('user_id')
-      .eq('session_id', session.id);
+  // 1. Participants via session_participants
+  const { data: participantRows } = await supabase
+    .from('session_participants')
+    .select('user_id')
+    .eq('session_id', session.id);
 
-    const userIds = (participantRows || []).map(p => p.user_id);
+  const userIds = (participantRows || []).map(p => p.user_id);
 
-    // 2. Participants users
-    let usersRows = [];
-    if (userIds.length > 0) {
-      const { data: uRows } = await supabase
-        .from('users')
-        .select('id, username, profile_photo')
-        .in('id', userIds);
-      usersRows = uRows || [];
-    }
+  // 2. Participants users
+  let usersRows = [];
+  if (userIds.length > 0) {
+    const { data: uRows } = await supabase
+      .from('users')
+      .select('id, username, profile_photo')
+      .in('id', userIds);
+    usersRows = uRows || [];
+  }
 
-    // 3. Créateur
-    let creator = null;
-    if (session.creator_id && !userIds.includes(session.creator_id)) {
-      const { data: creatorRow } = await supabase
-        .from('users')
-        .select('id, username, profile_photo')
-        .eq('id', session.creator_id)
-        .single();
-      creator = creatorRow;
-    }
+  // 3. Créateur
+  let creator = null;
+  if (session.creator_id && !userIds.includes(session.creator_id)) {
+    const { data: creatorRow } = await supabase
+      .from('users')
+      .select('id, username, profile_photo')
+      .eq('id', session.creator_id)
+      .single();
+    creator = creatorRow;
+  }
 
-    // 4. Fusion : créateur + autres participants (sans doublons)
-    let participantsList = usersRows.map(u => ({
-      id: u.id,
-      username: u.username || 'Utilisateur',
-      avatar: u.profile_photo || DEFAULT_AVATAR,
-    }));
+  // 4. Fusion : créateur + autres participants (sans doublons)
+  let participantsList = usersRows.map(u => ({
+    id: u.id,
+    username: u.username || 'Utilisateur',
+    avatar: u.profile_photo || DEFAULT_AVATAR,
+  }));
 
-    if (creator) {
-      participantsList = [
-        {
-          id: creator.id,
-          username: creator.username || 'Créateur',
-          avatar: creator.profile_photo || DEFAULT_AVATAR,
-        },
-        ...participantsList,
-      ];
-    }
+  if (creator) {
+    participantsList = [
+      {
+        id: creator.id,
+        username: creator.username || 'Créateur',
+        avatar: creator.profile_photo || DEFAULT_AVATAR,
+      },
+      ...participantsList,
+    ];
+  }
 
-    setParticipants(participantsList);
+  setParticipants(participantsList);
 
-    // Vérifie si l'utilisateur courant est participant
-    if (user && (userIds.includes(user.id) || user.id === session.creator_id)) {
-      setIsParticipant(true);
-    } else {
-      setIsParticipant(false);
-    }
-  };
+  // ✅ Vérifie si l'utilisateur courant est participant ou créateur
+  if (user && (userIds.includes(user.id) || user.id === session.creator_id)) {
+    setIsParticipant(true);
+  } else {
+    setIsParticipant(false);
+  }
+
+  setParticipantsLoading(false);
+};
 
   useEffect(() => {
     fetchParticipants();
@@ -209,6 +220,7 @@ const SessionDetailScreen = () => {
   };
 
   // Fonction pour rejoindre la session
+// Fonction pour rejoindre la session
 const handleJoin = async () => {
   setLoadingJoin(true);
 
@@ -237,7 +249,6 @@ const handleJoin = async () => {
 
   // *** PATCH FEMME UNIQUEMENT ***
   if (session.girls_only) {
-    // Va chercher le profil user (gender)
     const { data: userProfile, error: genderErr } = await supabase
       .from('users')
       .select('gender')
@@ -255,7 +266,6 @@ const handleJoin = async () => {
       );
     }
   }
-  // *** FIN PATCH ***
 
   // 3. Ajoute comme participant
   const { error: insErr } = await supabase
@@ -277,105 +287,116 @@ const handleJoin = async () => {
   // 5. Infos user pour notif
   const { data: userProfile } = await supabase
     .from('users')
-    .select('pseudo, username')
+    .select('username, email')
     .eq('id', userId)
     .single();
-  const pseudoAffiche = userProfile?.pseudo || userProfile?.username || 'Un utilisateur';
 
-  // 6. Notif au créateur si ce n'est pas lui qui rejoint (participant_joined)
+  const pseudoAffiche =
+    userProfile?.username?.trim() ||
+    userProfile?.email?.split('@')[0] ||
+    'Un utilisateur';
+
   if (session.creator_id && userId !== session.creator_id) {
-    await notifyUser({
-      user_id: session.creator_id,
-      title: 'Nouveau participant',
-      message: `${pseudoAffiche} a rejoint ta session "${session.title}".`,
-      type: 'participant_joined',
-      session_id: session.id,
+    await notifyParticipantJoinedCreator({
+      creatorId: session.creator_id,
+      joinerId: userId,
+      joinerName: pseudoAffiche,
+      sessionTitle: session.title,
+      sessionId: session.id,
     });
   }
 
-  // 7. Notif au participant (lui-même) (session_joined)
-  await notifyUser({
-    user_id: userId,
-    title: 'Session rejointe',
-    message: `Tu as rejoint la session "${session.title}".`,
-    type: 'session_joined',
-    session_id: session.id,
+  // (notif au participant lui-même)
+  await notifyYouJoinedSession({
+    userId,
+    sessionTitle: session.title,
+    sessionId: session.id,
   });
 
-  // 8. Notif locale Expo (2h avant la session)
+  await notifyParticipantJoinedOthers({
+    participantIds: participants.map(p => p.id).filter(pid => pid !== userId && pid !== session.creator_id),
+    joinerId: userId,
+    joinerName: pseudoAffiche,
+    sessionTitle: session.title,
+    sessionId: session.id,
+  });
+
   await scheduleSessionReminder(session);
 
-  // 9. Rafraîchis participants + navigation si besoin
   fetchParticipants();
   navigation.navigate('MainTabs', { screen: 'Activités' });
 };
 
-  const handleLeave = async () => {
-    Alert.alert(
-      'Quitter la session',
-      'Es-tu sûr de vouloir quitter cette session ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Oui, quitter',
-          style: 'destructive',
-          onPress: async () => {
-            setLoadingJoin(true);
 
-            // 1. Supprime la participation
-            const { error } = await supabase
-              .from('session_participants')
-              .delete()
-              .eq('session_id', session.id)
-              .eq('user_id', user.id);
+const handleLeave = async () => {
+  Alert.alert(
+    'Quitter la session',
+    'Es-tu sûr de vouloir quitter cette session ?',
+    [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Oui, quitter',
+        style: 'destructive',
+        onPress: async () => {
+          setLoadingJoin(true);
 
-            setLoadingJoin(false);
-            if (error) {
-              Alert.alert('Erreur', "Impossible de quitter la session.");
-              return;
-            }
+          const { error } = await supabase
+            .from('session_participants')
+            .delete()
+            .eq('session_id', session.id)
+            .eq('user_id', user.id);
 
-            setIsParticipant(false);
-
-            // 2. Notif créateur
-            if (session.creator_id && user.id !== session.creator_id) {
-              let userProfile;
-              try {
-                const { data } = await supabase
-                  .from('users')
-                  .select('pseudo, username')
-                  .eq('id', user.id)
-                  .single();
-                userProfile = data;
-              } catch (err) {
-                userProfile = null;
-              }
-              const pseudoAffiche = userProfile?.pseudo || userProfile?.username || 'Un utilisateur';
-
-              await notifyUser({
-                user_id: session.creator_id,
-                title: 'Participant a quitté',
-                message: `${pseudoAffiche} a quitté ta session "${session.title}".`,
-                type: 'participant_left',
-                session_id: session.id,
-              });
-            }
-
-            Toast.show({
-              type: 'success',
-              text1: 'Session quittée',
-              text2: `Tu as quitté la session "${session.title}".`,
-              position: 'top',
-              topOffset: 48,
-              visibilityTime: 2600,
-            });
-
-            navigation.navigate('MainTabs', { screen: 'Activités' });
+          setLoadingJoin(false);
+          if (error) {
+            Alert.alert('Erreur', "Impossible de quitter la session.");
+            return;
           }
+
+          setIsParticipant(false);
+
+          if (session.creator_id && user.id !== session.creator_id) {
+            let userProfile;
+            try {
+              const { data } = await supabase
+                .from('users')
+                .select('username, email')
+                .eq('id', user.id)
+                .single();
+              userProfile = data;
+            } catch (err) {
+              userProfile = null;
+            }
+
+            const pseudoAffiche =
+              userProfile?.username?.trim() ||
+              userProfile?.email?.split('@')[0] ||
+              'Un utilisateur';
+
+            await notifyParticipantLeft({
+              creatorId: session.creator_id,
+              leaverId: user.id,
+              leaverName: pseudoAffiche,
+              sessionTitle: session.title,
+              sessionId: session.id,
+              otherParticipantIds: participants.map(p => p.id).filter(pid => pid !== user.id && pid !== session.creator_id),
+            });
+          }
+
+          Toast.show({
+            type: 'success',
+            text1: 'Session quittée',
+            text2: `Tu as quitté la session "${session.title}".`,
+            position: 'top',
+            topOffset: 48,
+            visibilityTime: 2600,
+          });
+
+          navigation.navigate('MainTabs', { screen: 'Activités' });
         }
-      ]
-    );
-  };
+      }
+    ]
+  );
+};
 
   // ----------- BOUTONS D'ACTION -----------
   let actionButtons = null;
@@ -427,7 +448,7 @@ const handleJoin = async () => {
           activeOpacity={0.88}
         >
           <LinearGradient
-            colors={['#ffd86f', '#fc6262']}
+            colors={['#FF9A6C', '#FF5E62']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.joinButton}
@@ -576,43 +597,15 @@ const handleJoin = async () => {
                 .eq('session_id', session.id)
                 .eq('user_id', p.id);
 
-              // 3. Notifications
+await notifyExclusion({
+  creatorId: session.creator_id,
+  excludedId: p.id,
+  excludedName: p.username,
+  sessionTitle: session.title,
+  sessionId: session.id,
+  otherParticipantIds: participants.map(x => x.id).filter(id => id !== p.id && id !== session.creator_id),
+});
 
-              // a) Notif à l'utilisateur exclu
-              await notifyUser({
-                user_id: p.id,
-                title: 'Exclu de la session',
-                message: 'Vous avez été exclu de la session.',
-                type: 'user_kicked',
-                session_id: session.id,
-              });
-
-              // b) Notif au créateur
-              await notifyUser({
-                user_id: user.id,
-                title: 'Exclusion réussie',
-                message: `Vous avez bien exclu ${p.username} de la session.`,
-                type: 'kick_success',
-                session_id: session.id,
-              });
-
-              // c) Notif aux autres participants
-              const { data: others } = await supabase
-                .from('session_participants')
-                .select('user_id')
-                .eq('session_id', session.id)
-                .neq('user_id', p.id)
-                .neq('user_id', user.id);
-
-              for (let other of others || []) {
-                await notifyUser({
-                  user_id: other.user_id,
-                  title: 'Mise à jour de session',
-                  message: `${p.username} a été exclu de la session.`,
-                  type: 'user_kicked_notice',
-                  session_id: session.id,
-                });
-              }
 
               // 4. Feedback visuel
               Toast.show({
@@ -648,20 +641,20 @@ const handleJoin = async () => {
     <Text style={styles.descriptionText}>{session.description || "Aucune description."}</Text>
   </View>
 
-  {/* BLOC KICK/JOINTURE */}
-  {checkingKick ? (
-    <View style={{ height: 60, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator color="#e17055" />
-    </View>
-  ) : isKicked ? (
-    <View style={{ marginTop: 18, padding: 14, backgroundColor: "#ffefee", borderRadius: 10 }}>
-      <Text style={{ color: "#d92e3f", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>
-        Tu as été exclu de cette session par l'organisateur.{"\n"}Tu ne peux plus la rejoindre.
-      </Text>
-    </View>
-  ) : (
-    actionButtons
-  )}
+{/* BLOC KICK/JOINTURE */}
+{checkingKick || participantsLoading ? (
+  <View style={{ height: 60, justifyContent: 'center', alignItems: 'center' }}>
+    <ActivityIndicator color="#e17055" />
+  </View>
+) : isKicked ? (
+  <View style={{ marginTop: 18, padding: 14, backgroundColor: "#ffefee", borderRadius: 10 }}>
+    <Text style={{ color: "#d92e3f", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>
+      Tu as été exclu de cette session par l'organisateur.{"\n"}Tu ne peux plus la rejoindre.
+    </Text>
+  </View>
+) : (
+  actionButtons
+)}
 </ScrollView>
   );
 };

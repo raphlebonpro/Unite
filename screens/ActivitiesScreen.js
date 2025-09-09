@@ -89,18 +89,54 @@ const ActivitiesScreen = () => {
         return sessionDate < now;
       }
 
+      // helper tri croissant
+      function sortByDateAsc(list) {
+        return list.sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+
+          if (a.time && typeof a.time === "string" && a.time.length === 5) {
+            const [hh, mm] = a.time.split(":").map(Number);
+            dateA.setHours(hh, mm, 0, 0);
+          }
+          if (b.time && typeof b.time === "string" && b.time.length === 5) {
+            const [hh, mm] = b.time.split(":").map(Number);
+            dateB.setHours(hh, mm, 0, 0);
+          }
+          return dateA - dateB; // ordre croissant
+        });
+      }
+
       const createdPast = (created || []).filter(isPast);
-      const createdUpcoming = (created || []).filter(s => !isPast(s));
+      const createdUpcoming = sortByDateAsc((created || []).filter(s => !isPast(s)));
+
       const joinedPast = (joinedFiltered || []).filter(isPast);
-      const joinedUpcoming = (joinedFiltered || []).filter(s => !isPast(s));
+      const joinedUpcoming = sortByDateAsc((joinedFiltered || []).filter(s => !isPast(s)));
 
       const pastMap = {};
       [...createdPast, ...joinedPast].forEach(s => { pastMap[s.id] = s; });
       const allPast = Object.values(pastMap);
 
-      setSessionsPast(allPast);
+      // tri décroissant pour passées
+      allPast.sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+
+        if (a.time && typeof a.time === "string" && a.time.length === 5) {
+          const [hh, mm] = a.time.split(":").map(Number);
+          dateA.setHours(hh, mm, 0, 0);
+        }
+        if (b.time && typeof b.time === "string" && b.time.length === 5) {
+          const [hh, mm] = b.time.split(":").map(Number);
+          dateB.setHours(hh, mm, 0, 0);
+        }
+
+        return dateB - dateA;
+      });
+
       setSessionsCreated(createdUpcoming);
       setSessionsJoined(joinedUpcoming);
+      setSessionsPast(allPast);
 
     } catch (err) {
       console.error(err);

@@ -19,13 +19,19 @@ import { supabase } from '../lib/supabaseClient';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import MiniAppBar from '../components/MiniAppBar';
-import { notifyUser } from '../helpers/notifications';
+import {
+  notifySessionCreated,
+  notifyNearbyUsersOnSessionCreated,
+} from '../helpers/notifications';
 import { useNotificationRefresh } from '../context/NotificationContext';
 import { Calendar } from 'react-native-calendars';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { Modal } from 'react-native';
 import { ActivityIndicator } from 'react-native';
+import { GOOGLE_MAPS_API_KEY } from '../components/PlaceSearchField';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 // ✅ Import corrigé - suppression de moment
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -51,9 +57,13 @@ const otherSports = [
   'Yoga',
   'Padel',
   'Handball',
-  'Tennis de table',
   'Volleyball',
   'Badminton',
+  'Triathlon',
+  'Randonnée/Trail',
+  'VTT',
+  'Marche',
+  'Kayak',
   'Ski',
   'Snow',
   'Skate',
@@ -67,12 +77,11 @@ const otherSports = [
   'Boxe',
   'Football américain',
   'Baseball',
+  'Tennis de table',
   'Danse',
   'Pilate',
   'Échecs',
   'Pétanque',
-  'Randonnée/Trail',
-  'VTT',
 ];
 
 const sportIcons = {
@@ -87,9 +96,13 @@ const sportIcons = {
   Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
   Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
   Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
-  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
   Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
   Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
+  Triathlon: { icon: <MaterialCommunityIcons name="medal" size={18} color="#FF9800" />, color: '#FF9800' },
+  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
+  Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
+  Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
   Ski: { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
   Snow: { icon: <MaterialCommunityIcons name="snowboard" size={18} color="#5f95de" />, color: '#5f95de' },
   Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
@@ -103,12 +116,11 @@ const sportIcons = {
   Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#C62828" />, color: '#C62828' },
   'Football américain': { icon: <MaterialCommunityIcons name="football" size={18} color="#FF7043" />, color: '#FF7043' },
   Baseball: { icon: <MaterialCommunityIcons name="baseball" size={18} color="#FFD600" />, color: '#FFD600' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
   Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
   Pilate: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
   Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
   Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={18} color="#757575" />, color: '#757575' },
-  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
-  VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
   '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
 
@@ -175,6 +187,20 @@ function isAllowedStartTime(localDate) {
   return true;
 }
 
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // rayon Terre en km
+  const toRad = deg => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 const CreateSessionScreen = () => {
   const navigation = useNavigation();
   const { notifUnseen } = useNotificationRefresh();
@@ -214,10 +240,16 @@ const CreateSessionScreen = () => {
   const [title, setTitle] = useState('');
   const [comments, setComments] = useState('');
 
-  // Lieu
-  const [location, setLocation] = useState('');
-  const [latitude, setLatitude] = useState(null);
-  const [longitude, setLongitude] = useState(null);
+// Lieu choisi (valeur finale du formulaire)
+const [location, setLocation] = useState('');
+const [latitude, setLatitude] = useState(null);
+const [longitude, setLongitude] = useState(null);
+
+// ---- Adresse (modal) ----
+const [addressModalVisible, setAddressModalVisible] = useState(false);
+const [tempLocation, setTempLocation] = useState('');
+const [tempLat, setTempLat] = useState(null);
+const [tempLng, setTempLng] = useState(null);
 
   // Filles uniquement
   const [currentUser, setCurrentUser] = useState(null);
@@ -225,6 +257,15 @@ const CreateSessionScreen = () => {
   
   //Loader
   const [loadingInit, setLoadingInit] = useState(true);
+
+const insets = useSafeAreaInsets();
+const [kbOpen, setKbOpen] = useState(false);
+
+useEffect(() => {
+  const s = Keyboard.addListener('keyboardDidShow', () => setKbOpen(true));
+  const h = Keyboard.addListener('keyboardDidHide', () => setKbOpen(false));
+  return () => { s.remove(); h.remove(); };
+}, []);
 
   // ✅ useEffect corrigé
   useEffect(() => {
@@ -282,11 +323,15 @@ const CreateSessionScreen = () => {
       hideTimePicker();
       setShowDropdown({ sport: false, level: false, participants: false });
       setTitle('');
-      setComments('');
+      setComments('')
+      setAddressModalVisible(false);
+      setTempLocation('');
+      setTempLat(null);
+      setTempLng(null);
+      setIsGirlsOnly(false);
       setLocation('');
       setLatitude(null);
       setLongitude(null);
-      setIsGirlsOnly(false);
     }, [])
   );
 
@@ -299,19 +344,18 @@ const CreateSessionScreen = () => {
   const toggleDropdown = (key) => setShowDropdown((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const handleCreateSession = async () => {
-    if (
-      !selectedSport ||
-      !location ||
-      latitude === null ||
-      longitude === null ||
-      !selectedLevel ||
-      !selectedParticipants ||
-      !title
-    ) {
-      Alert.alert('Champs manquants', 'Merci de remplir tous les champs obligatoires.');
-      return;
-    }
-
+if (
+  !selectedSport ||
+  !location ||
+  !Number.isFinite(latitude) ||
+  !Number.isFinite(longitude) ||
+  !selectedLevel ||
+  !selectedParticipants ||
+  !title
+) {
+  Alert.alert('Champs manquants', 'Merci de remplir tous les champs obligatoires.');
+  return;
+}
     // Date non passée
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -385,28 +429,45 @@ const CreateSessionScreen = () => {
       );
     }
 
-    try {
-      await notifyUser({
-        user_id: user.id,
-        title: 'Session créée',
-        message: `Ta session ${title} a bien été créée !`,
-        type: 'session_created',
-        session_id: sessionId,
-      });
-    } catch (e) {
-      console.warn('notifyUser a échoué (non bloquant) :', e?.message || e);
-    }
+// 🔔 Notifications via helpers
+// ✅ Notif pour le créateur
+await notifySessionCreated({
+  creatorId: user.id,
+  sessionId,
+  title,
+});
 
-    Alert.alert('Session créée !', 'Ta session a bien été enregistrée.', [
-      {
-        text: 'OK',
-        onPress: () =>
-          navigation.navigate('MainTabs', {
-            screen: 'Activités',
-            params: { tab: 'created' },
-          }),
-      },
-    ]);
+// ✅ Notifs pour les utilisateurs proches via Edge Function
+ await notifyNearbyUsersOnSessionCreated({
+  sessionId,
+  sport: selectedSport,
+  lat: latitude,
+  lng: longitude,
+  creatorId: user.id,
+ });
+
+// ✅ Feedback visuel
+Toast.show({
+  type: 'success',
+  text1: 'Session créée ✅',
+  text2: `Ta session "${title}" a bien été créée.`,
+  position: 'top',
+  topOffset: 48,
+  visibilityTime: 2500,
+});
+
+// ✅ Popup de confirmation + navigation
+Alert.alert('Session créée !', 'Ta session a bien été enregistrée.', [
+  {
+    text: 'OK',
+    onPress: () => {
+      navigation.navigate('MainTabs', {
+        screen: 'Activités',
+        params: { tab: 'created' },
+      });
+    },
+  },
+]);
   };
 
 const [sportPickerVisible, setSportPickerVisible] = useState(false);
@@ -589,120 +650,296 @@ const hideTimePicker = () => setTimePickerVisible(false);
 </Modal>
 
             {/* Lieu */}
-            <View style={{ marginTop: 5 }}>
-              <PlaceSearchField
-                value={location}
-                onChange={(txt) => {
-                  setLocation(txt);
-                }}
-                onPick={({ description, lat, lng }) => {
-                  setLocation(description);
-                  setLatitude(lat);
-                  setLongitude(lng);
-                }}
-                placeholder="Ex : Parc Monceau, Paris"
-                boxStyle={styles.input}
-              />
-              {location && (latitude === null || longitude === null) && (
-                <Text style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
-                  Sélectionne une suggestion pour valider l'emplacement.
-                </Text>
-              )}
-            </View>
+{/* Lieu (ouvre un modal dédié) */}
+<View style={{ marginTop: 5 }}>
+  <TouchableOpacity
+    style={styles.input}
+    activeOpacity={0.85}
+    onPress={() => {
+      // pré-remplir le modal avec la valeur actuelle
+      setTempLocation(location || '');
+      setTempLat(latitude);
+      setTempLng(longitude);
+      setAddressModalVisible(true);
+    }}
+  >
+    <Text style={location ? styles.inputText : styles.dropdownText}>
+      {location || "Point de rencontre…"}
+    </Text>
+  </TouchableOpacity>
 
-            {/* Date */}
-            <TouchableOpacity style={styles.input} onPress={() => setShowCalendar(true)}>
-              <Text style={styles.inputText}>
-                {capitalizeFirst(
-                  selectedDate.toLocaleDateString('fr-FR', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })
-                )}
-              </Text>
-            </TouchableOpacity>
+  {/* Hint si non validée (coords manquantes) */}
+  {location && (latitude === null || longitude === null) && (
+    <Text style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
+      Sélectionne une suggestion puis valide pour confirmer l’emplacement.
+    </Text>
+  )}
+</View>
 
-          {showCalendar && (
-              <View
-                style={{
-                  marginTop: 5,
-                  marginBottom: 15,
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                  alignSelf: 'center',
-                }}
-              >
-                <Calendar
-                  onDayPress={(day) => {
-                    const [y, m, d] = day.dateString.split('-').map(Number);
-                    setSelectedDate(new Date(y, m - 1, d));
-                    setShowCalendar(false);
-                  }}
-                  markedDates={{
-                    [formatDateYYYYMMDD(selectedDate)]: { selected: true, selectedColor: '#5B4EFF' },
-                  }}
-                  minDate={formatDateYYYYMMDD(new Date())}
-                  theme={{
-                    selectedDayBackgroundColor: '#5B4EFF',
-                    todayTextColor: '#5B4EFF',
-                    arrowColor: '#5B4EFF',
-                  }}
-                  style={{
-                    borderRadius: 15,
-                    width: 340,
-                    elevation: 4,
-                    backgroundColor: '#fff',
-                  }}
-                />
-              </View>
-            )}
-
-            {/* ✅ Heure corrigée */}
-<TouchableOpacity
-  style={styles.input}
-  onPress={() => setTimePickerVisible(true)}
+{/* Modal Adresse */}
+<Modal
+ transparent
+ animationType="fade"
+ visible={addressModalVisible}
+ onRequestClose={() => setAddressModalVisible(false)}
+ presentationStyle="overFullScreen"
+ statusBarTranslucent
 >
-<Text style={selectedHour ? styles.inputText : styles.placeholder}>
-  {selectedHour
-    ? `${selectedHour.getHours().toString().padStart(2, '0')}:${selectedHour.getMinutes().toString().padStart(2, '0')}`
-    : "Heure de la session..."}
-</Text>
-</TouchableOpacity>
+ <KeyboardAvoidingView
+   style={{ flex: 1 }}
+   behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+   keyboardVerticalOffset={insets.top}
+ >
+   <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+     <View style={[styles.addressModalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+       <View style={[styles.addressModalContainer, { width: '92%', maxHeight: kbOpen ? '65%' : '80%' }]}>
 
-{/* ✅ Modal custom style iOS */}
+
+         {/* Header : Croix + Titre + Bouton Valider */}
+         <View
+           style={{
+             flexDirection: 'row',
+             alignItems: 'center',
+             justifyContent: 'space-between',
+             marginBottom: 12,
+             paddingHorizontal: 12,
+             marginTop: 8,
+           }}
+         >
+           {/* Croix */}
+           <TouchableOpacity onPress={() => setAddressModalVisible(false)}>
+             <Ionicons name="close" size={24} color="#666" />
+           </TouchableOpacity>
+
+
+           {/* Titre */}
+           <Text style={[styles.addressModalTitle, { marginRight: 10, marginTop: 6 }]}>
+             Choisir un lieu
+           </Text>
+
+
+           {/* Bouton Valider */}
+           <TouchableOpacity
+             style={[
+               styles.addressValidateBtn,
+               {
+                 paddingHorizontal: 25,
+                 paddingVertical: 10,
+                 borderRadius: 8,
+                 marginLeft: 5,
+               },
+             ]}
+             activeOpacity={0.9}
+             onPress={async () => {
+               if (Number.isFinite(tempLat) && Number.isFinite(tempLng)) {
+                 setLocation((tempLocation || '').trim());
+                 setLatitude(tempLat);
+                 setLongitude(tempLng);
+                 setAddressModalVisible(false);
+                 return;
+               }
+
+
+               const addr = (tempLocation || '').trim();
+               if (!addr) {
+                 Alert.alert('Adresse vide', "Saisis une adresse ou choisis une suggestion.");
+                 return;
+               }
+               if (!GOOGLE_MAPS_API_KEY) {
+                 Alert.alert('Config', "Clé Google Maps absente.");
+                 return;
+               }
+
+
+               try {
+                 const url =
+                   'https://maps.googleapis.com/maps/api/geocode/json' +
+                   `?address=${encodeURIComponent(addr)}` +
+                   `&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}` +
+                   `&language=fr&components=country:FR`;
+
+
+                 const res = await fetch(url);
+                 const json = await res.json();
+
+
+                 if (json.status === 'OK' && Array.isArray(json.results) && json.results[0]) {
+                   const r = json.results[0];
+                   const lat = r?.geometry?.location?.lat;
+                   const lng = r?.geometry?.location?.lng;
+                   const label = r?.formatted_address || addr;
+
+
+                   if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                     setLocation(label);
+                     setLatitude(lat);
+                     setLongitude(lng);
+                     setAddressModalVisible(false);
+                     return;
+                   }
+                 }
+                 Alert.alert('Adresse introuvable', "Choisis une suggestion ou précise l’adresse.");
+               } catch {
+                 Alert.alert('Erreur', "Validation de l’adresse impossible pour le moment.");
+               }
+             }}
+           >
+             <Text style={styles.addressValidateText}>Valider</Text>
+           </TouchableOpacity>
+         </View>
+
+
+         {/* Champ recherche */}
+         <PlaceSearchField
+           autoFocus
+           value={tempLocation}
+           onChange={(txt) => { setTempLocation(txt); setTempLat(null); setTempLng(null); }}
+           onPick={({ description, lat, lng }) => { setTempLocation(description); setTempLat(lat); setTempLng(lng); }}
+           placeholder="Ex : Parc Monceau, Paris"
+           boxStyle={styles.addressPickerBox}
+           suggestionContainerStyle={[styles.addressSuggestBox, { maxHeight: 360, flexGrow: 0 }]}
+           keyboardShouldPersistTaps="handled"
+         />
+       </View>
+     </View>
+   </TouchableWithoutFeedback>
+ </KeyboardAvoidingView>
+</Modal>
+
+
+{/* Date */}
+<View style={{ marginTop: 5 }}>
+  <TouchableOpacity
+    style={styles.input}
+    activeOpacity={0.85}
+    onPress={() => setShowCalendar(true)}
+  >
+    <Text style={selectedDate ? styles.inputText : styles.dropdownText}>
+      {capitalizeFirst(
+        selectedDate.toLocaleDateString('fr-FR', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      )}
+    </Text>
+  </TouchableOpacity>
+</View>
+{/* Modal Date */}
 <Modal
   transparent={true}
-  visible={timePickerVisible}
   animationType="fade"
-  onRequestClose={() => setTimePickerVisible(false)}
+  visible={showCalendar}
+  onRequestClose={() => setShowCalendar(false)}
 >
   <View style={styles.modalOverlay}>
     <View style={styles.modalContainer}>
-      <Text style={styles.modalTitle}>Heure de la session</Text>
-<DateTimePicker
-  value={selectedHour || new Date()}
-  mode="time"
-  is24Hour={true}
-  display="spinner"
-  onChange={(event, date) => {
-    if (date) {
-      setSelectedHour(date);
-    }
-  }}
-/>
+      <Text style={styles.modalTitle}>Choisir une date</Text>
+
+      <Calendar
+        onDayPress={(day) => {
+          const [y, m, d] = day.dateString.split('-').map(Number);
+          setSelectedDate(new Date(y, m - 1, d));
+          setShowCalendar(false);
+        }}
+        markedDates={{
+          [formatDateYYYYMMDD(selectedDate)]: { selected: true, selectedColor: '#5B4EFF' },
+        }}
+        minDate={formatDateYYYYMMDD(new Date())}
+        theme={{
+          selectedDayBackgroundColor: '#5B4EFF',
+          todayTextColor: '#5B4EFF',
+          arrowColor: '#5B4EFF',
+        }}
+        style={{
+          borderRadius: 12,
+          backgroundColor: '#fff',
+          elevation: 2,
+        }}
+      />
+
       <TouchableOpacity
         style={styles.validateButton}
-        onPress={() => setTimePickerVisible(false)}
+        onPress={() => setShowCalendar(false)}
       >
-        <Text style={styles.validateText}>Valider</Text>
+        <Text style={styles.validateText}>Fermer</Text>
       </TouchableOpacity>
     </View>
   </View>
 </Modal>
 
-            {/* Niveau */}
+{/* Heure */}
+<TouchableOpacity
+  style={styles.input}
+  onPress={showTimePicker}
+>
+  <Text style={selectedHour ? styles.inputText : styles.dropdownText}>
+    {selectedHour
+      ? `${selectedHour.getHours().toString().padStart(2, '0')}:${selectedHour.getMinutes().toString().padStart(2, '0')}`
+      : "Heure de la session..."}
+  </Text>
+</TouchableOpacity>
+
+{/* iOS → modal custom avec titre + bouton valider */}
+{Platform.OS === 'ios' && timePickerVisible && (
+  <Modal
+    transparent
+    visible={timePickerVisible}
+    animationType="fade"
+    onRequestClose={hideTimePicker}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContainer}>
+        <Text style={styles.modalTitle}>Heure de la session</Text>
+
+        <DateTimePicker
+          value={selectedHour || new Date()}
+          mode="time"
+          is24Hour
+          display="spinner"
+          onChange={(event, date) => {
+            if (date) setSelectedHour(date);
+          }}
+        />
+
+        <TouchableOpacity
+          style={styles.validateButton}
+          onPress={hideTimePicker}
+        >
+          <Text style={styles.validateText}>Valider</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+)}
+
+{/* Android → modal simple avec uniquement le spinner */}
+{Platform.OS === 'android' && timePickerVisible && (
+  <Modal
+    transparent
+    visible={timePickerVisible}
+    animationType="fade"
+    onRequestClose={hideTimePicker}
+  >
+    <DateTimePicker
+      value={selectedHour || new Date()}
+      mode="time"
+      is24Hour
+      display="spinner"
+      onChange={(event, date) => {
+        if (event.type === 'set' && date) {
+          setSelectedHour(date);
+          hideTimePicker(); // ✅ ferme le modal après sélection
+        } else if (event.type === 'dismissed') {
+          hideTimePicker(); // ✅ ferme si l'utilisateur annule
+        }
+      }}
+    />
+  </Modal>
+)}
+
+
 {/* Niveau */}
 <TouchableOpacity
   style={styles.input}
@@ -881,14 +1118,14 @@ const hideTimePicker = () => setTimePickerVisible(false);
 
             {/* CTA créer */}
             <TouchableOpacity
-              style={{ borderRadius: 16, overflow: 'hidden', marginTop: 12, marginBottom: 30 }}
+              style={{ borderRadius: 16, overflow: 'hidden', marginTop: 12, marginBottom: 30, alignSelf: 'center', }}
               onPress={handleCreateSession}
             >
               <LinearGradient
                 colors={['#ff9966', '#ff5e62']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.buttonGradient}
+                style={[styles.buttonGradient, { width: '90%' }]}
               >
                 <Text style={styles.buttonText}>Créer une session</Text>
               </LinearGradient>
@@ -970,6 +1207,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
+   paddingHorizontal: 70,
   },
   buttonText: {
     color: '#fff',
@@ -1055,6 +1293,68 @@ dropdownItemText: {
   color: '#333',
   textAlign: 'center',   // ✅ centre aussi le texte
 },
+addressModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  addressModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 14,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  addressModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  addressPickerBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  addressSuggestBox: {
+    // laisser vide : géré par maxHeight + scroll interne
+  },
+  addressModalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+    gap: 12,
+  },
+  addressCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#f2f2f2',
+  },
+  addressValidateBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#5B4EFF',
+  },
+  calendarBox: {
+  borderRadius: 12,
+  width: '99%',
+  backgroundColor: '#fff',
+  elevation: 2, // ombre Android
+  shadowColor: '#000', // ombre iOS
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+  width: '100%',
+  marginBottom: 12,
+},
+  addressCancelText: { fontWeight: '600', color: '#444' },
+  addressValidateText: { fontWeight: '700', color: '#fff' },
 });
 
 export default CreateSessionScreen;

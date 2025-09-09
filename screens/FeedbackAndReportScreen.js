@@ -17,6 +17,7 @@ import { supabase } from '../lib/supabaseClient';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { notifyFeedbackReceived } from '../helpers/notifications';
 
 export default function FeedbackScreen({ navigation }) {
   const [rating, setRating] = useState(null);
@@ -39,44 +40,70 @@ export default function FeedbackScreen({ navigation }) {
   }, []);
 
   const handleSubmit = async () => {
-    if (!rating && !generalFeedback && !improvement && !issueType && !issueDetail) {
-      Alert.alert("Merci de remplir au moins un champ !");
-      return;
+  if (!rating && !generalFeedback && !improvement && !issueType && !issueDetail) {
+    Alert.alert("Merci de remplir au moins un champ !");
+    return;
+  }
+
+  const { error, data } = await supabase.from('app_feedback').insert([
+    {
+      user_id: userId,
+      rating,
+      general_feedback: generalFeedback,
+      improvement,
+      issue_type: issueType,
+      issue_detail: issueDetail,
     }
-    const { error } = await supabase.from('app_feedback').insert([
-      {
-        user_id: userId,
-        rating,
-        general_feedback: generalFeedback,
-        improvement,
-        issue_type: issueType,
-        issue_detail: issueDetail,
-      }
-    ]);
-    if (error) {
-      Alert.alert("Erreur", "Une erreur est survenue.");
-    } else {
-      Alert.alert("Merci !", "Ton retour a bien été envoyé.");
-      navigation.goBack();
+  ]).select().single();
+
+  if (error) {
+    Alert.alert("Erreur", "Une erreur est survenue.");
+  } else {
+    // ✅ Notif interne (admin)
+    try {
+      await notifyFeedbackReceived({
+        userId,
+        feedbackId: data.id,
+      });
+    } catch (e) {
+      console.error("Erreur notif feedback :", e);
     }
-  };
+
+    Toast.show({
+      type: 'success',
+      text1: 'Merci 🙌',
+      text2: "Ton retour a bien été envoyé.",
+      position: 'top',
+      topOffset: 50,
+    });
+
+    navigation.goBack();
+  }
+};
 
   // Newsletter handler
   const handleNewsletter = async () => {
-    if (!newsletterEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newsletterEmail)) {
-      Alert.alert('Erreur', "Veuillez saisir une adresse e-mail valide.");
-      return;
-    }
-    setNewsletterLoading(true);
-    const { error } = await supabase.from('newsletter_subscribers').insert([{ email: newsletterEmail }]);
-    setNewsletterLoading(false);
-    if (error) {
-      Alert.alert("Erreur", "L’inscription a échoué. Réessaye plus tard.");
-    } else {
-      Alert.alert("Inscription réussie", "Merci, vous êtes inscrit(e) à la newsletter Unite !");
-      setNewsletterEmail('');
-    }
-  };
+  if (!newsletterEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newsletterEmail)) {
+    Alert.alert('Erreur', "Veuillez saisir une adresse e-mail valide.");
+    return;
+  }
+  setNewsletterLoading(true);
+  const { error } = await supabase.from('newsletter_subscribers').insert([{ email: newsletterEmail }]);
+  setNewsletterLoading(false);
+
+  if (error) {
+    Alert.alert("Erreur", "L’inscription a échoué. Réessaye plus tard.");
+  } else {
+    Toast.show({
+      type: 'success',
+      text1: 'Inscription réussie 🎉',
+      text2: "Tu es inscrit(e) à la newsletter Unite !",
+      position: 'top',
+      topOffset: 50,
+    });
+    setNewsletterEmail('');
+  }
+};
 
   return (
 <KeyboardAwareScrollView

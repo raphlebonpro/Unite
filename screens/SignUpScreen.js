@@ -5,10 +5,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Platform
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SignUpScreen = () => {
   const navigation = useNavigation();
@@ -32,25 +33,34 @@ const SignUpScreen = () => {
           Créez ou rejoignez une session sportive, et bougez avec les gens autour de vous !
         </Text>
 
-        <TouchableOpacity
-          style={[styles.button, Platform.OS === 'android' && stylesA.button]}
-          onPress={handleSignUp}
-          activeOpacity={0.85}
-        >
-          <Text style={[styles.buttonText, Platform.OS === 'android' && stylesA.buttonText]}>
-            Créer un compte
-          </Text>
-        </TouchableOpacity>
+{/* Bouton créer un compte */}
+<TouchableOpacity onPress={handleSignUp} activeOpacity={0.85}>
+  <LinearGradient
+    colors={['#FF9A6C', '#FF5E62']}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 0 }}
+    style={[styles.button, Platform.OS === 'android' && stylesA.button]}
+  >
+    <Text style={[styles.buttonText, Platform.OS === 'android' && stylesA.buttonText]}>
+      Créer un compte
+    </Text>
+  </LinearGradient>
+</TouchableOpacity>
 
         <View style={[styles.separatorContainer, Platform.OS === 'android' && stylesA.separatorContainer]}>
           <View style={styles.line} />
-          <Text style={[styles.separatorText, Platform.OS === 'android' && stylesA.separatorText]}>or</Text>
+          <Text style={[styles.separatorText, Platform.OS === 'android' && stylesA.separatorText]}>
+            ou
+          </Text>
           <View style={styles.line} />
         </View>
 
-        <View style={[{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 },
-          Platform.OS === 'android' && stylesA.bottomRow
-        ]}>
+        <View
+          style={[
+            { flexDirection: 'row', justifyContent: 'center', marginTop: 10 },
+            Platform.OS === 'android' && stylesA.bottomRow,
+          ]}
+        >
           <Text style={[styles.bottomText, Platform.OS === 'android' && stylesA.bottomText]}>
             Vous avez déjà un compte ?{' '}
           </Text>
@@ -67,6 +77,7 @@ const SignUpScreen = () => {
 
 export default SignUpScreen;
 
+/* ==== iOS (inchangé) ==== */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -98,10 +109,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   title: {
-    fontSize: hp('2.4%'),
+    fontSize: hp('2.4%'), // ✅ iOS garde sa taille d’origine
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: hp('0.54%'),
+    color: '#111',
   },
   subtitle: {
     fontSize: hp('1.6%'),
@@ -111,7 +123,6 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   button: {
-    backgroundColor: '#FF7355',
     paddingVertical: hp('1.4%'),
     borderRadius: wp('3%'),
     marginTop: hp('1.2%'),
@@ -119,7 +130,7 @@ const styles = StyleSheet.create({
     minWidth: 180,
     maxWidth: 340,
     alignSelf: 'center',
-    shadowColor: '#FF7355',
+    shadowColor: '#FF5E62',
     shadowOpacity: 0.08,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
@@ -129,7 +140,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     textAlign: 'center',
-    fontSize: hp('1.85%'),
+    fontSize: hp('1.85%'), // ✅ iOS garde sa taille d’origine
   },
   separatorContainer: {
     flexDirection: 'row',
@@ -148,16 +159,18 @@ const styles = StyleSheet.create({
   },
   bottomText: {
     textAlign: 'center',
-    fontSize: hp('1.65%'),
+    fontSize: hp('1.65%'), // ✅ iOS garde sa taille d’origine
+    color: '#333',
   },
   link: {
     color: '#A8957E',
     fontWeight: 'bold',
-    fontSize: hp('1.65%'),
+    fontSize: hp('1.65%'), // ✅ iOS garde sa taille d’origine
     textDecorationLine: 'underline',
   },
 });
 
+/* ==== Android (override uniquement) ==== */
 const stylesA = StyleSheet.create({
   container: {
     padding: 16,
@@ -177,20 +190,43 @@ const stylesA = StyleSheet.create({
     elevation: 6,
     marginVertical: 12,
   },
-  title: { fontSize: 22, marginBottom: 8 },
+  title: { fontSize: hp('2.4%'), marginBottom: 8 },
   subtitle: { fontSize: 14, marginTop: 8, marginBottom: 16 },
   button: {
-    paddingVertical: 14,
-    borderRadius: 18,
-    marginTop: 12,
+    paddingVertical: hp('1.4%'),
+    borderRadius: wp('3%'),
+    marginTop: hp('1.2%'),
     width: '100%',
+    minWidth: 180,
     maxWidth: 340,
     alignSelf: 'center',
+    shadowColor: '#FF5E62',
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  buttonText: { fontSize: 16, fontWeight: '700' },
+  buttonText: { 
+    fontSize: hp('2%'), // même taille que iOS
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+  },
   separatorContainer: { marginVertical: 14 },
   separatorText: { fontSize: 13 },
   bottomRow: { marginTop: 10 },
-  bottomText: { fontSize: 13 },
-  link: { fontSize: 13 },
+  bottomText: {
+    fontSize: hp('1.8%'), // ✅ Android corrigé
+    color: '#333',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  link: {
+    fontSize: hp('1.8%'), // ✅ Android corrigé
+    color: '#A8957E',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
 });

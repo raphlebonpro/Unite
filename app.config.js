@@ -5,12 +5,12 @@ export default {
     name: "Unite",
     slug: "Unite",
     owner: "raphlebon",
-    version: "1.0.3", // version affichée dans l'app
+    version: "1.0.3",
     orientation: "portrait",
-    icon: "./assets/icon.png",
     userInterfaceStyle: "light",
-    newArchEnabled: true,
+    newArchEnabled: false,
     updates: { enabled: false },
+
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
@@ -19,15 +19,14 @@ export default {
 
     ios: {
       bundleIdentifier: "com.collectif.uniteapp",
-      buildNumber: "14", // incrémente à chaque build iOS
+      buildNumber: "32",
+      icon: "./assets/icon.png",
       supportsTablet: true,
       config: {
-        googleMapsApiKey: process.env.IOS_GOOGLE_MAPS_SDK_KEY // Clé SDK iOS
+       googleMapsApiKey: process.env.IOS_GOOGLE_MAPS_SDK_KEY
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-
-        // Permissions nécessaires pour éviter les crashs
         NSCameraUsageDescription:
           "Nous utilisons l’appareil photo pour prendre votre photo de profil.",
         NSPhotoLibraryUsageDescription:
@@ -41,18 +40,19 @@ export default {
 
     android: {
       package: "com.collectif.uniteapp",
-      versionCode: 4, // incrémente aussi si tu rebuild pour le Play Store
+      versionCode: 34,
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#ffffff"
+       foregroundImage: "./assets/adaptive-icon-foreground1.png",
+       backgroundImage: "./assets/adaptive-icon-background1.png"
       },
+      permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
       config: {
         googleMaps: {
-          apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY // Clé SDK Android
+          apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY
         }
       },
-softwareKeyboardLayoutMode: "pan"
-},
+      softwareKeyboardLayoutMode: "resize"
+    },
 
     web: {
       favicon: "./assets/favicon.png"
@@ -61,7 +61,9 @@ softwareKeyboardLayoutMode: "pan"
     extra: {
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       eas: { projectId: "1fd6a80b-0337-4744-af25-0bcac83e416e" }
     }
   }
 };
+

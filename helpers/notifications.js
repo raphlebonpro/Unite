@@ -2,23 +2,16 @@
 import { supabase } from '../lib/supabaseClient';
 
 /* ===========================
-   🔵 Core – envoi centralisé
+   🔵 Core – fonction centrale
    =========================== */
 
-/**
- * Appelle l’Edge Function send_notification :
- * - insère la notif en base (service-role)
- * - envoie (optionnel) le push Expo côté Edge
- *
- * ⚠️ On ne lit jamais le expo_push_token côté client (RLS)
- */
 export async function notifyUser({
   user_id,
   title,
   body,
   message,
   type,
-  session_id,
+  session_id = null,
   sender_id = null,
   push = false,
 }) {
@@ -32,7 +25,6 @@ export async function notifyUser({
     const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     if (!baseUrl) throw new Error('EXPO_PUBLIC_SUPABASE_URL manquant');
 
-    // ✅ correction du slug → send_notifications (avec un s)
     const res = await fetch(`${baseUrl}/functions/v1/send_notifications`, {
       method: 'POST',
       headers: {
@@ -61,8 +53,8 @@ export async function notifyUser({
   }
 }
 
-/** Envoi à une liste d’utilisateurs (séquentiel pour éviter les ratés) */
-async function notifyMany(userIds = [], buildPayload /* (uid)=>payload */) {
+/** Envoi groupé séquentiel */
+async function notifyMany(userIds = [], buildPayload) {
   for (const uid of userIds) {
     const payload = buildPayload(uid);
     if (!payload?.user_id) payload.user_id = uid;
@@ -71,314 +63,455 @@ async function notifyMany(userIds = [], buildPayload /* (uid)=>payload */) {
 }
 
 /* ===========================
-   🧩 Cas fonctionnels couverts
+   📌 Sessions
    =========================== */
 
-/** 1) Création de session – confirmation au créateur */
-export async function notifySessionCreatedForCreator({ creatorId, sessionId, title = 'Session créée', body = 'Votre session a bien été créée.' }) {
+export async function notifySessionCreated({ creatorId, sessionId, title }) {
   await notifyUser({
     user_id: creatorId,
-    title,
-    body,
+    title: 'Session créée',
+    body: `Ta session "${title}" a bien été créée.`,
     type: 'session_created',
+    session_id: sessionId,
+    sender_id: creatorId,
+    push: false, // confirmation locale
+  });
+}
+
+export async function notifySessionDeletedCreator({ creatorId, sessionTitle, sessionId }) {
+  await notifyUser({
+    user_id: creatorId,
+    title: 'Session supprimée',
+    body: `Ta session "${sessionTitle}" a bien été supprimée.`,
+    type: 'session_deleted_creator',
+    session_id: sessionId,
+    sender_id: creatorId,
+    push: false,
+  });
+}
+
+export async function notifySessionDeletedParticipants({ participantIds = [], sessionTitle, sessionId }) {
+  await notifyMany(participantIds, () => ({
+    title: 'Session annulée',
+    body: `La session "${sessionTitle}" à laquelle tu participais a été annulée.`,
+    type: 'session_deleted_participant',
+    session_id: sessionId,
+    push: true,
+  }));
+}
+
+export async function notifySessionUpdatedCreator({ creatorId, sessionTitle, sessionId }) {
+  await notifyUser({
+    user_id: creatorId,
+    title: 'Session modifiée',
+    body: `Ta session "${sessionTitle}" a bien été modifiée.`,
+    type: 'session_updated_creator',
     session_id: sessionId,
     sender_id: creatorId,
     push: true,
   });
 }
 
-/** 2) Un utilisateur rejoint une session (confirmation au joiner) */
-export async function notifySessionJoinedForJoiner({ joinerId, sessionId }) {
-  await notifyUser({
-    user_id: joinerId,
-    title: 'Inscription confirmée',
-    body: 'Tu as rejoint la session.',
-    type: 'session_joined',
-    session_id: sessionId,
-    sender_id: joinerId,
-    push: true,
-  });
-}
-
-/** 3) Un utilisateur rejoint une session – informer le créateur + autres participants */
-export async function notifyParticipantJoinedAudience({
-  sessionId,
-  creatorId,
-  joinerId,
-  joinerName,
-  otherParticipantIds = [],
-}) {
-  // Créateur
-  if (creatorId) {
-    await notifyUser({
-      user_id: creatorId,
-      title: 'Nouveau participant',
-      body: `${joinerName} a rejoint votre session.`,
-      type: 'participant_joined',
-      session_id: sessionId,
-      sender_id: joinerId,
-      push: true,
-    });
-  }
-  // Autres participants (hors le joiner)
-  const audience = (otherParticipantIds || []).filter((id) => id && id !== joinerId && id !== creatorId);
-  await notifyMany(audience, () => ({
-    title: 'Nouveau participant',
-    body: `${joinerName} a rejoint la session.`,
-    type: 'participant_joined',
-    session_id: sessionId,
-    sender_id: joinerId,
-    push: true,
-  }));
-}
-
-/** 4) Exclure quelqu’un / Être exclu / Avertir les autres (déjà existant, consolidé) */
-export async function notifyExclusion({
-  sessionId,
-  creatorId,
-  excludedUserId,
-  excludedUserName,
-  otherParticipants = [],
-}) {
-  // Créateur
-  if (creatorId) {
-    await notifyUser({
-      user_id: creatorId,
-      title: 'Exclusion effectuée',
-      body: `Vous avez exclu ${excludedUserName} de la session.`,
-      type: 'exclude_user',
-      session_id: sessionId,
-      sender_id: creatorId,
-    });
-  }
-  // Utilisateur exclu
-  await notifyUser({
-    user_id: excludedUserId,
-    title: 'Exclusion',
-    body: 'Vous avez été exclu de la session.',
-    type: 'excluded_from_session',
-    session_id: sessionId,
-    sender_id: creatorId || null,
-    push: true,
-  });
-  // Autres participants
-  const audience = (otherParticipants || []).filter((id) => id && id !== excludedUserId && id !== creatorId);
-  await notifyMany(audience, () => ({
-    title: 'Participant exclu',
-    body: `${excludedUserName} a été exclu de la session.`,
-    type: 'excluded_from_session',
-    session_id: sessionId,
-    sender_id: creatorId || null,
-    push: false,
-  }));
-}
-
-/** 5) Suppression de session – créateur + participants */
-export async function notifySessionDeleted({ sessionId, creatorId, participantIds = [] }) {
-  if (creatorId) {
-    await notifyUser({
-      user_id: creatorId,
-      title: 'Session supprimée',
-      body: 'Votre session a bien été supprimée.',
-      type: 'session_deleted_creator',
-      session_id: sessionId,
-      sender_id: creatorId,
-    });
-  }
+export async function notifySessionUpdatedParticipants({ participantIds = [], sessionTitle, sessionId }) {
   await notifyMany(participantIds, () => ({
-    title: 'Session supprimée',
-    body: 'La session à laquelle vous participiez a été supprimée.',
-    type: 'session_deleted_participant',
+    title: 'Session modifiée',
+    body: `La session "${sessionTitle}" à laquelle tu participes a été modifiée.`,
+    type: 'session_updated_participant',
     session_id: sessionId,
-    sender_id: creatorId || null,
     push: true,
   }));
 }
 
-/** 6) Nouveau message dans un groupe de session */
-export async function notifyNewMessage({ sessionId, senderName, recipientId, content }) {
-  await notifyUser({
-    user_id: recipientId,
-    title: `Nouveau message de ${senderName}`,
-    body: content?.substring(0, 80) || 'Nouveau message reçu',
-    type: 'new_message',
-    session_id: sessionId,
-    sender_id: null,
-    push: true,
-  });
-}
-
-/** 7) Nouvelle activité à proximité (nouvelle session proche) */
-export async function notifyNewSessionNearby({ userId, sport, distance }) {
-  await notifyUser({
-    user_id: userId,
-    title: 'Nouvelle activité près de toi',
-    body: `Une session de ${sport} vient d’être créée à ${distance} km de toi.`,
-    type: 'new_session_nearby',
-    sender_id: null,
-    push: true,
-  });
-}
-
-/** 8) Nouveaux défis collectifs */
-export async function notifyCollectiveChallenge({ audienceUserIds = [], challengeTitle, challengeId }) {
-  await notifyMany(audienceUserIds, () => ({
-    title: 'Nouveau défi du Collectif',
-    body: challengeTitle || 'Un nouveau défi vient de commencer. Rejoins-le !',
-    type: 'collective_challenge',
-    session_id: challengeId || null,
-    sender_id: null,
-    push: true,
-  }));
-}
-
-/** 9) Demande d’ami reçue */
-export async function notifyFriendRequest({ recipientId, requesterId, requesterName }) {
-  await notifyUser({
-    user_id: recipientId,
-    title: 'Nouvelle demande d’ami',
-    body: `${requesterName} souhaite te suivre et jouer avec toi.`,
-    type: 'friend_request',
-    sender_id: requesterId, // 👈 pour tes actions "Accepter/Refuser" côté UI
-    push: true,
-  });
-}
-
-/** 10) Réponse à une demande d’ami (acceptée / refusée) */
-export async function notifyFriendRequestDecision({ requesterId, recipientName, accepted }) {
-  await notifyUser({
-    user_id: requesterId,
-    title: accepted ? 'Demande d’ami acceptée' : 'Demande d’ami refusée',
-    body: accepted
-      ? `${recipientName} a accepté ta demande.`
-      : `${recipientName} a refusé ta demande.`,
-    type: accepted ? 'friend_request_accepted' : 'friend_request_rejected',
-    sender_id: null,
-    push: true,
-  });
-}
-
-/** 11) Signalement envoyé (confirmation à l’émetteur) */
-export async function notifyReportSubmitted({ reporterId, reportedUserName }) {
-  await notifyUser({
-    user_id: reporterId,
-    title: 'Signalement envoyé',
-    body: `${reportedUserName} a été signalé avec succès.`,
-    type: 'user_reported',
-    sender_id: null,
-    push: true,
-  });
-}
-
-/** 12) 2h après la session : demander de laisser un avis sur CHAQUE participant */
-export async function notifyLeaveReviewForParticipants({ sessionId, requesterId, participantIds = [] }) {
-  // requesterId = l’utilisateur à qui on demande de laisser des avis
-  await notifyMany(participantIds, () => ({
-    user_id: requesterId, // 👉 on notifie la même personne plusieurs fois ? No: on envoie UNE notif "laisse un avis" (pas une par participant)
-    title: 'Donne ton avis',
-    body: 'Laisse un avis sur tes coéquipiers de cette session.',
-    type: 'leave_review',
-    session_id: sessionId,
-    sender_id: null,
-    push: true,
-  }));
-  // Variante : si tu veux une seule notif (recommandé), appelle plutôt ceci :
-  // await notifyUser({ user_id: requesterId, title: 'Donne ton avis', body: 'Laisse un avis sur tes coéquipiers de cette session.', type: 'leave_review', session_id: sessionId, push: true });
-}
-
-/** 13) Avis reçu d’un coéquipier */
-export async function notifyReviewReceived({ recipientId, reviewerName, sessionId }) {
-  await notifyUser({
-    user_id: recipientId,
-    title: 'Nouvel avis reçu',
-    body: `${reviewerName} t’a laissé un avis.`,
-    type: 'review_received',
-    session_id: sessionId,
-    sender_id: null,
-    push: true,
-  });
-}
-
-/** 14) Rappel : la session commence dans 2h */
-export async function notifySessionStartingSoon({ userIds = [], sessionId, minutes = 120 }) {
+export async function notifySessionStartingSoon({ userIds = [], sessionTitle, sessionId, minutes = 120 }) {
   await notifyMany(userIds, () => ({
     title: 'Rappel',
-    body: `Ta session commence dans ${minutes} minutes.`,
+    body: `Ta session "${sessionTitle}" commence dans ${minutes} minutes.`,
     type: 'session_start_soon',
     session_id: sessionId,
-    sender_id: null,
     push: true,
   }));
 }
 
-/** 15) Badge reçu */
-export async function notifyBadgeAwarded({ userId, badgeName }) {
+export async function notifySessionEnded({ userIds = [], sessionId }) {
+  await notifyMany(userIds, () => ({
+    title: 'Session terminée',
+    body: `Ta session est terminée ! Laisse un avis sur tes coéquipiers.`,
+    type: 'leave_review',
+    session_id: sessionId,
+    push: true,
+  }));
+}
+
+export async function notifySessionFull({ creatorId, sessionTitle, sessionId }) {
   await notifyUser({
-    user_id: userId,
-    title: 'Nouveau badge',
-    body: `Tu as reçu le badge “${badgeName}”.`,
-    type: 'badge_awarded',
-    sender_id: null,
+    user_id: creatorId,
+    title: 'Session complète',
+    body: `Ta session "${sessionTitle}" est maintenant complète.`,
+    type: 'session_full',
+    session_id: sessionId,
     push: true,
   });
 }
 
-/** 16) Un ami rejoint une session (feed social) */
-export async function notifyFriendJoinedSession({ audienceUserIds = [], friendName, sessionId }) {
-  await notifyMany(audienceUserIds, () => ({
-    title: 'Ton ami est actif !',
-    body: `${friendName} a rejoint une session.`,
-    type: 'friend_joined_session',
+/* ===========================
+   👥 Participants
+   =========================== */
+
+export async function notifyParticipantJoinedCreator({ creatorId, joinerId, joinerName, sessionTitle, sessionId }) {
+  await notifyUser({
+    user_id: creatorId,
+    title: 'Nouveau participant',
+    body: `${joinerName} a rejoint ta session "${sessionTitle}".`,
+    type: 'participant_joined_creator',
     session_id: sessionId,
-    sender_id: null,
+    sender_id: joinerId,
+    push: true,
+  });
+}
+
+export async function notifyParticipantJoinedOthers({ participantIds = [], joinerId, joinerName, sessionTitle, sessionId }) {
+  await notifyMany(participantIds, () => ({
+    title: 'Nouveau participant',
+    body: `${joinerName} a rejoint la session "${sessionTitle}" à laquelle tu participes.`,
+    type: 'participant_joined_participant',
+    session_id: sessionId,
+    sender_id: joinerId,
     push: true,
   }));
 }
 
-/** 17) Un ami crée une session (feed social) */
-export async function notifyFriendCreatedSession({ audienceUserIds = [], friendName, sessionId }) {
-  await notifyMany(audienceUserIds, () => ({
-    title: 'Nouvelle session d’un ami',
-    body: `${friendName} vient de créer une session.`,
-    type: 'friend_created_session',
+export async function notifyYouJoinedSession({ userId, sessionTitle, sessionId }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Inscription confirmée',
+    body: `Tu as bien rejoint la session "${sessionTitle}".`,
+    type: 'session_joined',
     session_id: sessionId,
-    sender_id: null,
-    push: true,
-  }));
+    sender_id: userId,
+    push: true, // confirmation locale
+  });
 }
 
-/** 18) Quitter une session (créateur + quittant) */
-export async function notifyLeftSession({ sessionId, creatorId, leaverId, leaverName, otherParticipantIds = [] }) {
-  // Créateur
-  if (creatorId) {
+export async function notifyParticipantLeft({ creatorId, leaverId, leaverName, sessionTitle, sessionId, otherParticipantIds = [] }) {
+  // Notifier le créateur
+  if (creatorId && leaverId !== creatorId) {
     await notifyUser({
       user_id: creatorId,
-      title: 'Un participant est parti',
-      body: `${leaverName} a quitté votre session.`,
-      type: 'left_session',
+      title: 'Participant parti',
+      body: `${leaverName} a quitté ta session "${sessionTitle}".`,
+      type: 'participant_left_creator',
       session_id: sessionId,
       sender_id: leaverId,
       push: true,
     });
   }
-  // Le quittant (confirmation)
-  await notifyUser({
-    user_id: leaverId,
-    title: 'Vous avez quitté la session',
-    body: 'Vous avez quitté la session avec succès.',
-    type: 'left_session',
-    session_id: sessionId,
-    sender_id: null,
-    push: false,
-  });
-  // Autres participants (optionnel)
-  const audience = (otherParticipantIds || []).filter((id) => id && id !== leaverId && id !== creatorId);
-  await notifyMany(audience, () => ({
-    title: 'Un participant est parti',
-    body: `${leaverName} a quitté la session.`,
-    type: 'left_session',
+
+  // Notifier les autres participants
+  await notifyMany(otherParticipantIds, () => ({
+    title: 'Participant parti',
+    body: `${leaverName} a quitté la session "${sessionTitle}".`,
+    type: 'participant_left_participant',
     session_id: sessionId,
     sender_id: leaverId,
-    push: false,
+    push: true,
   }));
+
+  // Confirmation au quittant (push pas nécessaire)
+  await notifyUser({
+    user_id: leaverId,
+    title: 'Tu as quitté la session',
+    body: `Tu as bien quitté la session "${sessionTitle}".`,
+    type: 'participant_left_self',
+    session_id: sessionId,
+    push: false,
+  });
+}
+
+export async function notifyExclusion({ creatorId, excludedId, excludedName, sessionTitle, sessionId, otherParticipantIds = [] }) {
+  // Notifier l'exclu
+  await notifyUser({
+    user_id: excludedId,
+    title: 'Exclusion',
+    body: `Tu as été exclu de la session "${sessionTitle}".`,
+    type: 'excluded_from_session',
+    session_id: sessionId,
+    sender_id: creatorId,
+    push: true,
+  });
+
+  // Notifier le créateur (confirmation)
+  if (creatorId) {
+    await notifyUser({
+      user_id: creatorId,
+      title: 'Exclusion effectuée',
+      body: `Tu as exclu ${excludedName} de la session "${sessionTitle}".`,
+      type: 'exclude_user',
+      session_id: sessionId,
+      sender_id: excludedId,
+      push: false,
+    });
+  }
+
+  // Notifier les autres participants
+  await notifyMany(otherParticipantIds, () => ({
+    title: 'Exclusion',
+    body: `${excludedName} a été exclu de la session "${sessionTitle}".`,
+    type: 'excluded_participant',
+    session_id: sessionId,
+    sender_id: creatorId,
+    push: true,
+  }));
+}
+
+/* ===========================
+   💬 Messages
+   =========================== */
+
+export async function notifyNewMessage({ recipientId, senderId, senderName, sessionTitle, sessionId }) {
+  // Ne pas notifier si sender == recipient
+  if (recipientId === senderId) return;
+
+  await notifyUser({
+    user_id: recipientId,
+    title: `Nouveau message`,
+    body: `${senderName} a envoyé un message dans la session "${sessionTitle}".`,
+    type: 'new_message',
+    session_id: sessionId,
+    sender_id: senderId,
+    push: true,
+  });
+}
+
+
+/* ===========================
+   🤝 Amis
+   =========================== */
+
+export async function notifyFriendRequestReceived({ recipientId, senderId, senderName }) {
+  await notifyUser({
+    user_id: recipientId,
+    title: 'Nouvelle demande d’ami',
+    body: `${senderName} t’a envoyé une demande d’ami.`,
+    type: 'friend_request',
+    sender_id: senderId,
+    push: true,
+  });
+}
+
+export async function notifyFriendRequestSent({ senderId, receiverName }) {
+  await notifyUser({
+    user_id: senderId,
+    title: 'Demande envoyée',
+    body: `Ta demande d’ami à ${receiverName} a bien été envoyée.`,
+    type: 'friend_request_sent',
+    sender_id: senderId,
+    push: false, // confirmation locale
+  });
+}
+
+export async function notifyFriendRequestAcceptedSender({ senderId, receiverName }) {
+  await notifyUser({
+    user_id: senderId,
+    title: 'Demande acceptée',
+    body: `${receiverName} a accepté ta demande, vous êtes désormais coéquipiers !`,
+    type: 'friend_request_accepted',
+    sender_id: null,
+    push: true,
+  });
+}
+
+export async function notifyFriendRequestRejectedSender({ senderId, receiverName }) {
+  await notifyUser({
+    user_id: senderId,
+    title: 'Demande refusée',
+    body: `${receiverName} a refusé ta demande d’ami.`,
+    type: 'friend_request_rejected',
+    sender_id: null,
+    push: true,
+  });
+}
+
+export async function notifyFriendRequestAcceptedReceiver({ receiverId, senderName }) {
+  await notifyUser({
+    user_id: receiverId,
+    title: 'Nouveau coéquipier',
+    body: `Tu es désormais coéquipier avec ${senderName}.`,
+    type: 'friend_request_accepted_self',
+    sender_id: null,
+    push: false, // confirmation locale
+  });
+}
+
+/* ===========================
+   🏅 Social / Progression
+   =========================== */
+
+export async function notifyFriendJoinedSession({ audienceUserIds = [], friendName, sessionTitle, sessionId }) {
+  await notifyMany(audienceUserIds, () => ({
+    title: 'Ton ami est actif !',
+    body: `${friendName} a rejoint la session "${sessionTitle}".`,
+    type: 'friend_joined_session',
+    session_id: sessionId,
+    push: true,
+  }));
+}
+
+export async function notifyBadgeAwarded({ userId, badgeName }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Nouveau badge',
+    body: `Tu as obtenu le badge "${badgeName}" !`,
+    type: 'badge_awarded',
+    push: true,
+  });
+}
+
+export async function notifyNewSessionNearby({ userId, sport, distance }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Nouvelle session près de toi',
+    body: `Une session de ${sport} vient d’être créée à ${distance} km de ta localisation.`,
+    type: 'new_session_nearby',
+    push: true,
+  });
+}
+
+export async function notifyCollectiveChallenge({ audienceUserIds = [], challengeTitle, challengeId }) {
+  await notifyMany(audienceUserIds, () => ({
+    title: 'Nouveau défi collectif',
+    body: challengeTitle || 'Un nouveau défi vient de commencer, rejoins-le !',
+    type: 'collective_challenge',
+    session_id: challengeId || null,
+    push: true,
+  }));
+}
+
+export async function notifyReviewReceived({ recipientId, reviewerName, sessionId }) {
+  await notifyUser({
+    user_id: recipientId,
+    title: 'Nouvel avis reçu',
+    body: `${reviewerName} a laissé un avis sur ton profil.`,
+    type: 'review_received',
+    session_id: sessionId,
+    push: true,
+  });
+}
+
+/* ===========================
+   ⚙️ Préférences & Profil
+   =========================== */
+
+export async function notifyProfileUpdated({ userId }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Profil mis à jour',
+    body: 'Ton profil a bien été modifié.',
+    type: 'profile_updated',
+    push: false, // confirmation locale
+  });
+}
+
+export async function notifyLocationPreferencesUpdated({ userId }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Localisation enregistrée',
+    body: 'Tes préférences de localisation ont été enregistrées.',
+    type: 'location_preferences_updated',
+    push: false,
+  });
+}
+
+export async function notifyNotificationPreferencesUpdated({ userId }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Notifications enregistrées',
+    body: 'Tes préférences de notification ont été enregistrées.',
+    type: 'notification_preferences_updated',
+    push: false,
+  });
+}
+
+export async function notifyReviewUpdated({ recipientId, reviewerName }) {
+  await notifyUser({
+    user_id: recipientId,
+    title: 'Avis modifié',
+    body: `${reviewerName} a mis à jour son avis sur ton profil.`,
+    type: 'review_updated',
+    push: true,
+  });
+}
+
+export async function notifyReportConfirmation({ reporterId, targetName }) {
+  await notifyUser({
+    user_id: reporterId,
+    title: 'Signalement confirmé',
+    body: `Ton signalement concernant ${targetName} a bien été pris en compte.`,
+    type: 'report_confirmation',
+    push: false, // confirmation locale
+  });
+}
+
+export async function notifyReportedUser({ reportedId }) {
+  await notifyUser({
+    user_id: reportedId,
+    title: 'Compte signalé',
+    body: `Ton comportement a été signalé par un utilisateur.`,
+    type: 'user_reported',
+    push: true,
+  });
+}
+
+export async function notifyFeedbackReceived({ userId, feedbackId }) {
+  // Ici tu peux cibler un compte admin fixe (par ex. ADMIN_USER_ID),
+  // ou une liste d’admins stockés en base
+  const ADMIN_USER_ID = process.env.EXPO_PUBLIC_ADMIN_USER_ID || null;
+  if (!ADMIN_USER_ID) return;
+
+  await notifyUser({
+    user_id: ADMIN_USER_ID,
+    title: 'Nouveau feedback reçu',
+    body: `Un utilisateur a soumis un feedback (#${feedbackId}).`,
+    type: 'feedback_received',
+    sender_id: userId,
+    push: true,
+  });
+}
+
+export async function notifyNearbyUsersOnSessionCreated({ sessionId, sport, lat, lng, creatorId, radiusKm = 20 }) {
+  try {
+    // 🔑 Récupérer le token de session (auth)
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || '';
+    const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    if (!baseUrl) throw new Error('EXPO_PUBLIC_SUPABASE_URL manquant');
+
+    // 🌍 Appel de l’edge function
+    const res = await fetch(`${baseUrl}/functions/v1/notify_nearby_sessions`, {
+      method: 'POST',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionId,
+        sport,
+        lat,
+        lng,
+        creatorId,
+        radiusKm, // par défaut 20 km mais override possible
+      }),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`notify_nearby_sessions failed: ${res.status} ${txt}`);
+    }
+
+    const result = await res.json();
+    console.log('✅ notifyNearbyUsersOnSessionCreated OK:', result);
+    return true;
+  } catch (e) {
+    console.warn('[notifyNearbyUsersOnSessionCreated] fail:', e?.message || e);
+    return false;
+  }
 }

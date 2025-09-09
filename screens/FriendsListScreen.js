@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
@@ -65,9 +66,9 @@ const FriendsListScreen = ({ route }) => {
         return;
       }
 
-      // 4) Récupération des profils (si RLS bloque, utilise une vue user_public)
+      // 4) Récupération des profils
       const { data: usersRows, error: usersErr } = await supabase
-        .from('users') // ➜ remplace par 'user_public' si nécessaire côté RLS
+        .from('users')
         .select('id, username, profile_photo')
         .in('id', mutualIds);
 
@@ -88,17 +89,57 @@ const FriendsListScreen = ({ route }) => {
   }, [targetUserId]);
 
   const renderFriend = ({ item }) => (
-    <TouchableOpacity
-      style={styles.friendItem}
-      onPress={() => navigation.navigate('UserProfile', { userId: item.id })}
-      activeOpacity={0.8}
-    >
-      <Image
-        source={{ uri: item.profile_photo || 'https://via.placeholder.com/50' }}
-        style={styles.avatar}
-      />
-      <Text style={styles.username}>{item.username}</Text>
-    </TouchableOpacity>
+    <View style={styles.friendItem}>
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+        onPress={() => navigation.navigate('UserProfile', { userId: item.id })}
+        activeOpacity={0.8}
+      >
+        <Image
+          source={{ uri: item.profile_photo || 'https://via.placeholder.com/50' }}
+          style={styles.avatar}
+        />
+        <Text style={styles.username}>{item.username}</Text>
+      </TouchableOpacity>
+
+      {/* Bouton Supprimer : visible seulement si je consulte MA liste */}
+      {targetUserId === user?.id && (
+        <TouchableOpacity
+          style={styles.removeBtn}
+          onPress={async () => {
+            Alert.alert(
+              'Supprimer cet ami ?',
+              `Es-tu sûr de vouloir retirer ${item.username} de tes coéquipiers ?`,
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Supprimer',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // Supprimer la relation dans les deux sens
+                      await supabase
+                        .from('friends')
+                        .delete()
+                        .or(
+                          `and(follower_id.eq.${user.id},following_id.eq.${item.id}),and(follower_id.eq.${item.id},following_id.eq.${user.id})`
+                        );
+
+                      // Mettre à jour la liste localement
+                      setFriends((prev) => prev.filter((f) => f.id !== item.id));
+                    } catch (e) {
+                      Alert.alert('Erreur', e.message);
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+        >
+          <Text style={styles.removeBtnText}>✕</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   return (
@@ -122,9 +163,28 @@ const FriendsListScreen = ({ route }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   friendItem: { flexDirection: 'row', alignItems: 'center', padding: 15 },
-  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15, backgroundColor: '#eee' },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+    backgroundColor: '#eee',
+  },
   username: { fontSize: 16, fontWeight: '600' },
   noFriends: { textAlign: 'center', marginTop: 30, fontSize: 16, color: '#888' },
+  removeBtn: {
+    backgroundColor: '#ff4d4d',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  removeBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
 });
 
 export default FriendsListScreen;
+

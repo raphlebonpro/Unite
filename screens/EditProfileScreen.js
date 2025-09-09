@@ -26,7 +26,7 @@ if (typeof global !== "undefined") global.Buffer = Buffer;
 const BAD_WORDS = [
  'pd', 'pédé', 'fdp', 'enculé', 'ntm', 'nique ta mère', 'sale negre', 'negro', 'batard', 'tg', 'connard', 'sale noir',
  'pute', 'salope', 'bougnoule', 'youpin', 'encule', 'encu', 'nègre', 'negro', 'juif', 'negre', 'arabe',
- 'nique', 'sale', 'n3gre', 'negr3', 'sal', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'pute', 'baise', 'foudroyeur', 'renoi'
+ 'nique', 'sale', 'n3gre', 'negr3', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'pute', 'baise', 'foudroyeur', 'renoi'
 ];
 
 function containsBadWord(text) {
@@ -325,7 +325,7 @@ const EditProfileScreen = ({ navigation }) => {
               </TouchableOpacity>
             </LinearGradient>
           </View>
-          <View style={{ height: 24 }} />
+          <View style={{ height: 10 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -422,16 +422,17 @@ const styles = StyleSheet.create({
     width: '88%',
     alignSelf: 'center',
     marginTop: hp('3.2%'),
-    marginBottom: hp('1.2%'),
+    marginBottom: hp('0.5%'),
     borderRadius: wp('5%'),
     overflow: 'hidden',
   },
   buttonGradient: {
-    width: '100%',
-    paddingVertical: hp('1.7%'),
-    borderRadius: wp('5%'),
+    width: '80%',
+    paddingVertical: hp('1.5%'),
+    borderRadius: wp('4%'),
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
   },
   buttonTouchable: {
     width: '100%',

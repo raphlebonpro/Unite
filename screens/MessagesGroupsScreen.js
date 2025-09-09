@@ -18,6 +18,10 @@ import MiniAppBar from '../components/MiniAppBar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { RefreshControl, Platform } from 'react-native';
+import { SafeAreaView as SafeAreaViewCtx, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+
 
 const MessagesGroupsScreen = () => {
   const navigation = useNavigation();
@@ -26,6 +30,28 @@ const MessagesGroupsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [unreadMap, setUnreadMap] = useState({}); // { [sessionId]: true/false }
+
+  const insets = useSafeAreaInsets();
+  const [refreshing, setRefreshing] = useState(false);
+  const [layoutKey, setLayoutKey] = useState(0); // forces a tiny re-layout after refresh
+
+const onRefresh = async () => {
+  setRefreshing(true);
+  await fetchSessions();           // re-fetch list
+  setLayoutKey(k => k + 1);        // nudge layout (fixes occasional Android status area paint)
+  setRefreshing(false);
+};
+
+useFocusEffect(
+  React.useCallback(() => {
+    // keep it simple: paint white and use dark icons
+    StatusBar.setBarStyle('dark-content');
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor('#fff');
+      StatusBar.setTranslucent(false);
+    }
+  }, [])
+);
 
   // sessions visibles après filtre
   const filteredSessions = useMemo(() => {
@@ -219,87 +245,119 @@ const MessagesGroupsScreen = () => {
     setLoading(false);
   };
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-      <StatusBar barStyle="dark-content" />
-      <MiniAppBar
-        title="Messages"
-        hasNotifications={false}
-        onNotificationsPress={() => navigation.navigate('Notifications')}
-        onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
+return (
+  <SafeAreaViewCtx style={{ flex: 1, backgroundColor: '#fff' }}>
+    {/* StatusBar explicit (first paint) */}
+    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
+    {/* Mini app bar already handles insets internally */}
+    <MiniAppBar
+      title="Messages"
+      hasNotifications={false}
+      onNotificationsPress={() => navigation.navigate('Notifications')}
+      onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
+    />
+
+    {/* Search bar */}
+    <View style={styles.searchContainer}>
+      <Ionicons name="search-outline" size={22} color="#B8B8B8" />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search group chats"
+        placeholderTextColor="#B8B8B8"
+        value={search}
+        onChangeText={setSearch}
       />
+    </View>
 
-      {/* Barre de recherche */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={22} color="#B8B8B8" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search group chats"
-          placeholderTextColor="#B8B8B8"
-          value={search}
-          onChangeText={setSearch}
-        />
+    {/* List */}
+    {loading ? (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2EB47B" />
       </View>
+    ) : filteredSessions.length === 0 ? (
+      <FlatList
+        data={[]}
+        keyExtractor={() => 'empty'}
+        ListEmptyComponent={
+          <View style={styles.loadingContainer}>
+            <Text style={{ color: '#aaa', fontSize: 17, fontWeight: '500' }}>
+              Aucun groupe trouvé
+            </Text>
+          </View>
+        }
+        // allow pull to refresh even on empty state
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#5B4EFF']}
+            tintColor="#5B4EFF"
+            progressBackgroundColor="#fff"
+          />
+        }
+      />
+    ) : (
+      <FlatList
+        key={layoutKey}                    // small kick for Android layout after refresh
+        data={filteredSessions}
+        keyExtractor={item => String(item.id)}
+        renderItem={({ item }) => {
+          const hasUnread = !!unreadMap[item.id];
+          return (
+            <View style={styles.groupRow}>
+              <TouchableOpacity
+                style={styles.groupTouchable}
+                activeOpacity={0.7}
+                onPress={() => handleGroupPress(item.id)}
+              >
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarLetter}>
+                    {item.title.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
 
-      {/* Liste */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2EB47B" />
-        </View>
-      ) : filteredSessions.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <Text style={{ color: '#aaa', fontSize: 17, fontWeight: '500' }}>
-            Aucun groupe trouvé
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredSessions}
-          keyExtractor={item => String(item.id)}
-          renderItem={({ item }) => {
-            const hasUnread = !!unreadMap[item.id];
-            return (
-              <View style={styles.groupRow}>
-                <TouchableOpacity
-                  style={styles.groupTouchable}
-                  activeOpacity={0.7}
-                  onPress={() => handleGroupPress(item.id)}
-                >
-                  <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarLetter}>
-                      {item.title.charAt(0).toUpperCase()}
-                    </Text>
+                <View style={styles.infoContainer}>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.groupTitle} numberOfLines={1}>{item.title}</Text>
+                    {hasUnread && (
+                      <View style={styles.unreadBadge}>
+                        <Ionicons name="mail-unread-outline" size={16} color="#ff6b6b" />
+                      </View>
+                    )}
                   </View>
+                  <Text style={styles.groupSport} numberOfLines={1}>{item.sport}</Text>
+                </View>
+              </TouchableOpacity>
 
-                  <View style={styles.infoContainer}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.groupTitle} numberOfLines={1}>{item.title}</Text>
-
-                      {/* Icône non lus */}
-                      {hasUnread && (
-                        <View style={styles.unreadBadge}>
-                          <Ionicons name="mail-unread-outline" size={16} color="#ff6b6b" />
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.groupSport} numberOfLines={1}>{item.sport}</Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => handleDeleteGroup(item.id, item.title)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Feather name="trash-2" size={22} color="#D83C3C" />
-                </TouchableOpacity>
-              </View>
-            );
-          }}
-        />
-      )}
-    </SafeAreaView>
-  );
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteGroup(item.id, item.title)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="trash-2" size={22} color="#D83C3C" />
+              </TouchableOpacity>
+            </View>
+          );
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#5B4EFF']}           // Android spinner color
+            tintColor="#5B4EFF"            // iOS spinner color
+            progressBackgroundColor="#fff"
+          />
+        }
+        contentContainerStyle={{
+          // make sure background shows under status area during pull
+          paddingBottom: 8,
+          backgroundColor: '#fff',
+        }}
+      />
+    )}
+  </SafeAreaViewCtx>
+);
 };
 
 const styles = StyleSheet.create({

@@ -9,6 +9,7 @@ import {
   View,
   StatusBar,
   Platform,
+  Pressable,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Feather, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
@@ -396,23 +397,78 @@ const fetchFriendsCount = useCallback(async () => {
   setFriendsCount(mutual);
 }, [currentUserId]);
 
-// charge le compteur quand l'id est prêt
-useEffect(() => { fetchFriendsCount(); }, [fetchFriendsCount]);
+// 🔄 Rafraîchit la liste d’amis (compteur + état)
+const refreshFriendState = useCallback(async () => {
+  if (!currentUserId) return;
 
-// realtime : MAJ dès qu’une relation friends change
+  // RPC (si dispo)
+  const rpc = await supabase.rpc('user_friends_count', { p_user: currentUserId });
+  if (!rpc.error && typeof rpc.data === 'number') {
+    setFriendsCount(rpc.data);
+    return;
+  }
+
+  // Fallback sans RPC : intersection manuelle
+  const { data: out } = await supabase
+    .from('friends')
+    .select('following_id')
+    .eq('follower_id', currentUserId);
+
+  const { data: inc } = await supabase
+    .from('friends')
+    .select('follower_id')
+    .eq('following_id', currentUserId);
+
+  const outSet = new Set((out || []).map(r => r.following_id));
+  const incSet = new Set((inc || []).map(r => r.follower_id));
+
+  let mutual = 0;
+  outSet.forEach(id => {
+    if (incSet.has(id)) mutual++;
+  });
+
+  setFriendsCount(mutual);
+}, [currentUserId]);
+
+useEffect(() => {
+  if (!currentUserId) return;
+  const ch = supabase
+    .channel(`friends_me_${currentUserId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'friends', filter: `follower_id=eq.${currentUserId}` },
+      refreshFriendState
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'friends', filter: `following_id=eq.${currentUserId}` },
+      refreshFriendState
+    )
+    .subscribe();
+
+  return () => supabase.removeChannel(ch);
+}, [currentUserId, refreshFriendState]);
+
+// charge une fois au montage
+useEffect(() => {
+  fetchFriendsCount();
+}, [fetchFriendsCount]);
+
+// realtime : MAJ compteur + état dès qu’une relation change
 useEffect(() => {
   if (!currentUserId) return;
   const ch = supabase
     .channel(`friends_me_${currentUserId}`)
     .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'friends', filter: `follower_id=eq.${currentUserId}` },
-        fetchFriendsCount)
-    .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'friends', filter: `following_id=eq.${currentUserId}` },
-        fetchFriendsCount)
+      { event: '*', schema: 'public', table: 'friends' },
+      () => {
+        refreshFriendState(); // 🔄 met à jour compteur & état
+      }
+    )
     .subscribe();
+
   return () => supabase.removeChannel(ch);
-}, [currentUserId, fetchFriendsCount]);
+}, [currentUserId, refreshFriendState]);
 
   // ======= BADGES À AFFICHER =======
   const stats = { createdCount, joinedCount };

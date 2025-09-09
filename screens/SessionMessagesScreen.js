@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import {
- View,
- Text,
- StyleSheet,
- TextInput,
- TouchableOpacity,
- FlatList,
- KeyboardAvoidingView,
- Platform,
- Image,
- SafeAreaView,
- Alert,
- Modal,
- Pressable,
+View,
+Text,
+StyleSheet,
+TextInput,
+TouchableOpacity,
+FlatList,
+KeyboardAvoidingView,
+Platform,
+Image,
+SafeAreaView,
+Alert,
+Modal,
+Pressable,
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
@@ -23,8 +23,9 @@ import * as FileSystem from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Buffer } from 'buffer';
-import { notifyUser } from '../helpers/notifications';
+import { notifyNewMessage } from '../helpers/notifications';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BUBBLE_MY = '#1877F2';
 const BUBBLE_OTHER = '#fff';
@@ -32,481 +33,510 @@ const BUBBLE_SHADOW = "#E7E7E7";
 const GRADIENT_COLORS = ['#FF6F3C', '#FFB347'];
 const PERSPECTIVE_API_KEY = "AIzaSyBLwtXh-7pCvosyYAj02e0C8saAOr_-GlI";
 
-
 if (typeof global !== "undefined") global.Buffer = Buffer;
 
-
 const BAD_WORDS = [
- 'pd', 'pédé', 'fdp', 'enculé', 'ntm', 'nique ta mère', 'sale negre', 'negro', 'batard', 'tg', 'connard', 'sale noir',
- 'pute', 'salope', 'bougnoule', 'youpin', 'encule', 'encu', 'nègre', 'negro', 'juif', 'negre', 'arabe',
- 'nique', 'sale', 'n3gre', 'negr3', 'sal', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'pute', 'baise', 'foudroyeur', 'renoi'
+'pd', 'pédé', 'fdp', 'enculé', 'ntm', 'nique ta mère', 'sale negre', 'negro', 'batard', 'tg', 'connard', 'sale noir',
+'pute', 'salope', 'bougnoule', 'youpin', 'encule', 'encu', 'nègre', 'negro', 'juif', 'negre', 'arabe',
+'nique', 'sale', 'n3gre', 'negr3', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'pute', 'baise', 'foudroyeur', 'renoi'
 ];
-
 
 // --------- DÉTECTION DE LIENS ---------
 function containsLink(text) {
- // Regex pour détecter les liens type http(s):// ou www.
- const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
- return urlRegex.test(text);
+// Regex pour détecter les liens type http(s):// ou www.
+const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
+return urlRegex.test(text);
 }
-
 
 function containsBadWord(text) {
- const lower = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
- return BAD_WORDS.some(word =>
-   lower.includes(word)
- );
-}
+  const lower = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
+  return BAD_WORDS.some(word => {
+    // on ne bloque que si le mot est isolé, pas comme sous-chaîne
+    const regex = new RegExp(`\\b${word}\\b`, "i");
+    return regex.test(lower);
+  });
+}
 
 // --------- AJOUT DE LA FONCTION DE MODÉRATION -----------
 async function analyzeMessageWithPerspective(text) {
- try {
-   const res = await fetch(
-     `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${PERSPECTIVE_API_KEY}`,
-     {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({
-         comment: { text },
-         languages: ["fr"],
-         requestedAttributes: { TOXICITY: {} }
-       })
-     }
-   );
-   const data = await res.json();
-   const score = data.attributeScores?.TOXICITY?.summaryScore?.value ?? 0;
-   return score;
- } catch (e) {
-   return 0;
- }
+try {
+  const res = await fetch(
+    `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${PERSPECTIVE_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        comment: { text },
+        languages: ["fr"],
+        requestedAttributes: { TOXICITY: {} }
+      })
+    }
+  );
+  const data = await res.json();
+  const score = data.attributeScores?.TOXICITY?.summaryScore?.value ?? 0;
+  return score;
+} catch (e) {
+  return 0;
+}
 }
 // ---------------------------------------------------------
 
-
 export default function SessionMessagesScreen({ route, navigation }) {
- const { sessionId } = route.params;
- const { user } = useUser();
- const [session, setSession] = useState(null);
- const [messages, setMessages] = useState([]);
- const [input, setInput] = useState('');
- const flatListRef = useRef();
-
-
- const [showImageModal, setShowImageModal] = useState(false);
- const [modalImageUrl, setModalImageUrl] = useState('');
-
-
- useLayoutEffect(() => {
-   navigation.setOptions({ headerShown: false });
- }, [navigation]);
-
-
- useEffect(() => {
-   const fetchSession = async () => {
-     const { data } = await supabase
-       .from('sessions')
-       .select('title')
-       .eq('id', sessionId)
-       .single();
-     setSession(data);
-   };
-   fetchSession();
- }, [sessionId]);
-
-
- const fetchMessages = async () => {
-   const { data, error } = await supabase
-     .from('messages')
-     .select(`
-       *,
-       users:users!messages_sender_id_fkey(id, username, profile_photo)
-     `)
-     .eq('session_id', sessionId)
-     .order('created_at', { ascending: true });
-
-
-   if (error) {
-     Alert.alert("Erreur", "Impossible de récupérer les messages : " + error.message);
-     return;
-   }
-   setMessages(data || []);
- };
-
-
- useEffect(() => {
-   fetchMessages();
-   const channel = supabase
-     .channel('public:messages')
-     .on(
-       'postgres_changes',
-       { event: '*', schema: 'public', table: 'messages', filter: `session_id=eq.${sessionId}` },
-       payload => {
-         if (payload.eventType === 'INSERT') {
-           fetchMessages();
-         }
-       }
-     )
-     .subscribe();
-
-
-   return () => {
-     supabase.removeChannel(channel);
-   };
- }, [sessionId]);
-
-
- useEffect(() => {
-   if (!messages.length || !user || !sessionId) return;
-   const lastMessage = messages[messages.length - 1];
-   if (lastMessage.sender_id !== user.id) {
-     AsyncStorage.getItem(`last_seen_${sessionId}_${user.id}`).then(lastSeen => {
-       if (!lastSeen || new Date(lastMessage.created_at) > new Date(lastSeen)) {
-         Notifications.scheduleNotificationAsync({
-           content: {
-             title: 'Nouveau message dans une session',
-             body: lastMessage.content || 'Tu as reçu un nouveau message',
-             data: { sessionId },
-           },
-           trigger: null,
-         });
-       }
-     });
-   }
- }, [messages]);
-
-
- useEffect(() => {
-   if (!sessionId || !user) return;
-   const now = new Date().toISOString();
-   AsyncStorage.setItem(`last_seen_${sessionId}_${user.id}`, now);
- }, [sessionId, user]);
-
-
- // --------- FONCTION ENVOI MESSAGE TEXTE ---------
- const sendMessage = async () => {
-   const trimmed = input.trim();
-   if (trimmed === '') return;
-
-
-   if (containsBadWord(trimmed)) {
-     Alert.alert(
-       "Message bloqué",
-       "Ton message contient des propos insultants, haineux ou inappropriés.\nMerci de reformuler."
-     );
-     return;
-   }
-
-
-   // Blocage des liens
-   if (containsLink(trimmed)) {
-     Alert.alert(
-       "Message bloqué",
-       "L’envoi de liens ou d’URL est interdit dans les messages pour des raisons de sécurité."
-     );
-     return;
-   }
-
-
-   setInput('');
-
-
-   const { error: msgErr } = await supabase.from('messages').insert([
-     {
-       session_id: sessionId,
-       sender_id: user.id,
-       receiver_id: user.id,
-       content: trimmed,
-     }
-   ]);
-   if (msgErr) {
-     Alert.alert("Erreur", "Erreur lors de l'envoi du message : " + msgErr.message);
-     return;
-   }
-
-
-   // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
-   const { data: participants, error: partErr } = await supabase
-     .from('session_participants')
-     .select('user_id')
-     .eq('session_id', sessionId);
-
-
-   const senderPseudo = user?.username || "Utilisateur";
-   const messagePreview = trimmed.slice(0, 100);
-
-
-   if (partErr) {
-     console.error("Erreur récupération participants :", partErr);
-   } else {
-     for (const participant of (participants || [])) {
-       if (participant.user_id !== user.id) {
-         try {
-           await notifyUser({
-             user_id: participant.user_id,
-             title: `${senderPseudo} : ${messagePreview}`,
-             message: messagePreview,
-             type: 'new_message',
-             session_id: sessionId,
-           });
-         } catch (e) {
-           console.error("Erreur d'envoi push (texte):", e.message);
-         }
-       }
-     }
-   }
-
-
-   await fetchMessages();
-   setTimeout(() => {
-     flatListRef.current?.scrollToEnd({ animated: true });
-   }, 100);
- };
-
-
- // --------- ENVOI MESSAGE IMAGE ---------
- const sendImageMessage = async () => {
-   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-   if (status !== 'granted') {
-     Alert.alert('Permission requise', 'Autorise l’accès à la galerie pour envoyer une image.');
-     return;
-   }
-   let result = await ImagePicker.launchImageLibraryAsync({
-     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-     allowsEditing: true,
-     aspect: [1, 1],
-     quality: 0.7,
-   });
-
-
-   if (result.cancelled || !result.assets || !result.assets[0].uri) {
-     return;
-   }
-
-
-   try {
-     const asset = result.assets[0];
-     const fileUri = asset.uri;
-     const fileExt = fileUri.split('.').pop() || 'jpg';
-     const fileName = `${user.id}_${Date.now()}.${fileExt}`;
-     const fileBase64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
-     const fileBuffer = Buffer.from(fileBase64, 'base64');
-     const { error: uploadError } = await supabase.storage
-       .from('messages-images')
-       .upload(fileName, fileBuffer, {
-         contentType: 'image/jpeg',
-         upsert: true,
-       });
-     if (uploadError) throw uploadError;
-
-
-     const { data: urlData, error: urlError } = await supabase
-       .storage
-       .from('messages-images')
-       .getPublicUrl(fileName);
-     if (urlError) throw urlError;
-
-
-     const imageUrl = urlData.publicUrl;
-
-
-     const { error: msgErr } = await supabase.from('messages').insert([
-       {
-         session_id: sessionId,
-         sender_id: user.id,
-         receiver_id: user.id,
-         content: '',
-         image_url: imageUrl,
-       }
-     ]);
-     if (msgErr) throw msgErr;
-
-
-     // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
-     const { data: participants, error: partErr } = await supabase
-       .from('session_participants')
-       .select('user_id')
-       .eq('session_id', sessionId);
-
-
-     const senderPseudo = user?.username || "Utilisateur";
-     const imageTitle = `${senderPseudo} : [Photo]`;
-
-
-     if (partErr) {
-       console.error("Erreur récupération participants (image):", partErr);
-     } else {
-       for (const participant of (participants || [])) {
-         if (participant.user_id !== user.id) {
-           try {
-             await notifyUser({
-               user_id: participant.user_id,
-               title: imageTitle,
-               message: '[Photo envoyée]',
-               type: 'new_message',
-               session_id: sessionId,
-             });
-           } catch (e) {
-             console.error("Erreur d'envoi push (image):", e.message);
-           }
-         }
-       }
-     }
-
-
-     await fetchMessages();
-     setTimeout(() => {
-       flatListRef.current?.scrollToEnd({ animated: true });
-     }, 100);
-   } catch (err) {
-     Alert.alert("Erreur", "Erreur lors de l'envoi de l'image : " + (err.message || err));
-   }
- };
-
-
- // --------- AFFICHAGE DES MESSAGES ---------
- const renderItem = ({ item }) => {
-   const isMe = item.sender_id === user.id;
-   const timeStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-
-   if (item.image_url) {
-     return (
-       <View style={isMe ? styles.rowRight : styles.rowLeft}>
-         {!isMe &&
-           <TouchableOpacity
-             onPress={() => navigation.navigate('UserProfile', { userId: item.sender_id })}
-             activeOpacity={0.75}
-           >
-             <Image
-               source={
-                 item.users?.profile_photo
-                   ? { uri: item.users.profile_photo }
-                   : require('../assets/avatar-default.png')
-               }
-               style={styles.avatarImg}
-             />
-           </TouchableOpacity>
-         }
-         <View>
-           {!isMe &&
-             <Text style={styles.pseudo}>{item.users?.username || "Utilisateur"}</Text>
-           }
-           <View style={isMe ? styles.myBubble : styles.otherBubble}>
-             <TouchableOpacity
-               activeOpacity={0.93}
-               onPress={() => {
-                 setModalImageUrl(item.image_url);
-                 setShowImageModal(true);
-               }}
-             >
-               <Image
-                 source={{ uri: item.image_url }}
-                 style={{ width: 150, height: 150, borderRadius: 12, marginBottom: 6, backgroundColor: '#eee' }}
-                 resizeMode="cover"
-               />
-             </TouchableOpacity>
-             <Text style={[styles.timeInBubble, { alignSelf: 'flex-end' }]}>{timeStr}</Text>
-           </View>
-         </View>
-       </View>
-     );
-   }
-
-
-   // MESSAGE TEXTE
-   if (isMe) {
-     return (
-       <View style={styles.rowRight}>
-         <View style={styles.myBubble}>
-           <Text style={styles.myText}>
-             {item.content}
-           </Text>
-           <Text style={styles.timeInBubble}>{timeStr}</Text>
-         </View>
-       </View>
-     );
-   }
-   return (
-     <View style={styles.rowLeft}>
-       <TouchableOpacity
-         onPress={() => navigation.navigate('UserProfile', { userId: item.sender_id })}
-         activeOpacity={0.75}
-       >
-         <Image
-           source={
-             item.users?.profile_photo
-               ? { uri: item.users.profile_photo }
-               : require('../assets/avatar-default.png')
-           }
-           style={styles.avatarImg}
-         />
-       </TouchableOpacity>
-       <View>
-         <Text style={styles.pseudo}>{item.users?.username || "Utilisateur"}</Text>
-         <View style={styles.otherBubble}>
-           <Text style={styles.otherText}>
-             {item.content}
-           </Text>
-           <Text style={styles.timeInBubbleOther}>{timeStr}</Text>
-         </View>
-       </View>
-     </View>
-   );
- };
-
-
- return (
-   <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-     {/* HEADER */}
-     <View style={styles.header}>
-       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
-         <Ionicons name="chevron-back" size={26} color="#232323" />
-       </TouchableOpacity>
-       <TouchableOpacity
-         style={styles.headerAvatar}
-         onPress={() => navigation.navigate('SessionDetail', { sessionId })}
-         activeOpacity={0.7}
-       >
-         <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
-           {session?.title ? session.title[0].toUpperCase() : 'G'}
-         </Text>
-       </TouchableOpacity>
-       <TouchableOpacity
-         style={{ flex: 1, justifyContent: 'center' }}
-         onPress={() => navigation.navigate('SessionDetail', { sessionId })}
-         activeOpacity={0.7}
-       >
-         <Text style={styles.headerTitle} numberOfLines={1}>{session?.title || 'Groupe'}</Text>
-       </TouchableOpacity>
-     </View>
-
-
-     <FlatList
-       ref={flatListRef}
-       data={messages}
-       renderItem={renderItem}
-       keyExtractor={item => item.id}
-       style={styles.messagesList}
-       contentContainerStyle={{ paddingBottom: 8, paddingTop: 11 }}
-       onContentSizeChange={() =>
-         flatListRef.current?.scrollToEnd({ animated: true })
-       }
-       showsVerticalScrollIndicator={false}
-     />
-
+const { sessionId } = route.params;
+const { user } = useUser();
+const [session, setSession] = useState(null);
+const [messages, setMessages] = useState([]);
+const [input, setInput] = useState('');
+const flatListRef = useRef();
+
+const [showImageModal, setShowImageModal] = useState(false);
+const [modalImageUrl, setModalImageUrl] = useState('');
+
+const insets = useSafeAreaInsets();
+const APPBAR_H = 56;
+
+// Maintenant tu peux calculer
+const headerOffset = Platform.OS === "ios"
+  ? insets.top + APPBAR_H   // iOS → notch + header
+  : APPBAR_H;               // Android → juste header
+
+useLayoutEffect(() => {
+  navigation.setOptions({ headerShown: false });
+}, [navigation]);
+
+useEffect(() => {
+  const fetchSession = async () => {
+    const { data } = await supabase
+      .from('sessions')
+      .select('title')
+      .eq('id', sessionId)
+      .single();
+    setSession(data);
+  };
+  fetchSession();
+}, [sessionId]);
+
+const fetchMessages = async () => {
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      users:users!messages_sender_id_fkey(id, username, profile_photo)
+    `)
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    Alert.alert("Erreur", "Impossible de récupérer les messages : " + error.message);
+    return;
+  }
+  setMessages(data || []);
+};
+
+useEffect(() => {
+  fetchMessages();
+  const channel = supabase
+    .channel('public:messages')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'messages', filter: `session_id=eq.${sessionId}` },
+      payload => {
+        if (payload.eventType === 'INSERT') {
+          fetchMessages();
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [sessionId]);
+
+useEffect(() => {
+  if (!messages.length || !user || !sessionId) return;
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage.sender_id !== user.id) {
+    AsyncStorage.getItem(`last_seen_${sessionId}_${user.id}`).then(lastSeen => {
+      if (!lastSeen || new Date(lastMessage.created_at) > new Date(lastSeen)) {
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Nouveau message dans une session',
+            body: lastMessage.content || 'Tu as reçu un nouveau message',
+            data: { sessionId },
+          },
+          trigger: null,
+        });
+      }
+    });
+  }
+}, [messages]);
+
+useEffect(() => {
+  if (!sessionId || !user) return;
+  const now = new Date().toISOString();
+  AsyncStorage.setItem(`last_seen_${sessionId}_${user.id}`, now);
+}, [sessionId, user]);
+
+// --------- FONCTION ENVOI MESSAGE TEXTE ---------
+const sendMessage = async () => {
+  const trimmed = input.trim();
+  if (trimmed === '') return;
+
+  if (containsBadWord(trimmed)) {
+    Alert.alert(
+      "Message bloqué",
+      "Ton message contient des propos insultants, haineux ou inappropriés.\nMerci de reformuler."
+    );
+    return;
+  }
+
+  // Blocage des liens
+  if (containsLink(trimmed)) {
+    Alert.alert(
+      "Message bloqué",
+      "L’envoi de liens ou d’URL est interdit dans les messages pour des raisons de sécurité."
+    );
+    return;
+  }
+
+  setInput('');
+
+  const { error: msgErr } = await supabase.from('messages').insert([
+    {
+      session_id: sessionId,
+      sender_id: user.id,
+      receiver_id: user.id,
+      content: trimmed,
+    }
+  ]);
+  if (msgErr) {
+    Alert.alert("Erreur", "Erreur lors de l'envoi du message : " + msgErr.message);
+    return;
+  }
+
+  // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
+  const { data: participants, error: partErr } = await supabase
+    .from('session_participants')
+    .select('user_id')
+    .eq('session_id', sessionId);
+
+  const senderPseudo = user?.username || "Utilisateur";
+  const messagePreview = trimmed.slice(0, 100);
+
+  if (partErr) {
+    console.error("Erreur récupération participants :", partErr);
+  } else {
+for (const participant of (participants || [])) {
+  if (participant.user_id !== user.id) {
+    await notifyNewMessage({
+      recipientId: participant.user_id,
+      senderId: user.id,
+      senderName: senderPseudo,
+      sessionTitle: session.title,
+      sessionId,
+    });
+  }
+}
+  }
+
+  await fetchMessages();
+  setTimeout(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, 100);
+};
+
+// --------- ENVOI MESSAGE IMAGE ---------
+const sendImageMessage = async () => {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') {
+    Alert.alert('Permission requise', 'Autorise l’accès à la galerie pour envoyer une image.');
+    return;
+  }
+  let result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.7,
+  });
+
+  if (result.cancelled || !result.assets || !result.assets[0].uri) {
+    return;
+  }
+
+  try {
+    const asset = result.assets[0];
+    const fileUri = asset.uri;
+    const fileExt = fileUri.split('.').pop() || 'jpg';
+    const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+    const fileBase64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+    const fileBuffer = Buffer.from(fileBase64, 'base64');
+    const { error: uploadError } = await supabase.storage
+      .from('messages-images')
+      .upload(fileName, fileBuffer, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+    if (uploadError) throw uploadError;
+
+    const { data: urlData, error: urlError } = await supabase
+      .storage
+      .from('messages-images')
+      .getPublicUrl(fileName);
+    if (urlError) throw urlError;
+
+    const imageUrl = urlData.publicUrl;
+
+    const { error: msgErr } = await supabase.from('messages').insert([
+      {
+        session_id: sessionId,
+        sender_id: user.id,
+        receiver_id: user.id,
+        content: '',
+        image_url: imageUrl,
+      }
+    ]);
+    if (msgErr) throw msgErr;
+
+    // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
+    const { data: participants, error: partErr } = await supabase
+      .from('session_participants')
+      .select('user_id')
+      .eq('session_id', sessionId);
+
+    const senderPseudo = user?.username || "Utilisateur";
+
+    if (partErr) {
+      console.error("Erreur récupération participants (image):", partErr);
+    } else {
+for (const participant of (participants || [])) {
+  if (participant.user_id !== user.id) {
+    await notifyNewMessage({
+      recipientId: participant.user_id,
+      senderId: user.id,
+      senderName: senderPseudo,
+      sessionTitle: session.title,
+      sessionId,
+    });
+  }
+}
+    }
+
+    await fetchMessages();
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  } catch (err) {
+    Alert.alert("Erreur", "Erreur lors de l'envoi de l'image : " + (err.message || err));
+  }
+};
+
+// --------- AFFICHAGE DES MESSAGES ---------
+const renderItem = ({ item }) => {
+  const isMe = item.sender_id === user.id;
+  const timeStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (item.image_url) {
+    return (
+      <View style={isMe ? styles.rowRight : styles.rowLeft}>
+        {!isMe &&
+          <TouchableOpacity
+            onPress={() => navigation.navigate('UserProfile', { userId: item.sender_id })}
+            activeOpacity={0.75}
+          >
+            <Image
+              source={
+                item.users?.profile_photo
+                  ? { uri: item.users.profile_photo }
+                  : require('../assets/avatar-default.png')
+              }
+              style={styles.avatarImg}
+            />
+          </TouchableOpacity>
+        }
+        <View>
+          {!isMe &&
+            <Text style={styles.pseudo}>{item.users?.username || "Utilisateur"}</Text>
+          }
+          <View style={isMe ? styles.myBubble : styles.otherBubble}>
+            <TouchableOpacity
+              activeOpacity={0.93}
+              onPress={() => {
+                setModalImageUrl(item.image_url);
+                setShowImageModal(true);
+              }}
+            >
+              <Image
+                source={{ uri: item.image_url }}
+                style={{ width: 150, height: 150, borderRadius: 12, marginBottom: 6, backgroundColor: '#eee' }}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+            <Text style={[styles.timeInBubble, { alignSelf: 'flex-end' }]}>{timeStr}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // MESSAGE TEXTE
+  if (isMe) {
+    return (
+      <View style={styles.rowRight}>
+        <View style={styles.myBubble}>
+          <Text style={styles.myText}>
+            {item.content}
+          </Text>
+          <Text style={styles.timeInBubble}>{timeStr}</Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.rowLeft}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('UserProfile', { userId: item.sender_id })}
+        activeOpacity={0.75}
+      >
+        <Image
+          source={
+            item.users?.profile_photo
+              ? { uri: item.users.profile_photo }
+              : require('../assets/avatar-default.png')
+          }
+          style={styles.avatarImg}
+        />
+      </TouchableOpacity>
+      <View>
+        <Text style={styles.pseudo}>{item.users?.username || "Utilisateur"}</Text>
+        <View style={styles.otherBubble}>
+          <Text style={styles.otherText}>
+            {item.content}
+          </Text>
+          <Text style={styles.timeInBubbleOther}>{timeStr}</Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+return (
+  <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+    {/* HEADER */}
+    <View
+      style={[
+        styles.header,
+        {
+          paddingTop: Platform.OS === 'ios' ? insets.top : 0,
+          height: headerOffset,
+        },
+      ]}
+    >
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
+        <Ionicons name="chevron-back" size={26} color="#232323" />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.headerAvatar}
+        onPress={() => navigation.navigate('SessionDetail', { sessionId })}
+        activeOpacity={0.7}
+      >
+        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+          {session?.title ? session.title[0].toUpperCase() : 'G'}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={{ flex: 1, justifyContent: 'center' }}
+        onPress={() => navigation.navigate('SessionDetail', { sessionId })}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {session?.title || 'Groupe'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+
+    {Platform.OS === 'ios' ? (
+      /* iOS */
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior="padding"
+        keyboardVerticalOffset={headerOffset}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          style={styles.messagesList}
+          contentContainerStyle={{
+            paddingBottom: hp('8%'),
+            paddingTop: headerOffset - 30,
+          }}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        />
+
+        {/* Input fixé */}
+        <View style={styles.inputBarContainer}>
+          <View style={styles.textBox}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Message..."
+              placeholderTextColor="#AAA"
+              onSubmitEditing={sendMessage}
+              returnKeyType="send"
+              multiline
+            />
+            <TouchableOpacity
+              style={styles.imageButton}
+              onPress={sendImageMessage}
+            >
+              <Ionicons name="image-outline" size={22} color="#444" />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.sendButtonWrap}
+            onPress={sendMessage}
+            activeOpacity={input.trim() === '' ? 1 : 0.7}
+            disabled={input.trim() === ''}
+          >
+            <LinearGradient
+              colors={GRADIENT_COLORS}
+              start={{ x: 0, y: 1 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sendButton}
+            >
+              <Ionicons name="send" size={18} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    ) : (
+      /* Android */
 <KeyboardAvoidingView
   style={{ flex: 1 }}
-  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-  keyboardVerticalOffset={Platform.OS === 'ios' ? 70 : 0}
+  behavior={Platform.OS === "android" ? "height" : "padding"}
+  keyboardVerticalOffset={Platform.OS === "ios" ? headerOffset : 30}
 >
   <FlatList
     ref={flatListRef}
     data={messages}
     renderItem={renderItem}
-    keyExtractor={item => item.id}
+    keyExtractor={(item) => item.id}
     style={styles.messagesList}
-    contentContainerStyle={{ paddingBottom: hp('8%'), paddingTop: 11 }}
+    contentContainerStyle={{
+      paddingBottom: hp('10%'),
+      paddingTop: headerOffset - 30,
+    }}
     onContentSizeChange={() =>
       flatListRef.current?.scrollToEnd({ animated: true })
     }
@@ -514,7 +544,7 @@ export default function SessionMessagesScreen({ route, navigation }) {
     keyboardShouldPersistTaps="handled"
   />
 
-  {/* Input bar toujours fixée */}
+  {/* Barre input fixée */}
   <View style={styles.inputBarContainer}>
     <View style={styles.textBox}>
       <TextInput
@@ -527,15 +557,18 @@ export default function SessionMessagesScreen({ route, navigation }) {
         returnKeyType="send"
         multiline
       />
-      <TouchableOpacity style={styles.imageButton} onPress={sendImageMessage}>
+      <TouchableOpacity
+        style={styles.imageButton}
+        onPress={sendImageMessage}
+      >
         <Ionicons name="image-outline" size={22} color="#444" />
       </TouchableOpacity>
     </View>
     <TouchableOpacity
       style={styles.sendButtonWrap}
       onPress={sendMessage}
-      activeOpacity={input.trim() === "" ? 1 : 0.7}
-      disabled={input.trim() === ""}
+      activeOpacity={input.trim() === '' ? 1 : 0.7}
+      disabled={input.trim() === ''}
     >
       <LinearGradient
         colors={GRADIENT_COLORS}
@@ -548,37 +581,38 @@ export default function SessionMessagesScreen({ route, navigation }) {
     </TouchableOpacity>
   </View>
 </KeyboardAvoidingView>
+    )}
 
-     {/* MODAL POUR L'IMAGE EN GRAND */}
-     <Modal
-       visible={showImageModal}
-       transparent
-       animationType="fade"
-       onRequestClose={() => setShowImageModal(false)}
-     >
-       <Pressable
-         style={{
-           flex: 1,
-           backgroundColor: 'rgba(0,0,0,0.96)',
-           alignItems: 'center',
-           justifyContent: 'center',
-         }}
-         onPress={() => setShowImageModal(false)}
-       >
-         <Image
-           source={{ uri: modalImageUrl }}
-           style={{
-             width: '93%',
-             height: '70%',
-             borderRadius: 24,
-             backgroundColor: '#111',
-             resizeMode: 'contain',
-           }}
-         />
-       </Pressable>
-     </Modal>
-   </SafeAreaView>
- );
+    {/* Modal en dehors du ternaire */}
+    <Modal
+      visible={showImageModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowImageModal(false)}
+    >
+      <Pressable
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.96)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        onPress={() => setShowImageModal(false)}
+      >
+        <Image
+          source={{ uri: modalImageUrl }}
+          style={{
+            width: '93%',
+            height: '70%',
+            borderRadius: 24,
+            backgroundColor: '#111',
+            resizeMode: 'contain',
+          }}
+        />
+      </Pressable>
+    </Modal>
+  </SafeAreaView>
+);
 }
 
 const styles = StyleSheet.create({

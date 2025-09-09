@@ -1,8 +1,17 @@
-// components/PlaceSearchField.js
-import React, { useEffect, useRef, useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, ScrollView, Platform } from 'react-native';
-import { AntDesign } from '@expo/vector-icons';
+import React, { useEffect, useRef, useState, useCallback, useMemo, } from 'react';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  ScrollView,
+  ActivityIndicator,
+  StyleSheet,
+  Platform,
+} from 'react-native';
+import { MaterialCommunityIcons, AntDesign } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { v4 as uuidv4 } from 'uuid';
 
 const extra =
   (Constants?.expoConfig?.extra) ??
@@ -16,9 +25,68 @@ export const GOOGLE_MAPS_API_KEY =
   '';
 
 if (__DEV__ && !GOOGLE_MAPS_API_KEY) {
-  console.warn('GOOGLE_MAPS_API_KEY manquant. Définis-le dans .env ou extra.GOOGLE_MAPS_API_KEY.');
+  console.warn('GOOGLE_MAPS_API_KEY manquant. Définis-le dans .env (.env.local) ou extra.GOOGLE_MAPS_API_KEY.');
 }
 
+const ICON_BY_TYPE = {
+  establishment: 'office-building',
+  point_of_interest: 'map-marker',
+  museum: 'bank',
+  park: 'tree',
+  stadium: 'stadium-variant',
+  gym: 'dumbbell',
+  store: 'storefront-outline',
+  supermarket: 'cart-outline',
+  restaurant: 'silverware-fork-knife',
+  cafe: 'coffee-outline',
+  bar: 'glass-wine',
+  lodging: 'bed-king-outline',
+  transit_station: 'bus-stop-covered',
+  airport: 'airplane',
+  train_station: 'train',
+  school: 'school-outline',
+  university: 'school-outline',
+  courthouse: 'scale-balance',
+  city_hall: 'town-hall',
+  tourist_attraction: 'camera',
+  church: 'church',
+  mosque: 'mosque',
+  hindu_temple: 'temple-hindu',
+  synagogue: 'synagogue',
+  route: 'road-variant',
+  street_address: 'map-marker-outline',
+  premise: 'home-city-outline',
+  subpremise: 'home-outline',
+  geocode: 'map-search-outline',
+  default: 'map-marker-outline',
+};
+
+// ───────── Utils ─────────
+function dedupe(preds) {
+  const seen = new Set();
+  return preds.filter((p) => {
+    const key = (p.description || '').toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+function useDebounced(value, delay) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return v;
+}
+
+/**
+ * Props :
+ * value, onChange, onPick({ description, lat, lng, place_id, structured })
+ * placeholder, componentsCountry ('country:fr' par défaut)
+ * minLength (2), boxStyle, suggestionContainerStyle
+ * locationBias {lat,lng,radiusMeters?}, strictBounds (false)
+ */
 export default function PlaceSearchField({
   value,
   onChange,
@@ -28,129 +96,231 @@ export default function PlaceSearchField({
   minLength = 2,
   boxStyle,
   suggestionContainerStyle,
+  locationBias,
+  strictBounds = false,
+  autoFocus = false,
 }) {
-  const [suggestions, setSuggestions] = useState([]);
+  const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef(null);
+  const [error, setError] = useState(null);
 
-  // AUTOCOMPLETE
-  useEffect(() => {
-    let active = true;
-    const run = async () => {
-      const q = value?.trim() || '';
-      if (!GOOGLE_MAPS_API_KEY || q.length < minLength) {
-        if (active) setSuggestions([]);
+  const inputRef = useRef(null);
+  const closeTimer = useRef(null);
+
+  // contrôle d’ouverture liste + valeur “verrouillée”
+  const [showList, setShowList] = useState(false);
+  const lastPickedRef = useRef(null);
+  const blurTimeoutRef = useRef(null);
+
+  // session token
+  const [sessionToken, setSessionToken] = useState(() => uuidv4());
+
+  // debounce
+  const query = useDebounced((value || '').trim(), 180);
+
+  const compsParam = useMemo(() => (componentsCountry || 'country:fr'), [componentsCountry]);
+
+  // ───────── Autocomplete
+  const fetchPredictions = useCallback(async () => {
+    setError(null);
+
+    if (!showList) { setPredictions([]); return; }
+
+    const q = query;
+    if (!GOOGLE_MAPS_API_KEY || q.length < minLength) {
+      setPredictions([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
+      url.searchParams.set('input', q);
+      url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+      url.searchParams.set('sessiontoken', sessionToken);
+      url.searchParams.set('language', 'fr');
+      url.searchParams.set('components', compsParam);
+
+      // bias géographique
+      const hasLat = Number.isFinite(locationBias?.lat);
+      const hasLng = Number.isFinite(locationBias?.lng);
+      const hasRadius = Number.isFinite(locationBias?.radiusMeters) && locationBias.radiusMeters > 0;
+      if (hasLat && hasLng) {
+        url.searchParams.set('location', `${locationBias.lat},${locationBias.lng}`);
+        if (hasRadius) {
+          const radius = Math.min(50000, Math.max(1, Math.floor(locationBias.radiusMeters)));
+          url.searchParams.set('radius', String(radius));
+        }
+        if (strictBounds && hasRadius) {
+          url.searchParams.set('strictbounds', 'true');
+        }
+      }
+
+      const res = await fetch(url.toString());
+      const json = await res.json();
+
+      if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
+        setError(`${json.status}${json.error_message ? `: ${json.error_message}` : ''}`);
+        setPredictions([]);
+        setLoading(false);
         return;
       }
-      try {
-        setLoading(true);
-        const encoded = encodeURIComponent(q);
-        const url =
-          `https://maps.googleapis.com/maps/api/place/autocomplete/json` +
-          `?input=${encoded}&key=${GOOGLE_MAPS_API_KEY}&language=fr&types=geocode&components=${componentsCountry}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (!active) return;
-        setSuggestions(Array.isArray(data?.predictions) ? data.predictions : []);
-      } catch {
-        if (active) setSuggestions([]);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    const t = setTimeout(run, 180);
-    return () => { active = false; clearTimeout(t); };
-  }, [value, componentsCountry, minLength]);
 
-  const handleSuggestionPress = async (placeId, description) => {
+      const items = (json.predictions || []).map((p) => {
+        const primary = p.structured_formatting?.main_text || p.description;
+        const secondary = p.structured_formatting?.secondary_text || '';
+        const types = p.types || [];
+        const bestType = types[0] || 'default';
+        return {
+          place_id: p.place_id,
+          description: p.description,
+          primary,
+          secondary,
+          types,
+          bestType,
+          icon: ICON_BY_TYPE[bestType] || ICON_BY_TYPE.default,
+        };
+      });
+
+      setPredictions(dedupe(items));
+    } catch (e) {
+      setError(e?.message || 'Erreur');
+      setPredictions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [query, compsParam, locationBias, strictBounds, sessionToken, minLength, showList]);
+
+  useEffect(() => { fetchPredictions(); }, [fetchPredictions]);
+
+  // ───────── Details
+  const fetchDetails = useCallback(async (place_id) => {
+    if (!GOOGLE_MAPS_API_KEY || !place_id) return null;
     try {
-      if (!GOOGLE_MAPS_API_KEY) return;
-      const url =
-        `https://maps.googleapis.com/maps/api/place/details/json` +
-        `?place_id=${placeId}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const { lat, lng } = data?.result?.geometry?.location || {};
-      if (typeof lat !== 'number' || typeof lng !== 'number') return;
-      onPick({ description, lat, lng });
-      setSuggestions([]);
-    } catch {}
-  };
+      const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+      url.searchParams.set('place_id', place_id);
+      url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+      url.searchParams.set('sessiontoken', sessionToken);
+      url.searchParams.set('language', 'fr');
+      url.searchParams.set('fields', [
+        'geometry/location',
+        'formatted_address',
+        'name',
+        'types',
+        'address_components',
+      ].join(','));
 
+      const res = await fetch(url.toString());
+      const json = await res.json();
+      if (json.status !== 'OK') {
+        setError(`DETAILS_${json.status}${json.error_message ? `: ${json.error_message}` : ''}`);
+        return null;
+      }
+      const r = json.result;
+      return {
+        description: r.formatted_address || r.name,
+        name: r.name,
+        lat: r.geometry?.location?.lat ?? null,
+        lng: r.geometry?.location?.lng ?? null,
+        types: r.types || [],
+        address_components: r.address_components || [],
+      };
+    } catch {
+      return null;
+    }
+  }, [sessionToken]);
+
+const handleSuggestionPress = useCallback(async (item) => {
+  if (closeTimer.current) {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  }
+
+  const details = await fetchDetails(item.place_id);
+  // … ta logique existante
+
+  const pickedLabel = details?.description || item.description;
+  onChange?.(pickedLabel);
+
+// ⚡️ Hack : injecte la valeur après le cycle de blur
+setTimeout(() => {
+  onChange?.(pickedLabel);
+}, 0);
+
+  setPredictions([]);
+  setShowList(false);
+  lastPickedRef.current = pickedLabel;
+  setFocused(false);
+  inputRef.current?.blur();
+
+  setSessionToken(uuidv4());
+}, [fetchDetails, onPick, onChange]);
+
+  // ───────── UI
   return (
     <View style={{ position: 'relative' }}>
-      {/* Champ de saisie */}
+      {/* Input */}
       <TouchableOpacity
         activeOpacity={1}
         onPress={() => inputRef.current?.focus()}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: '#fff',
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: '#E7E7ED',
-          paddingLeft: 14,
-          paddingRight: 6,
-          height: 56,
-          ...(boxStyle || {}),
-        }}
+        style={[styles.inputBox, boxStyle]}
       >
         <AntDesign name="search1" size={19} color="#8A8C99" style={{ marginRight: 10 }} />
 
-        {/* Texte affiché quand non focus */}
         {!focused && !!value && (
-          <Text
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={{
-              position: 'absolute',
-              left: 42,
-              right: 36,
-              fontSize: 14, // ↓ réduit
-              color: '#222',
-            }}
-            pointerEvents="none"
-          >
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.readOnlyText} pointerEvents="none">
             {value}
           </Text>
         )}
 
-        {/* TextInput réel */}
         <TextInput
           ref={inputRef}
+          autoFocus={autoFocus}
           placeholder={placeholder}
           placeholderTextColor="#666"
           value={value}
-          onChangeText={onChange}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onChangeText={(t) => {
+            onChange?.(t);
+            lastPickedRef.current = null;
+            setShowList(true);
+            if (t.length < minLength) setPredictions([]);
+          }}
+          onFocus={() => {
+            setFocused(true);
+            if (blurTimeoutRef.current) { clearTimeout(blurTimeoutRef.current); blurTimeoutRef.current = null; }
+            if (value && value === lastPickedRef.current) {
+              setShowList(false);
+            } else {
+              setShowList(true);
+            }
+          }}
+onBlur={() => {
+  setFocused(false);
+  // ferme seulement après un petit délai → laisse le tap arriver
+  closeTimer.current = setTimeout(() => {
+    setShowList(false);
+    closeTimer.current = null;
+  }, 150);
+}}
           multiline={false}
           numberOfLines={1}
-          style={{
-            flex: 1,
-            height: 48,
-            fontSize: 15, // ↓ réduit
-            paddingHorizontal: 0,
-            textAlign: 'left',
-            textAlignVertical: 'center',
-            includeFontPadding: Platform.OS === 'android' ? true : undefined,
-            color: focused ? '#222' : 'transparent',
-          }}
+          style={[styles.input, { color: focused ? '#222' : 'transparent' }]}
           returnKeyType="search"
           autoCorrect={false}
           autoCapitalize="none"
         />
 
+        {loading && <ActivityIndicator size="small" color="#5B4EFF" />}
         {!!value && (
           <TouchableOpacity
             onPress={() => {
-              onChange('');
-              setSuggestions([]);
+              onChange?.('');
+              lastPickedRef.current = null;
+              setPredictions([]);
+              setShowList(true);
               inputRef.current?.focus();
             }}
-            style={{ paddingHorizontal: 10, height: 48, justifyContent: 'center' }}
+            style={styles.clearBtn}
           >
             <AntDesign name="close" size={18} color="#999" />
           </TouchableOpacity>
@@ -158,52 +328,114 @@ export default function PlaceSearchField({
       </TouchableOpacity>
 
       {/* Suggestions */}
-      {suggestions.length > 0 && (
+      {showList && (predictions.length > 0 || (error && query.length >= minLength)) && (
         <View
-          style={{
-            position: 'absolute',
-            top: 56 + 8,
-            left: 0,
-            right: 0,
-            zIndex: 99,
-            elevation: 12,
-            backgroundColor: '#fff',
-            borderRadius: 12,
-            shadowColor: '#000',
-            shadowOpacity: 0.12,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            paddingVertical: 1,
-            maxHeight: 280,
-            overflow: 'hidden',
-            ...(suggestionContainerStyle || {}),
+          style={[styles.suggestBox, suggestionContainerStyle]}
+          // si on touche dans la liste, n’exécute pas la fermeture planifiée par onBlur
+          onTouchStart={() => {
+            if (blurTimeoutRef.current) {
+              clearTimeout(blurTimeoutRef.current);
+              blurTimeoutRef.current = null;
+            }
           }}
         >
-          <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-            {suggestions.map((item) => (
+          {error && <Text style={styles.errorText}>Autocomplete indisponible ({String(error)}).</Text>}
+
+          <ScrollView
+            keyboardShouldPersistTaps="always"
+            nestedScrollEnabled
+          >
+            {predictions.map((item) => (
               <TouchableOpacity
                 key={item.place_id}
-                style={{
-                  paddingVertical: 13,
-                  paddingHorizontal: 16,
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#F0F0F3',
-                }}
-                onPress={() => handleSuggestionPress(item.place_id, item.description)}
+                style={styles.row}
+                onPress={() => handleSuggestionPress(item)}
+                activeOpacity={0.9}
               >
-                <Text style={{ fontSize: 14, color: '#222' }} numberOfLines={2}>
-                  {item.description}
-                </Text>
+                <View style={styles.iconWrap}>
+                  <MaterialCommunityIcons name={item.icon} size={18} color="#5B4EFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={styles.primary}>{item.primary}</Text>
+                  {item.secondary ? (
+                    <Text numberOfLines={1} style={styles.secondary}>{item.secondary}</Text>
+                  ) : null}
+                </View>
               </TouchableOpacity>
             ))}
-            {loading ? (
-              <Text style={{ padding: 10, fontSize: 12, color: '#888', textAlign: 'center' }}>
-                Chargement…
-              </Text>
-            ) : null}
+            {loading ? <Text style={styles.loadingText}>Chargement…</Text> : null}
           </ScrollView>
         </View>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E7E7ED',
+    paddingLeft: 14,
+    paddingRight: 6,
+    height: 56,
+  },
+  readOnlyText: {
+    position: 'absolute',
+    left: 42,
+    right: 36,
+    fontSize: 14,
+    color: '#222',
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: 15,
+    paddingHorizontal: 0,
+    textAlign: 'left',
+    textAlignVertical: 'center',
+    includeFontPadding: Platform.OS === 'android' ? true : undefined,
+  },
+  clearBtn: { paddingHorizontal: 10, height: 48, justifyContent: 'center' },
+  suggestBox: {
+    position: 'absolute',
+    top: 56 + 8,
+    left: 0,
+    right: 0,
+    zIndex: 99,
+    elevation: 12,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    paddingVertical: 1,
+    maxHeight: 300,
+    overflow: 'hidden',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F3',
+  },
+  iconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EEF0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  primary: { fontSize: 15, fontWeight: '700', color: '#1F2430' },
+  secondary: { fontSize: 13, color: '#6E768A', marginTop: 2 },
+  loadingText: { padding: 10, fontSize: 12, color: '#888', textAlign: 'center' },
+  errorText: { padding: 8, color: '#d64545', fontSize: 12, textAlign: 'center' },
+});

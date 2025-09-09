@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList,
-  Dimensions, Platform, SafeAreaView, ScrollView, Alert, Modal, ActivityIndicator,
+ View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList,
+ Dimensions, Platform, SafeAreaView, ScrollView, Alert, Modal, ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 import { Calendar } from 'react-native-calendars';
 import {
-  AntDesign,
-  FontAwesome5,
-  MaterialCommunityIcons,
-  Ionicons,
-  MaterialIcons,
+ AntDesign,
+ FontAwesome5,
+ MaterialCommunityIcons,
+ Ionicons,
+ MaterialIcons,
 } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -21,744 +21,889 @@ import SessionCardHome from '../components/SessionCardHome';
 import { getDistance } from 'geolib';
 import { useNotificationRefresh } from '../context/NotificationContext';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const GOOGLE_MAPS_API_KEY =
-  Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY ??
-  Constants.manifest?.extra?.GOOGLE_MAPS_API_KEY ??
-  '';
-
+ Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY ??
+ Constants.manifest?.extra?.GOOGLE_MAPS_API_KEY ??
+ '';
 const PARIS_COORDS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longitudeDelta: 0.05 };
 
 const levelOptions = [
-  "Pour s'amuser",
-  'Débutant',
-  'Intermédiaire',
-  'Avancé',
+ "Pour s'amuser",
+ 'Débutant',
+ 'Intermédiaire',
+ 'Avancé',
 ];
 
 const sportData = [
-  { label: 'Football', icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
-  { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={hp('2.1%')} color="#FFA726" /> },
-  { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#2ECC71" /> },
-  { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" />, color: "#E9436D" },
-  { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={hp('2.1%')} color="#3CD6E6" /> },
-  { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={hp('2.1%')} color="#1469B9" /> },
-  { label: "Musculation", icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.4%')} color="#7367F0"/>},
-  { label: 'Autres', icon: <Ionicons name="ellipsis-horizontal" size={hp('2.2%')} color="#999" /> },
+ { label: 'Football', icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
+ { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={hp('2.1%')} color="#FFA726" /> },
+ { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#2ECC71" /> },
+ { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" />, color: "#E9436D" },
+ { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={hp('2.1%')} color="#3CD6E6" /> },
+ { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={hp('2.1%')} color="#1469B9" /> },
+ { label: "Musculation", icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.4%')} color="#7367F0"/>},
+ { label: 'Autres', icon: <Ionicons name="ellipsis-horizontal" size={hp('2.2%')} color="#999" /> },
 ];
 
 const sportIcons = {
-  Football: { icon: <FontAwesome5 name="futbol" size={hp('2.2%')} color="#3888FF" />, color: "#3888FF" },
-  Basketball: { icon: <MaterialCommunityIcons name="basketball" size={hp('2.2%')} color="#FFA726" />, color: "#FFA726" },
-  Tennis: { icon: <MaterialCommunityIcons name="tennis" size={hp('2.2%')} color="#2ECC71" />, color: "#2ECC71" },
-  Running: { icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" />, color: "#E9436D" },
-  Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={hp('2.2%')} color="#3CD6E6" />, color: "#3CD6E6" },
-  Natation: { icon: <MaterialCommunityIcons name="swim" size={hp('2.2%')} color="#1469B9" />, color: "#1469B9" },
-  Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.2%')} color="#7367F0" />, color: "#7367F0"},
-  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={hp('2.4%')} color="#A259F7" />, color: "#A259F7"},
-  Padel: { icon: <MaterialCommunityIcons name="tennis" size={hp('2.4%')} color="#EAD406" />, color: "#EAD406"},
-  Handball: { icon: <MaterialCommunityIcons name="handball" size={hp('2.2%')} color="#F57C00" />, color: "#F57C00" },
-  Autres:  {icon: <Ionicons name="ellipsis-horizontal" size={hp('2.2%')} color="#999" />, color:"#999"  },
-  "Tennis de table": { icon: <MaterialCommunityIcons name="table-tennis" size={hp('2.2%')} color="#00B8D4" />, color: "#00B8D4" },
-  Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={hp('2.2%')} color="#E57373" />, color: "#E57373" },
-  Badminton: { icon: <MaterialCommunityIcons name="badminton" size={hp('2.2%')} color="#49beb7" />, color: "#49beb7" },
-  Ski: { icon: <MaterialCommunityIcons name="ski" size={hp('2.2%')} color="#32C5FF" />, color: "#32C5FF" },
-  Snow: { icon: <MaterialCommunityIcons name="snowboard" size={hp('2.2%')} color="#5f95de" />, color: "#5f95de" },
-  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={hp('2.2%')} color="#EB984E" />, color: "#EB984E" },
-  Surf: { icon: <MaterialCommunityIcons name="wave" size={hp('2.2%')} color="#26C6DA" />, color: "#26C6DA" },
-  Escalade: { icon: <MaterialCommunityIcons name="hiking" size={hp('2.2%')} color="#689F38" />, color: "#689F38" },
-  Parapente: { icon: <MaterialCommunityIcons name="parachute" size={hp('2.2%')} color="#1976D2" />, color: "#1976D2" },
-  CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.2%')} color="#536DFE" />, color: "#536DFE" },
-  Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={hp('2.2%')} color="#26A69A" />, color: "#26A69A" },
-  Golf: { icon: <MaterialCommunityIcons name="golf" size={hp('2.2%')} color="#43A047" />, color: "#43A047" },
-  "Arts Martiaux": { icon: <MaterialCommunityIcons name="boxing-glove" size={hp('2.2%')} color="#FF3D00" />, color: "#FF3D00" },
-  Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={hp('2.2%')} color="#C62828" />, color: "#C62828" },
-  "Football américain": { icon: <MaterialCommunityIcons name="football" size={hp('2.2%')} color="#FF7043" />, color: "#FF7043" },
-  Baseball: { icon: <MaterialCommunityIcons name="baseball" size={hp('2.2%')} color="#FFD600" />, color: "#FFD600" },
-  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={hp('2.2%')} color="#F48FB1" />, color: "#F48FB1" },
-  Pilate: { icon: <MaterialCommunityIcons name="meditation" size={hp('2.2%')} color="#BA68C8" />, color: "#BA68C8" },
-  Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={hp('2.2%')} color="#4E342E" />, color: "#4E342E" },
-  Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={hp('2.2%')} color="#757575" />, color: "#757575" },
-  "Randonnée/Trail": { icon: <MaterialCommunityIcons name="hiking" size={hp('2.2%')} color="#43A047" />, color: "#43A047" },
-  "VTT": { icon: <MaterialCommunityIcons name="bike" size={hp('2.2%')} color="#009688" />, color: "#009688" },
-  Autres2: { icon: <Ionicons name="ellipsis-horizontal" size={hp('2.2%')} color="#BBB" />, color:"#BBB" },
+  Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
+  Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
+  Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
+  Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
+  Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
+  Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
+  Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
+  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={20} color="#A259F7" />, color: '#A259F7' },
+  Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
+  Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
+  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
+  Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
+  Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
+  Triathlon: { icon: <MaterialCommunityIcons name="medal" size={18} color="#FF9800" />, color: '#FF9800' },
+  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
+  Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
+  Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
+  Ski: { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
+  Snow: { icon: <MaterialCommunityIcons name="snowboard" size={18} color="#5f95de" />, color: '#5f95de' },
+  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
+  Surf: { icon: <MaterialCommunityIcons name="wave" size={18} color="#26C6DA" />, color: '#26C6DA' },
+  Escalade: { icon: <MaterialCommunityIcons name="hiking" size={18} color="#689F38" />, color: '#689F38' },
+  Parapente: { icon: <MaterialCommunityIcons name="parachute" size={18} color="#1976D2" />, color: '#1976D2' },
+  CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
+  Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
+  Golf: { icon: <MaterialCommunityIcons name="golf" size={18} color="#43A047" />, color: '#43A047' },
+  'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
+  Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#C62828" />, color: '#C62828' },
+  'Football américain': { icon: <MaterialCommunityIcons name="football" size={18} color="#FF7043" />, color: '#FF7043' },
+  Baseball: { icon: <MaterialCommunityIcons name="baseball" size={18} color="#FFD600" />, color: '#FFD600' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
+  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
+  Pilate: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+  Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
+  Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={18} color="#757575" />, color: '#757575' },
+  '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
 
+
 const otherSports = [
-  "Yoga", "Padel", "Handball", "Tennis de table", "Volleyball", "Badminton", "Ski", "Snow", "Skate", "Surf", "Escalade", "Parapente", "CrossFit", "Callisthénie",
-  "Golf", "Arts Martiaux", "Boxe", "Football américain", "Baseball",
-  "Danse", "Pilate", "Échecs", "Pétanque", "Randonnée/Trail", "VTT",
+  'Yoga',
+  'Padel',
+  'Handball',
+  'Volleyball',
+  'Badminton',
+  'Triathlon',
+  'Randonnée/Trail',
+  'VTT',
+  'Marche',
+  'Kayak',
+  'Ski',
+  'Snow',
+  'Skate',
+  'Surf',
+  'Escalade',
+  'Parapente',
+  'CrossFit',
+  'Callisthénie',
+  'Golf',
+  'Arts Martiaux',
+  'Boxe',
+  'Football américain',
+  'Baseball',
+  'Tennis de table',
+  'Danse',
+  'Pilate',
+  'Échecs',
+  'Pétanque',
 ];
 
 const { width } = Dimensions.get('window');
 
+const APPBAR_H = 56;
+const SEARCH_H = 44;
+const CHIPS_H  = 40;
+
+
 const HomeScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const isFocused = useIsFocused();
-  const user = { avatar_url: null };
-  const { notifUnseen } = useNotificationRefresh();
+ const navigation = useNavigation();
+ const route = useRoute();
+ const isFocused = useIsFocused();
+ const user = { avatar_url: null };
+ const { notifUnseen } = useNotificationRefresh();
 
-  const [region, setRegion] = useState(null);
-  const [myLocation, setMyLocation] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [selectedSessionId, setSelectedSessionId] = useState(null);
-  const [selectedLevel, setSelectedLevel] = useState('');
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedSport, setSelectedSport] = useState('');
-  const [search, setSearch] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
-  const [showLevelModal, setShowLevelModal] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [showMoreSports, setShowMoreSports] = useState(false);
 
-  const mapRef = useRef(null);
-  const flatListRef = useRef(null);
+ const [region, setRegion] = useState(null);
+ const [myLocation, setMyLocation] = useState(null);
+ const [sessions, setSessions] = useState([]);
+ const [selectedSessionId, setSelectedSessionId] = useState(null);
+ const [selectedLevel, setSelectedLevel] = useState('');
+ const [selectedDate, setSelectedDate] = useState(null);
+ const [selectedSport, setSelectedSport] = useState('');
+ const [search, setSearch] = useState('');
+ const [suggestions, setSuggestions] = useState([]);
+ const [showLevelModal, setShowLevelModal] = useState(false);
+ const [showCalendar, setShowCalendar] = useState(false);
+ const [showMoreSports, setShowMoreSports] = useState(false);
 
-    // --- FETCH SESSIONS (utilisé partout) ---
-  const fetchSessions = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*')
-      .order('date', { ascending: true });
 
-    if (error) {
-      console.error('Erreur fetch sessions:', error);
-      setSessions([]);
-      return;
-    }
-    setSessions(data || []);
-  }, []);
+ const mapRef = useRef(null);
+ const flatListRef = useRef(null);
 
-  // --- Bootstrapping / géoloc + sécurité user ---
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error || !user) {
-          await supabase.auth.signOut();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Login" }],
-          });
-          return;
-        }
+ const insets = useSafeAreaInsets();
 
-        let geolocPref = true;
-        const { data: userData, error: userDataError } = await supabase
-          .from('users')
-          .select('geoloc_enabled')
-          .eq('id', user.id)
-          .single();
+ // Ces valeurs dépendent de insets -> calculées à l'intérieur du composant 
 
-        if (userDataError) {
-          await supabase.auth.signOut();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Login" }],
-          });
-          return;
-        }
+const [appBarH, setAppBarH] = useState(56);
 
-        geolocPref = userData?.geoloc_enabled !== false;
+const SEARCH_TOP  = insets.top + appBarH + 10;
+const CHIPS_TOP   = SEARCH_TOP + SEARCH_H + 15;
+const FILTERS_TOP = CHIPS_TOP + CHIPS_H + 5;
 
-        if (!geolocPref) {
-          setRegion(PARIS_COORDS);
-          setMyLocation(PARIS_COORDS);
-        } else {
-          let { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
-            setRegion(PARIS_COORDS);
-            setMyLocation(PARIS_COORDS);
-          } else {
-            let location = await Location.getCurrentPositionAsync({});
-            const initialRegion = {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            };
-            setRegion(initialRegion);
-            setMyLocation(initialRegion);
 
-            await supabase
-              .from('users')
-              .update({
-                last_lat: location.coords.latitude,
-                last_lng: location.coords.longitude,
-              })
-              .eq('id', user.id);
-          }
-        }
-      } catch (err) {
-        await supabase.auth.signOut();
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Login" }],
-        });
-      }
-    })();
-  }, [navigation]);
 
-  // --- Fetch initial + au focus, puis polling 5s quand visible ---
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
-      const load = async () => {
-        if (!isActive) return;
-        await fetchSessions();
-      };
-      load();
+   // --- FETCH SESSIONS (utilisé partout) ---
+ const fetchSessions = useCallback(async () => {
+   const { data, error } = await supabase
+     .from('sessions')
+     .select('*')
+     .order('date', { ascending: true });
 
-      // Polling 5s tant que l’écran est focus
-      const id = setInterval(() => {
-        if (isActive) fetchSessions();
-      }, 5000);
 
-      return () => {
-        isActive = false;
-        clearInterval(id);
-      };
-    }, [fetchSessions])
-  );
+   if (error) {
+     console.error('Erreur fetch sessions:', error);
+     setSessions([]);
+     return;
+   }
+   setSessions(data || []);
+ }, []);
 
-  // --- (Optionnel) écoute temps réel INSERT/UPDATE pour réactivité instantanée
-  useEffect(() => {
-    const channel = supabase
-      .channel('public:sessions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
-        fetchSessions();
-      })
-      .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchSessions]);
+ // --- Bootstrapping / géoloc + sécurité user ---
+ useEffect(() => {
+   (async () => {
+     try {
+       const { data: { user }, error } = await supabase.auth.getUser();
+       if (error || !user) {
+         await supabase.auth.signOut();
+         navigation.reset({
+           index: 0,
+           routes: [{ name: "Login" }],
+         });
+         return;
+       }
 
-  // --- Autocomplete robuste ---
-  useEffect(() => {
-    const run = async () => {
-      if (!search || search.trim().length < 2) {
-        setSuggestions([]);
-        return;
-      }
-      try {
-        const encoded = encodeURIComponent(search.trim());
-        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encoded}&key=${GOOGLE_MAPS_API_KEY}&language=fr&types=geocode&components=country:fr`;
-        const res = await fetch(url);
-        const data = await res.json();
-        setSuggestions(Array.isArray(data?.predictions) ? data.predictions : []);
-      } catch (err) {
-        console.error('Autocomplete error:', err);
-        setSuggestions([]);
-      }
-    };
-    run();
-  }, [search]);
 
-  const focusOnSession = (session, index) => {
-    setSelectedSessionId(session.id);
-    mapRef.current?.animateToRegion(
-      {
-        latitude: Number(session.lat),
-        longitude: Number(session.lng),
-        latitudeDelta: 0.03,
-        longitudeDelta: 0.03,
-      },
-      400
-    );
-    if (typeof index === 'number' && flatListRef.current) {
-      flatListRef.current.scrollToIndex({ index, animated: true });
-    }
-  };
+       let geolocPref = true;
+       const { data: userData, error: userDataError } = await supabase
+         .from('users')
+         .select('geoloc_enabled')
+         .eq('id', user.id)
+         .single();
 
-  const handleSuggestionPress = async (placeId, description) => {
-    try {
-      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const { lat, lng } = data?.result?.geometry?.location || {};
-      if (typeof lat !== 'number' || typeof lng !== 'number') return;
 
-      const newRegion = {
-        latitude: lat,
-        longitude: lng,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-      setRegion(newRegion);
-      setSuggestions([]);
-      setSearch(description);
-      mapRef.current?.animateToRegion(newRegion, 1000);
-    } catch (e) {
-      console.error('Place details error:', e);
-    }
-  };
+       if (userDataError) {
+         await supabase.auth.signOut();
+         navigation.reset({
+           index: 0,
+           routes: [{ name: "Login" }],
+         });
+         return;
+       }
 
-  const clearFilters = async () => {
-    setSelectedSport('');
-    setSelectedLevel('');
-    setSelectedDate(null);
-    setSearch('');
-    setSuggestions([]);
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
-    let location = await Location.getCurrentPositionAsync({});
-    const currentCoords = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
-    };
-    setRegion(currentCoords);
-    setMyLocation(currentCoords);
-    mapRef.current?.animateToRegion(currentCoords, 800);
-  };
 
-  function formatTime(time) {
-    if (!time) return '';
-    return time.slice(0, 5);
-  }
+       geolocPref = userData?.geoloc_enabled !== false;
 
-  function isSessionInFuture(session) {
-    if (!session.date || !session.time) return false;
-    try {
-      const sessionDateTime = new Date(
-        `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
-      );
-      return sessionDateTime > new Date();
-    } catch {
-      return false;
-    }
-  }
 
-  const today = new Date().toISOString().split('T')[0];
+       if (!geolocPref) {
+         setRegion(PARIS_COORDS);
+         setMyLocation(PARIS_COORDS);
+       } else {
+         let { status } = await Location.requestForegroundPermissionsAsync();
+         if (status !== 'granted') {
+           setRegion(PARIS_COORDS);
+           setMyLocation(PARIS_COORDS);
+         } else {
+           let location = await Location.getCurrentPositionAsync({});
+           const initialRegion = {
+             latitude: location.coords.latitude,
+             longitude: location.coords.longitude,
+             latitudeDelta: 0.05,
+             longitudeDelta: 0.05,
+           };
+           setRegion(initialRegion);
+           setMyLocation(initialRegion);
 
-  const isNoFilter =
-    !selectedSport &&
-    !selectedLevel &&
-    (!selectedDate || selectedDate === today) &&
-    !search;
 
-  let filteredSessions = [];
+           await supabase
+             .from('users')
+             .update({
+               last_lat: location.coords.latitude,
+               last_lng: location.coords.longitude,
+             })
+             .eq('id', user.id);
+         }
+       }
+     } catch (err) {
+       await supabase.auth.signOut();
+       navigation.reset({
+         index: 0,
+         routes: [{ name: "Login" }],
+       });
+     }
+   })();
+ }, [navigation]);
 
-  if (isNoFilter && region) {
-    filteredSessions = [...sessions]
-      .filter(session => isSessionInFuture(session))
-      .map(session => ({
-        ...session,
-        distance: getDistance(
-          { latitude: region.latitude, longitude: region.longitude },
-          { latitude: Number(session.lat), longitude: Number(session.lng) }
-        )
-      }))
-      .sort((a, b) => a.distance - b.distance);
-  } else {
-    filteredSessions = sessions.filter(session => {
-      if (!isSessionInFuture(session)) return false;
-      if (selectedSport && session.sport !== selectedSport) return false;
-      if (selectedLevel && session.level !== selectedLevel) return false;
-      if (selectedDate && session.date !== selectedDate) return false;
-      if (search && session.location && !session.location.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-  }
 
-  useEffect(() => {
-    if (route.params?.showCongrats) {
-      Alert.alert('Félicitations !', 'Votre compte a bien été créé');
-      navigation.setParams({ showCongrats: undefined });
-    }
-  }, [route.params?.showCongrats, navigation]);
+ // --- Fetch initial + au focus, puis polling 5s quand visible ---
+ useFocusEffect(
+   useCallback(() => {
+     let isActive = true;
+     const load = async () => {
+       if (!isActive) return;
+       await fetchSessions();
+     };
+     load();
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F7F8FA" }}>
-      {region ? (
-       <MapView
-         ref={mapRef}
-         provider={PROVIDER_GOOGLE}
-         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-         region={region}
-         showsUserLocation
-       >
-          {filteredSessions.map((session, idx) => {
-            const lat = Number(session.lat);
-            const lng = Number(session.lng);
-            if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
-            const sIcon = sportIcons[session.sport] || sportIcons['Autres'];
-            return (
-              <Marker
-                key={session.id || idx}
-                coordinate={{ latitude: lat, longitude: lng }}
-                onPress={() => focusOnSession(session, idx)}
-                zIndex={selectedSessionId === session.id ? 1000 : 1}
-                tracksViewChanges={false}
-              >
-                <View
-                  style={{
-                    backgroundColor: '#fff',
-                    borderRadius: wp('50%'),
-                    padding: wp('1.8%'),
-                    borderWidth: 1.5,
-                    borderColor: '#f2f2f2',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: hp('0.3%') },
-                    shadowOpacity: 0.11,
-                    shadowRadius: hp('0.4%'),
-                    elevation: 2,
-                  }}
-                >
-                  {React.cloneElement(sIcon.icon, { size: wp('6%') })}
-                </View>
-                {selectedSessionId === session.id && (
-                  <Callout tooltip>
-                    <View style={styles.calloutBox}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: hp('0.5%') }}>
-                        <View style={[
-                          styles.cardPin,
-                          { backgroundColor: "#fff", borderColor: sIcon.color }
-                        ]}>
-                          {sIcon.icon}
-                        </View>
-                        <Text style={styles.calloutTitle}>{session.title}</Text>
-                      </View>
-                      <Text style={styles.calloutMeta}>
-                        {session.level || 'Niveau inconnu'} · {formatTime(session.time)} · {session.date}
-                      </Text>
-                      <Text style={styles.calloutDesc} numberOfLines={2}>{session.description}</Text>
-                      <TouchableOpacity
-                        style={styles.calloutBtn}
-                        onPress={() => navigation.navigate('SessionDetail', { sessionId: session.id })}
-                      >
-                        <Text style={styles.calloutBtnTxt}>Voir la session</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </Callout>
-                )}
-              </Marker>
-            );
-          })}
-        </MapView>
-      ) : (
-        <View style={{
-          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: "#F7F8FA", alignItems: "center", justifyContent: "center", zIndex: 1
-        }}>
-          <ActivityIndicator size="large" color="#3F4FFF" />
-          <Text style={{ color: "#999", fontSize: wp('3.8%'), marginTop: hp('2.5%') }}>
-            Chargement de la carte…
-          </Text>
-        </View>
-      )}
 
-      {/* AppBar */}
-      <View style={{
-        position: 'absolute',
-        top: 0, left: 0, right: 0, zIndex: 30,
-      }}>
-        <MiniAppBar
-          title="Accueil"
-          profileUri={user?.avatar_url}
-          hasNotifications={notifUnseen > 0}
-          onProfilePress={() => navigation.navigate('Profile')}
-          onNotificationsPress={() => navigation.navigate('Notifications')}
-          onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
-        />
-      </View>
+     // Polling 5s tant que l’écran est focus
+     const id = setInterval(() => {
+       if (isActive) fetchSessions();
+     }, 5000);
 
-      {/* Barre de recherche */}
-      <View style={{ position: 'absolute', top: hp('9%'), left: wp('4%'), right: wp('4%'), zIndex: 999 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: wp('4%'), elevation: 6, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: hp('0.6%'), shadowOffset: { width: 0, height: hp('0.3%') } }}>
-          <AntDesign name="search1" size={wp('4.5%')} color="#8A8C99" style={{ marginLeft: wp('2%'), marginRight: wp('1.5%') }} />
-          <TextInput
-            placeholder="Où voulez-vous bouger ?"
-            value={search}
-            onChangeText={setSearch}
-            style={[styles.floatingSearchInput, { flex: 1, borderRadius: 0, elevation: 0, shadowOpacity: 0, paddingLeft: 0 }]}
-            placeholderTextColor="#666"
-          />
-        </View>
-      </View>
 
-      {/* Suggestions */}
-      {suggestions.length > 0 && (
-        <View style={{
-          position: 'absolute',
-          top: hp('15%'),
-          left: '5%',
-          width: '90%',
-          zIndex: 9999,
-          elevation: 12,
-          backgroundColor: '#fff',
-          borderRadius: wp('4%'),
-          shadowColor: "#000",
-          shadowOpacity: 0.17,
-          shadowRadius: hp('0.8%'),
-          shadowOffset: { width: 0, height: hp('0.6%') },
-          paddingVertical: hp('0.2%'),
-        }}>
-          <FlatList
-            data={suggestions}
-            keyExtractor={item => item.place_id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={{
-                  paddingVertical: hp('1.6%'),
-                  paddingHorizontal: wp('5%'),
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#F2F2F2"
-                }}
-                onPress={() => handleSuggestionPress(item.place_id, item.description)}
-              >
-                <Text style={{ fontSize: wp('3.8%'), color: "#222" }}>{item.description}</Text>
-              </TouchableOpacity>
-            )}
-            style={{ width: '100%' }}
-            keyboardShouldPersistTaps="handled"
-          />
-        </View>
-      )}
+     return () => {
+       isActive = false;
+       clearInterval(id);
+     };
+   }, [fetchSessions])
+ );
 
-      {/* Chips sports */}
-      <View style={{ position: 'absolute', top: hp('16.5%'), left: 0, right: 0, zIndex: 998, flexDirection: 'row', paddingHorizontal: wp('2.5%') }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {sportData.map((sport) => (
-            <TouchableOpacity
-              key={sport.label}
-              style={[
-                styles.midChip,
-                selectedSport === sport.label && styles.midChipSelected,
-              ]}
-              onPress={() => setSelectedSport(selectedSport === sport.label ? '' : sport.label)}
-              activeOpacity={0.88}
-            >
-              {React.cloneElement(sport.icon, { size: wp('3.8%') })}
-              <Text style={[
-                styles.midChipText,
-                selectedSport === sport.label && { color: '#fff' }
-              ]}>
-                {sport.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={[styles.midChip, { borderColor: '#DDD', backgroundColor: '#F3F4F8', marginRight: wp('1.5%') }]}
-            onPress={() => setShowMoreSports(true)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="add-circle-outline" size={wp('5%')} color="#1877F2" style={{ marginRight: wp('0.5%') }} />
-            <Text style={[styles.midChipText, { color: "#1877F2" }]}>de sports</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
 
-      {/* Modal autres sports */}
-      <Modal
-        visible={showMoreSports}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setShowMoreSports(false)}
-      >
-        <View style={styles.modalBackground}>
-          <TouchableOpacity
-            style={{ flex: 1 }}
-            activeOpacity={1}
-            onPress={() => setShowMoreSports(false)}
-          />
-          <View style={styles.sportsPanel}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Autres sports</Text>
-              <TouchableOpacity onPress={() => setShowMoreSports(false)}>
-                <AntDesign name="closecircleo" size={wp('5.5%')} color="#888" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: hp('55%') }}>
-              {otherSports.map((sport) => {
-                const iconObj = sportIcons[sport] || sportIcons["Autres"];
-                return (
-                  <TouchableOpacity
-                    key={sport}
-                    style={[
-                      styles.moreSportsItem,
-                      selectedSport === sport && { backgroundColor: "#e9f0ff" }
-                    ]}
-                    onPress={() => {
-                      setSelectedSport(sport);
-                      setShowMoreSports(false);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.moreSportIconBox, { backgroundColor: (iconObj.color || "#DDD") + "16" }]}>
-                      {React.cloneElement(iconObj.icon, { size: wp('4.5%') })}
-                    </View>
-                    <Text style={[
-                      styles.moreSportsText,
-                      selectedSport === sport && { color: "#3f4fff", fontWeight: "700" }
-                    ]}>
-                      {sport}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowMoreSports(false)} />
-        </View>
-      </Modal>
+ // --- (Optionnel) écoute temps réel INSERT/UPDATE pour réactivité instantanée
+ useEffect(() => {
+   const channel = supabase
+     .channel('public:sessions')
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
+       fetchSessions();
+     })
+     .subscribe();
 
-      {/* Filtres */}
-      <View style={{
-        position: 'absolute',
-        top: hp('22%'),
-        left: 0,
-        right: 0,
-        zIndex: 997,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: wp('2.5%'),
-      }}>
-        <TouchableOpacity style={styles.midFilterChip} onPress={() => setShowLevelModal(true)}>
-          <Text style={[
-            styles.midChipText,
-            selectedLevel ? { color: "#3F4FFF" } : {}
-          ]}>
-            {selectedLevel || 'Niveau'}
-          </Text>
-          <AntDesign name="down" size={wp('3.2%')} style={{ marginLeft: wp('1%'), color: selectedLevel ? "#3F4FFF" : "#666" }} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.midFilterChip} onPress={() => setShowCalendar(!showCalendar)}>
-          <Text style={styles.midChipText}>{selectedDate}</Text>
-          <AntDesign name="calendar" size={wp('3.5%')} style={{ marginLeft: wp('1.2%'), color: "#666" }} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.midClearChip} onPress={clearFilters}>
-          <AntDesign name="close" size={wp('3.4%')} color="#1877F2" />
-          <Text style={styles.midClearChipText}>Effacer</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Modal niveau */}
-      <Modal
-        visible={showLevelModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLevelModal(false)}
-      >
-        <TouchableOpacity style={styles.pickerModalOverlay} activeOpacity={1} onPress={() => setShowLevelModal(false)}>
-          <View style={styles.pickerModalBox}>
-            <Text style={styles.pickerModalTitle}>Choisis ton niveau</Text>
-            {levelOptions.map(level => (
-              <TouchableOpacity
-                key={level}
-                style={[
-                  styles.pickerModalOption,
-                  selectedLevel === level && styles.pickerModalOptionSelected
-                ]}
-                onPress={() => {
-                  setSelectedLevel(level);
-                  setShowLevelModal(false);
-                }}
-              >
-                <Text style={[
-                  styles.pickerModalOptionText,
-                  selectedLevel === level && styles.pickerModalOptionTextSelected
-                ]}>
-                  {level}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              onPress={() => setShowLevelModal(false)}
-              style={styles.pickerModalCancel}
-            >
-              <Text style={styles.pickerModalCancelText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+   return () => { supabase.removeChannel(channel); };
+ }, [fetchSessions]);
 
-      {/* Calendrier */}
-      {showCalendar && (
-        <View style={styles.calendarWrapperTop}>
-          <Calendar
-            onDayPress={(day) => {
-              setSelectedDate(day.dateString);
-              setShowCalendar(false);
-            }}
-            markedDates={selectedDate ? {
-              [selectedDate]: { selected: true, selectedColor: '#3f4fff' },
-            } : {}}
-            theme={{
-              selectedDayBackgroundColor: '#3f4fff',
-              todayTextColor: '#3f4fff',
-              arrowColor: '#3f4fff',
-            }}
-          />
-        </View>
-      )}
 
-      {/* Sessions */}
-      <View style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: hp('2%'),
-        zIndex: 50,
-      }}>
-        <View
-          style={{
-            shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: hp('1.8%'),
-            shadowOffset: { width: 0, height: hp('0.6%') }, elevation: 8,
-          }}
-        >
-          <FlatList
-            ref={flatListRef}
-            horizontal
-            data={filteredSessions}
-            keyExtractor={item => String(item.id)}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingLeft: wp('2.5%'),
-              paddingRight: wp('2.5%'),
-            }}
-            ItemSeparatorComponent={() => <View style={{ width: wp('2.5%') }} />}
-            renderItem={({ item }) => (
-              <SessionCardHome
-                session={item}
-                onPress={() => navigation.navigate('SessionDetail', { sessionId: item.id })}
-              />
-            )}
-          />
-        </View>
-      </View>
+ // --- Autocomplete robuste ---
+ useEffect(() => {
+   const run = async () => {
+     if (!search || search.trim().length < 2) {
+       setSuggestions([]);
+       return;
+     }
+     try {
+       const encoded = encodeURIComponent(search.trim());
+       const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encoded}&key=${GOOGLE_MAPS_API_KEY}&language=fr&types=geocode&components=country:fr`;
+       const res = await fetch(url);
+       const data = await res.json();
+       setSuggestions(Array.isArray(data?.predictions) ? data.predictions : []);
+     } catch (err) {
+       console.error('Autocomplete error:', err);
+       setSuggestions([]);
+     }
+   };
+   run();
+ }, [search]);
 
-      {/* Ma position */}
-      {region && (
-        <TouchableOpacity
-          style={styles.myLocationBtn}
-          onPress={async () => {
-            let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') return;
-            let location = await Location.getCurrentPositionAsync({});
-            const currentCoords = {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            };
-            setRegion(currentCoords);
-            setMyLocation(currentCoords);
-            mapRef.current?.animateToRegion(currentCoords, 800);
-          }}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="my-location" size={wp('6.2%')} color="#3F4FFF" />
-        </TouchableOpacity>
-      )}
-    </SafeAreaView>
-  );
+
+ const focusOnSession = (session, index) => {
+   setSelectedSessionId(session.id);
+   mapRef.current?.animateToRegion(
+     {
+       latitude: Number(session.lat),
+       longitude: Number(session.lng),
+       latitudeDelta: 0.03,
+       longitudeDelta: 0.03,
+     },
+     400
+   );
+   if (typeof index === 'number' && flatListRef.current) {
+     flatListRef.current.scrollToIndex({ index, animated: true });
+   }
+ };
+
+
+ const handleSuggestionPress = async (placeId, description) => {
+   try {
+     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
+     const res = await fetch(url);
+     const data = await res.json();
+     const { lat, lng } = data?.result?.geometry?.location || {};
+     if (typeof lat !== 'number' || typeof lng !== 'number') return;
+
+
+     const newRegion = {
+       latitude: lat,
+       longitude: lng,
+       latitudeDelta: 0.05,
+       longitudeDelta: 0.05,
+     };
+     setRegion(newRegion);
+     setSuggestions([]);
+     setSearch(description);
+     mapRef.current?.animateToRegion(newRegion, 1000);
+   } catch (e) {
+     console.error('Place details error:', e);
+   }
+ };
+
+
+ const clearFilters = async () => {
+   setSelectedSport('');
+   setSelectedLevel('');
+   setSelectedDate(null);
+   setSearch('');
+   setSuggestions([]);
+   let { status } = await Location.requestForegroundPermissionsAsync();
+   if (status !== 'granted') return;
+   let location = await Location.getCurrentPositionAsync({});
+   const currentCoords = {
+     latitude: location.coords.latitude,
+     longitude: location.coords.longitude,
+     latitudeDelta: 0.05,
+     longitudeDelta: 0.05,
+   };
+   setRegion(currentCoords);
+   setMyLocation(currentCoords);
+   mapRef.current?.animateToRegion(currentCoords, 800);
+ };
+
+
+ function formatTime(time) {
+   if (!time) return '';
+   return time.slice(0, 5);
+ }
+
+
+ function isSessionInFuture(session) {
+   if (!session.date || !session.time) return false;
+   try {
+     const sessionDateTime = new Date(
+       `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
+     );
+     return sessionDateTime > new Date();
+   } catch {
+     return false;
+   }
+ }
+
+
+ const today = new Date().toISOString().split('T')[0];
+
+
+ const isNoFilter =
+   !selectedSport &&
+   !selectedLevel &&
+   (!selectedDate || selectedDate === today) &&
+   !search;
+
+
+ let filteredSessions = [];
+
+
+ if (isNoFilter && region) {
+   filteredSessions = [...sessions]
+     .filter(session => isSessionInFuture(session))
+     .map(session => ({
+       ...session,
+       distance: getDistance(
+         { latitude: region.latitude, longitude: region.longitude },
+         { latitude: Number(session.lat), longitude: Number(session.lng) }
+       )
+     }))
+     .sort((a, b) => a.distance - b.distance);
+ } else {
+   filteredSessions = sessions.filter(session => {
+     if (!isSessionInFuture(session)) return false;
+     if (selectedSport && session.sport !== selectedSport) return false;
+     if (selectedLevel && session.level !== selectedLevel) return false;
+     if (selectedDate && session.date !== selectedDate) return false;
+     if (search && session.location && !session.location.toLowerCase().includes(search.toLowerCase())) return false;
+     return true;
+   });
+ }
+
+
+ useEffect(() => {
+   if (route.params?.showCongrats) {
+     Alert.alert('Félicitations !', 'Votre compte a bien été créé');
+     navigation.setParams({ showCongrats: undefined });
+   }
+ }, [route.params?.showCongrats, navigation]);
+
+
+ const formatDateLabel = (dateStr) => {
+ if (!dateStr) return 'Date';
+ const d = new Date(dateStr);
+ if (isNaN(d)) return 'Date';
+ return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
 };
+<TouchableOpacity style={styles.midFilterChip} onPress={() => setShowCalendar(true)}>
+ <Text style={styles.midChipText}>
+   {formatDateLabel(selectedDate)}
+ </Text>
+ <AntDesign name="calendar" size={wp('3.5%')} style={{ marginLeft: wp('1.2%'), color: "#666" }} />
+</TouchableOpacity>
+
+
+ return (
+   <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+     {region ? (
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={StyleSheet.absoluteFillObject}
+        region={region}
+        showsUserLocation={!!myLocation}
+      >
+         {filteredSessions.map((session, idx) => {
+           const lat = Number(session.lat);
+           const lng = Number(session.lng);
+           if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
+           const sIcon = sportIcons[session.sport] || sportIcons['Autres'];
+           return (
+             <Marker
+               key={session.id || idx}
+               coordinate={{ latitude: lat, longitude: lng }}
+               onPress={() => focusOnSession(session, idx)}
+               zIndex={selectedSessionId === session.id ? 1000 : 1}
+               tracksViewChanges={false}
+             >
+               <View
+                 style={{
+                   backgroundColor: '#fff',
+                   borderRadius: wp('50%'),
+                   padding: wp('1.8%'),
+                   borderWidth: 1.5,
+                   borderColor: '#f2f2f2',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   shadowColor: "#000",
+                   shadowOffset: { width: 0, height: hp('0.3%') },
+                   shadowOpacity: 0.11,
+                   shadowRadius: hp('0.4%'),
+                   elevation: 2,
+                 }}
+               >
+                 {React.cloneElement(sIcon.icon, { size: wp('6%') })}
+               </View>
+               {selectedSessionId === session.id && (
+                 <Callout tooltip>
+                   <View style={styles.calloutBox}>
+                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: hp('0.5%') }}>
+                       <View style={[
+                         styles.cardPin,
+                         { backgroundColor: "#fff", borderColor: sIcon.color }
+                       ]}>
+                         {sIcon.icon}
+                       </View>
+                       <Text style={styles.calloutTitle}>{session.title}</Text>
+                     </View>
+                     <Text style={styles.calloutMeta}>
+                       {session.level || 'Niveau inconnu'} · {formatTime(session.time)} · {session.date}
+                     </Text>
+                     <Text style={styles.calloutDesc} numberOfLines={2}>{session.description}</Text>
+                     <TouchableOpacity
+                       style={styles.calloutBtn}
+                       onPress={() => navigation.navigate('SessionDetail', { sessionId: session.id })}
+                     >
+                       <Text style={styles.calloutBtnTxt}>Voir la session</Text>
+                     </TouchableOpacity>
+                   </View>
+                 </Callout>
+               )}
+             </Marker>
+           );
+         })}
+       </MapView>
+     ) : (
+       <View style={{
+         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+         backgroundColor: "#F7F8FA", alignItems: "center", justifyContent: "center", zIndex: 1
+       }}>
+         <ActivityIndicator size="large" color="#3F4FFF" />
+         <Text style={{ color: "#999", fontSize: wp('3.8%'), marginTop: hp('2.5%') }}>
+           Chargement de la carte…
+         </Text>
+       </View>
+     )}
+
+
+     {/* AppBar */}
+     <View style={{
+       position: 'absolute',
+       top: 0, left: 0, right: 0, zIndex: 30,
+     }}>
+       <MiniAppBar
+         title="Accueil"
+         profileUri={user?.avatar_url}
+         hasNotifications={notifUnseen > 0}
+         onProfilePress={() => navigation.navigate('Profile')}
+         onNotificationsPress={() => navigation.navigate('Notifications')}
+         onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
+       />
+     </View>
+
+<View
+  style={{
+    position: 'absolute',
+    top: SEARCH_TOP,
+    left: wp('4%'),
+    right: wp('4%'),
+    zIndex: 999,
+  }}
+>
+  <View
+    style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: wp('4%'),
+      elevation: 6,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: hp('0.6%'),
+      shadowOffset: { width: 0, height: hp('0.3%') },
+      height: SEARCH_H,
+      paddingHorizontal: wp('6%'),
+    }}
+  >
+    <AntDesign name="search1" size={wp('4.5%')} color="#8A8C99" style={{ marginRight: wp('3%') }} />
+    <TextInput
+      placeholder="Où voulez-vous bouger ?"
+      value={search}
+      onChangeText={setSearch}
+      style={{ flex: 1, fontSize: wp('3.8%'), color: "#222", paddingVertical: 0 }}
+      placeholderTextColor="#666"
+    />
+  </View>
+</View>
+
+     {/* Suggestions */}
+{suggestions.length > 0 && (
+  <View style={{
+    position: 'absolute',
+    top: SEARCH_TOP + SEARCH_H + 10,   // juste sous l’input
+    left: '5%',
+    width: '90%',
+    zIndex: 9999,
+    elevation: 12,
+    backgroundColor: '#fff',
+    borderRadius: wp('4%'),
+    shadowColor: "#000",
+    shadowOpacity: 0.17,
+    shadowRadius: hp('0.8%'),
+    shadowOffset: { width: 0, height: hp('0.6%') },
+    paddingVertical: hp('0.2%'),
+    maxHeight: hp('40%'),
+    overflow: 'hidden',
+  }}>
+         <FlatList
+           data={suggestions}
+           keyExtractor={item => item.place_id}
+           renderItem={({ item }) => (
+             <TouchableOpacity
+               style={{
+                 paddingVertical: hp('1.6%'),
+                 paddingHorizontal: wp('5%'),
+                 borderBottomWidth: 1,
+                 borderBottomColor: "#F2F2F2"
+               }}
+               onPress={() => handleSuggestionPress(item.place_id, item.description)}
+             >
+               <Text style={{ fontSize: wp('3.8%'), color: "#222" }}>{item.description}</Text>
+             </TouchableOpacity>
+           )}
+           style={{ width: '100%' }}
+           keyboardShouldPersistTaps="handled"
+         />
+       </View>
+     )}
+
+
+     {/* Chips sports */}
+     <View style={{ position: 'absolute', top: CHIPS_TOP, left: 0, right: 0, zIndex: 998, flexDirection: 'row', paddingHorizontal: wp('2.5%') }}>
+       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+         {sportData.map((sport) => (
+           <TouchableOpacity
+             key={sport.label}
+             style={[
+               styles.midChip,
+               selectedSport === sport.label && styles.midChipSelected,
+             ]}
+             onPress={() => setSelectedSport(selectedSport === sport.label ? '' : sport.label)}
+             activeOpacity={0.88}
+           >
+             {React.cloneElement(sport.icon, { size: wp('3.8%') })}
+             <Text style={[
+               styles.midChipText,
+               selectedSport === sport.label && { color: '#fff' }
+             ]}>
+               {sport.label}
+             </Text>
+           </TouchableOpacity>
+         ))}
+         <TouchableOpacity
+           style={[styles.midChip, { borderColor: '#DDD', backgroundColor: '#F3F4F8', marginRight: wp('1.5%') }]}
+           onPress={() => setShowMoreSports(true)}
+           activeOpacity={0.85}
+         >
+           <Ionicons name="add-circle-outline" size={wp('5%')} color="#1877F2" style={{ marginRight: wp('0.5%') }} />
+           <Text style={[styles.midChipText, { color: "#1877F2" }]}>de sports</Text>
+         </TouchableOpacity>
+       </ScrollView>
+     </View>
+
+
+     {/* Modal autres sports */}
+     <Modal
+       visible={showMoreSports}
+       animationType="fade"
+       transparent
+       onRequestClose={() => setShowMoreSports(false)}
+     >
+       <View style={styles.modalBackground}>
+         <TouchableOpacity
+           style={{ flex: 1 }}
+           activeOpacity={1}
+           onPress={() => setShowMoreSports(false)}
+         />
+         <View style={styles.sportsPanel}>
+           <View style={styles.modalHeader}>
+             <Text style={styles.modalTitle}>Autres sports</Text>
+             <TouchableOpacity onPress={() => setShowMoreSports(false)}>
+               <AntDesign name="closecircleo" size={wp('5.5%')} color="#888" />
+             </TouchableOpacity>
+           </View>
+           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: hp('55%') }}>
+             {otherSports.map((sport) => {
+               const iconObj = sportIcons[sport] || sportIcons["Autres"];
+               return (
+                 <TouchableOpacity
+                   key={sport}
+                   style={[
+                     styles.moreSportsItem,
+                     selectedSport === sport && { backgroundColor: "#e9f0ff" }
+                   ]}
+                   onPress={() => {
+                     setSelectedSport(sport);
+                     setShowMoreSports(false);
+                   }}
+                   activeOpacity={0.7}
+                 >
+                   <View style={[styles.moreSportIconBox, { backgroundColor: (iconObj.color || "#DDD") + "16" }]}>
+                     {React.cloneElement(iconObj.icon, { size: wp('4.5%') })}
+                   </View>
+                   <Text style={[
+                     styles.moreSportsText,
+                     selectedSport === sport && { color: "#3f4fff", fontWeight: "700" }
+                   ]}>
+                     {sport}
+                   </Text>
+                 </TouchableOpacity>
+               );
+             })}
+           </ScrollView>
+         </View>
+         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowMoreSports(false)} />
+       </View>
+     </Modal>
+
+
+     {/* Filtres */}
+<View style={{
+  position: 'absolute',
+  top: FILTERS_TOP,
+  left: 0,
+  right: 0,
+  zIndex: 997,
+  flexDirection: 'row',
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: wp('2.5%'),
+}}>
+       <TouchableOpacity style={styles.midFilterChip} onPress={() => setShowLevelModal(true)}>
+         <Text style={[
+           styles.midChipText,
+           selectedLevel ? { color: "#3F4FFF" } : {}
+         ]}>
+           {selectedLevel || 'Niveau'}
+         </Text>
+         <AntDesign name="down" size={wp('3.2%')} style={{ marginLeft: wp('1%'), color: selectedLevel ? "#3F4FFF" : "#666" }} />
+       </TouchableOpacity>
+       <TouchableOpacity style={styles.midFilterChip} onPress={() => setShowCalendar(!showCalendar)}>
+         <Text style={styles.midChipText}>{selectedDate}</Text>
+         <AntDesign name="calendar" size={wp('3.5%')} style={{ marginLeft: wp('1.2%'), color: "#666" }} />
+       </TouchableOpacity>
+       <TouchableOpacity style={styles.midClearChip} onPress={clearFilters}>
+         <AntDesign name="close" size={wp('3.4%')} color="#1877F2" />
+         <Text style={styles.midClearChipText}>Effacer</Text>
+       </TouchableOpacity>
+     </View>
+
+
+     {/* Modal niveau */}
+     <Modal
+       visible={showLevelModal}
+       transparent
+       animationType="fade"
+       onRequestClose={() => setShowLevelModal(false)}
+     >
+       <TouchableOpacity style={styles.pickerModalOverlay} activeOpacity={1} onPress={() => setShowLevelModal(false)}>
+         <View style={styles.pickerModalBox}>
+           <Text style={styles.pickerModalTitle}>Choisis ton niveau</Text>
+           {levelOptions.map(level => (
+             <TouchableOpacity
+               key={level}
+               style={[
+                 styles.pickerModalOption,
+                 selectedLevel === level && styles.pickerModalOptionSelected
+               ]}
+               onPress={() => {
+                 setSelectedLevel(level);
+                 setShowLevelModal(false);
+               }}
+             >
+               <Text style={[
+                 styles.pickerModalOptionText,
+                 selectedLevel === level && styles.pickerModalOptionTextSelected
+               ]}>
+                 {level}
+               </Text>
+             </TouchableOpacity>
+           ))}
+           <TouchableOpacity
+             onPress={() => setShowLevelModal(false)}
+             style={styles.pickerModalCancel}
+           >
+             <Text style={styles.pickerModalCancelText}>Annuler</Text>
+           </TouchableOpacity>
+         </View>
+       </TouchableOpacity>
+     </Modal>
+
+
+{/* Modal Calendrier — même pattern que Création/Edit */}
+<Modal
+ transparent
+ animationType="fade"
+ visible={showCalendar}
+ onRequestClose={() => setShowCalendar(false)}
+>
+ <View style={styles.modalOverlay}>
+   <View style={styles.calendarModalBox}>
+     <Text style={styles.modalTitle}>Choisir une date</Text>
+
+
+     <Calendar
+       onDayPress={(day) => {
+         setSelectedDate(day.dateString);
+         setShowCalendar(false);
+       }}
+       markedDates={
+         selectedDate
+           ? { [selectedDate]: { selected: true, selectedColor: '#3f4fff' } }
+           : {}
+       }
+       minDate={new Date().toISOString().slice(0,10)}
+       theme={{
+         selectedDayBackgroundColor: '#3f4fff',
+         todayTextColor: '#3f4fff',
+         arrowColor: '#3f4fff',
+         textDayFontSize: 18,
+         textMonthFontSize: 20,
+         textDayHeaderFontSize: 15,
+       }}
+       style={styles.calendarBoxHome}   // ⇦ container élargi
+     />
+
+
+     <TouchableOpacity
+       style={styles.validateButton}
+       onPress={() => setShowCalendar(false)}
+       activeOpacity={0.9}
+     >
+       <Text style={styles.validateText}>Fermer</Text>
+     </TouchableOpacity>
+   </View>
+ </View>
+</Modal>
+
+
+     {/* Sessions */}
+     <View style={{
+       position: 'absolute',
+       left: 0,
+       right: 0,
+       bottom: hp('2%'),
+       zIndex: 50,
+     }}>
+       <View
+         style={{
+           shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: hp('1.8%'),
+           shadowOffset: { width: 0, height: hp('0.6%') }, elevation: 8,
+         }}
+       >
+         <FlatList
+           ref={flatListRef}
+           horizontal
+           data={filteredSessions}
+           keyExtractor={item => String(item.id)}
+           showsHorizontalScrollIndicator={false}
+           contentContainerStyle={{
+             paddingLeft: wp('2.5%'),
+             paddingRight: wp('2.5%'),
+           }}
+           ItemSeparatorComponent={() => <View style={{ width: wp('2.5%') }} />}
+           renderItem={({ item }) => (
+             <SessionCardHome
+               session={item}
+               onPress={() => navigation.navigate('SessionDetail', { sessionId: item.id })}
+             />
+           )}
+         />
+       </View>
+     </View>
+
+
+     {/* Ma position */}
+     {region && (
+       <TouchableOpacity
+         style={styles.myLocationBtn}
+         onPress={async () => {
+           let { status } = await Location.requestForegroundPermissionsAsync();
+           if (status !== 'granted') return;
+           let location = await Location.getCurrentPositionAsync({});
+           const currentCoords = {
+             latitude: location.coords.latitude,
+             longitude: location.coords.longitude,
+             latitudeDelta: 0.05,
+             longitudeDelta: 0.05,
+           };
+           setRegion(currentCoords);
+           setMyLocation(currentCoords);
+           mapRef.current?.animateToRegion(currentCoords, 800);
+         }}
+         activeOpacity={0.8}
+       >
+         <MaterialIcons name="my-location" size={wp('6.2%')} color="#3F4FFF" />
+       </TouchableOpacity>
+     )}
+   </SafeAreaView>
+ );
+};
+
 
 export default HomeScreen;
 
@@ -1096,6 +1241,58 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: wp('4%'),
   },
+  calendarModalBox: {
+  width: '85%',
+  backgroundColor: '#fff',
+  borderRadius: 16,
+  paddingVertical: 16,
+  paddingHorizontal: 14,
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 8,
+},
+
+calendarBoxHome: {
+  width: '92%',         // ⇦ large
+  borderRadius: 12,
+  backgroundColor: '#fff',
+  elevation: 3,          // Android shadow
+  shadowColor: '#000',   // iOS shadow
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+  marginBottom: 12,
+  alignSelf: 'center',
+},
+
+// si pas déjà présent
+modalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.4)',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+modalTitle: {
+  fontSize: 18,
+  fontWeight: '700',
+  marginBottom: 10,
+  color: '#000',
+},
+validateButton: {
+  marginTop: 6,
+  backgroundColor: '#3F4FFF',
+  paddingVertical: 10,
+  paddingHorizontal: 28,
+  borderRadius: 10,
+},
+validateText: {
+  color: '#fff',
+  fontSize: 16,
+  fontWeight: '700',
+},
 });
 
 const mapStyle = [

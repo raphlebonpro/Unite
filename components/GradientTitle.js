@@ -1,18 +1,41 @@
 import React, { memo } from 'react';
-import { Text, View, PixelRatio } from 'react-native';
+import { Text, View, PixelRatio, Platform } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const GRADIENT_COLORS = ['#FFAD75', '#FF8269', '#FF5361'];
+const ANDROID_ORANGE = '#FF7146'; // 🎨 Orange uni pour Android
 
 function GradientTitle({ children, style, width }) {
   const titleWidth = width ? wp(width) : wp('48%');
-  const titleHeight = hp('3.3%'); // légèrement plus haut
-  const fontSizeDefault = wp('4.5%'); // augmenté
-
+  const titleHeight = hp('3.3%');
+  const fontSizeDefault = wp('4.5%');
   const h = Math.ceil(PixelRatio.roundToNearestPixel(titleHeight));
 
+  // 🔥 Android fallback → texte orange uni
+  if (Platform.OS === 'android') {
+    return (
+      <Text
+        style={[
+          {
+            fontWeight: 'bold',
+            fontSize: fontSizeDefault,
+            color: ANDROID_ORANGE,
+            textAlign: 'center',
+          },
+          style,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.9}
+      >
+        {children}
+      </Text>
+    );
+  }
+
+  // 🍏 iOS → Gradient
   return (
     <View style={{ width: titleWidth, height: h, alignItems: 'center', justifyContent: 'center' }}>
       <MaskedView
@@ -50,4 +73,3 @@ function GradientTitle({ children, style, width }) {
 }
 
 export default memo(GradientTitle);
-

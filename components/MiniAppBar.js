@@ -38,12 +38,13 @@ const MiniAppBar = ({ title, onNotificationsPress, onLeaderboardPress }) => {
   const notifLabel =
     notifUnseen > 99 ? '99+' : notifUnseen > 9 ? '9+' : String(notifUnseen);
 
-  const BASE_H = 48;
+  // ✅ Hauteur différente selon la plateforme
+  const BASE_H = Platform.OS === 'ios' ? 52 : 52;
 
   return (
     <View
       style={{
-        minHeight: BASE_H + insets.top, // ✅ auto en fonction du modèle
+        minHeight: BASE_H + insets.top,
         paddingTop: insets.top,
         backgroundColor: '#fff',
         borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
@@ -63,7 +64,7 @@ const MiniAppBar = ({ title, onNotificationsPress, onLeaderboardPress }) => {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: BASE_H,
+          height: BASE_H, // 👈 dépend de la plateforme
         }}
       >
         {/* 🏆 Classement mensuel */}
@@ -142,7 +143,7 @@ const MiniAppBar = ({ title, onNotificationsPress, onLeaderboardPress }) => {
         <GradientTitle
           style={{
             fontWeight: 'bold',
-            fontSize: 18,
+            fontSize: Platform.OS === 'ios' ? 18 : 20, // 👈 taille aussi adaptée
             textAlign: 'center',
           }}
           numberOfLines={1}

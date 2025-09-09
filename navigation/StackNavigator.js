@@ -23,6 +23,7 @@ import CollectiveChallengesScreen from '../screens/CollectiveChallengesScreen';
 import FeedbackAndReportScreen from '../screens/FeedbackAndReportScreen';
 import SearchFriendsScreen from '../screens/SearchFriendsScreen.js';
 import FriendsListScreen from '../screens/FriendsListScreen';
+import EditReviewScreen from '../screens/EditReviewScreen';
 
 // Fonction pour le header dégradé
 const gradientHeader = (title) => ({
@@ -118,7 +119,7 @@ export default function StackNavigator() {
       />
       <Stack.Screen name="RateSession" 
       component={RateSessionScreen} 
-      options={{ title: "Laisser un avis" }}
+      options={gradientHeader('Laisser un avis')}
       />
       <Stack.Screen
       name="UserReview"
@@ -145,9 +146,15 @@ export default function StackNavigator() {
      component={SearchFriendsScreen}
      options={gradientHeader('Recherche coéquipier')}
      />
-     <Stack.Screen name="FriendsList"
+     <Stack.Screen 
+     name="FriendsList"
      component={FriendsListScreen}
      options={gradientHeader('Coéquipiers')}
+     />
+     <Stack.Screen
+     name="EditReviewScreen"
+     component={EditReviewScreen}
+     options={gradientHeader('Modifier son avis')}
      />
     </Stack.Navigator>
   );
