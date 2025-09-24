@@ -17,7 +17,11 @@ import { supabase } from '../lib/supabaseClient';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { notifyFeedbackReceived } from '../helpers/notifications';
+import { 
+  notifyFeedbackConfirmation, 
+  notifyNewsletterSubscribed 
+} from '../helpers/notifications';
+import Toast from 'react-native-toast-message';
 
 export default function FeedbackScreen({ navigation }) {
   const [rating, setRating] = useState(null);
@@ -39,34 +43,55 @@ export default function FeedbackScreen({ navigation }) {
     fetchUser();
   }, []);
 
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
   if (!rating && !generalFeedback && !improvement && !issueType && !issueDetail) {
     Alert.alert("Merci de remplir au moins un champ !");
     return;
   }
 
-  const { error, data } = await supabase.from('app_feedback').insert([
-    {
-      user_id: userId,
-      rating,
-      general_feedback: generalFeedback,
-      improvement,
-      issue_type: issueType,
-      issue_detail: issueDetail,
-    }
-  ]).select().single();
+  // 🔑 Récupère bien l'user avant
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    Alert.alert("Erreur", "Utilisateur non connecté");
+    return;
+  }
+
+  const { error, data } = await supabase.from('app_feedback').insert([{
+    user_id: user.id,       // ✅ toujours passer l'user_id
+    rating,
+    general_feedback: generalFeedback,
+    improvement,
+    issue_type: issueType,
+    issue_detail: issueDetail,
+  }]).select().single();
 
   if (error) {
-    Alert.alert("Erreur", "Une erreur est survenue.");
+    console.log("❌ Supabase insert error (feedback):", error);
+    Alert.alert("Erreur", error.message || "Une erreur est survenue.");
   } else {
-    // ✅ Notif interne (admin)
+    // ✅ Envoi mail via Edge Function
     try {
-      await notifyFeedbackReceived({
-        userId,
-        feedbackId: data.id,
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+
+      await fetch(`${baseUrl}/functions/v1/send_feedback_email`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          feedbackId: data.id,
+          generalFeedback,
+          improvement,
+          issueType,
+          issueDetail,
+        }),
       });
     } catch (e) {
-      console.error("Erreur notif feedback :", e);
+      console.error("❌ Erreur envoi email Zoho:", e);
     }
 
     Toast.show({
@@ -79,21 +104,37 @@ export default function FeedbackScreen({ navigation }) {
 
     navigation.goBack();
   }
+  await notifyFeedbackConfirmation({ userId: user.id });
 };
 
   // Newsletter handler
-  const handleNewsletter = async () => {
+const handleNewsletter = async () => {
   if (!newsletterEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newsletterEmail)) {
     Alert.alert('Erreur', "Veuillez saisir une adresse e-mail valide.");
     return;
   }
   setNewsletterLoading(true);
-  const { error } = await supabase.from('newsletter_subscribers').insert([{ email: newsletterEmail }]);
+
+  // 🔑 Récupère aussi l'user si dispo
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from('newsletter_subscribers').insert([{
+    email: newsletterEmail,
+    user_id: user?.id || null,
+  }]);
+
   setNewsletterLoading(false);
 
   if (error) {
-    Alert.alert("Erreur", "L’inscription a échoué. Réessaye plus tard.");
+    console.log("❌ Supabase insert error (newsletter):", error);
+    Alert.alert("Erreur", error.message || "L’inscription a échoué. Réessaye plus tard.");
   } else {
+    // ✅ Envoi notif après succès
+    await notifyNewsletterSubscribed({
+      userId: user?.id,
+      email: newsletterEmail,
+    });
+
     Toast.show({
       type: 'success',
       text1: 'Inscription réussie 🎉',

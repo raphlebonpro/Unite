@@ -1,63 +1,94 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+// context/NotificationContext.js
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { useUser } from './UserContext';
+import * as Notifications from 'expo-notifications';
 
 const NotificationContext = createContext();
 
-export const NotificationProvider = ({ children }) => {
-  const { user } = useUser();
+export function NotificationProvider({ children }) {
   const [notifUnseen, setNotifUnseen] = useState(0);
-  const [refreshNotifs, setRefreshNotifs] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const fetchUnread = useCallback(async () => {
+  // --- Compte direct sur notifications
+  const fetchUnread = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user?.id) {
       setNotifUnseen(0);
+      setLoading(false);
       return;
     }
+
     const { count, error } = await supabase
       .from('notifications')
-      .select('id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('is_read', false);
 
-    if (!error) setNotifUnseen(count || 0);
-  }, [user?.id]);
+    if (!error) {
+      setNotifUnseen(count || 0);
+    } else {
+      console.error("❌ Erreur fetchUnread:", error);
+      setNotifUnseen(0);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    fetchUnread();
-  }, [fetchUnread, refreshNotifs]);
+    let channel;
+    let interval;
 
-useEffect(() => {
-  if (!user?.id) return;
-  const channel = supabase
-    .channel('notifications_channel')
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-      () => fetchUnread()
-    )
-    .on(
-      'postgres_changes',
-      { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-      () => fetchUnread()
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-      () => fetchUnread()
-    )
-    .subscribe();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
-  return () => { supabase.removeChannel(channel); };
-}, [fetchUnread, user?.id]);
+      await fetchUnread();
 
-  const triggerRefreshNotifs = () => setRefreshNotifs(prev => !prev);
+      // --- Abonnement realtime
+      channel = supabase
+        .channel('notif_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          },
+          async () => {
+            await fetchUnread();
+          }
+        )
+        .subscribe((status) => {
+          console.log("📡 Status canal notifications:", status);
+        });
+
+      // --- Poll toutes les 5 secondes (sécurité)
+      interval = setInterval(fetchUnread, 5000);
+    })();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+      if (interval) clearInterval(interval);
+    };
+  }, []);
+
+  // --- Badge icône app
+  useEffect(() => {
+    Notifications.setBadgeCountAsync(notifUnseen).catch(err =>
+      console.warn("⚠️ Erreur setBadgeCountAsync", err)
+    );
+  }, [notifUnseen]);
 
   return (
-    <NotificationContext.Provider value={{ notifUnseen, triggerRefreshNotifs }}>
+    <NotificationContext.Provider value={{ notifUnseen, refreshUnread: fetchUnread, loading }}>
       {children}
     </NotificationContext.Provider>
   );
-};
+}
 
-export const useNotificationRefresh = () => useContext(NotificationContext);
+export function useNotificationRefresh() {
+  return useContext(NotificationContext);
+}

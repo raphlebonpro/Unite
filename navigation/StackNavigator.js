@@ -1,6 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainTabs from './MainTabs.js';
+import { Platform } from 'react-native';
+
 
 import EditProfileScreen from '../screens/EditProfileScreen';
 import LocationScreen from '../screens/LocationScreen';
@@ -15,7 +17,6 @@ import SessionMessagesScreen from '../screens/SessionMessagesScreen.js';
 import EditSessionScreen from '../screens/EditSessionScreen.js';
 import ActivitiesScreen from '../screens/ActivitiesScreen.js';
 import UserProfileScreen from '../screens/UserProfileScreen.js';
-import GradientTitle from '../components/GradientTitle';
 import RateSessionScreen from '../screens/RateSessionScreen';
 import UserReviewScreen from '../screens/UserReviewScreen';
 import LeaderBoardScreen from '../screens/LeaderBoardScreen';
@@ -24,35 +25,51 @@ import FeedbackAndReportScreen from '../screens/FeedbackAndReportScreen';
 import SearchFriendsScreen from '../screens/SearchFriendsScreen.js';
 import FriendsListScreen from '../screens/FriendsListScreen';
 import EditReviewScreen from '../screens/EditReviewScreen';
+import InviteFriendsToSession from '../screens/InviteFriendsToSession';
 
-// Fonction pour le header dégradé
-const gradientHeader = (title) => ({
-  headerTitle: () => <GradientTitle>{title}</GradientTitle>,
-  headerTitleAlign: 'center',
-  headerRight: () => <></>,
-});
+import GradientTitle from '../components/GradientTitle';
 
 const Stack = createNativeStackNavigator();
 
+const gradientHeader = (title) => ({
+  headerTitle: () => (
+    <GradientTitle style={{ fontWeight: 'bold', fontSize: 18 }}>
+      {title}
+    </GradientTitle>
+  ),
+  headerTitleAlign: 'center',
+  headerBackTitle: 'Retour',
+  headerBackVisible: true,
+  // 👉 Ombre et fond repris de CustomAppBar
+  headerStyle: {
+    backgroundColor: '#fff',
+    borderBottomColor: '#EEE',
+    borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
+    shadowColor: '#000',
+    shadowOpacity: Platform.OS === 'ios' ? 0.06 : 0,
+    shadowRadius: Platform.OS === 'ios' ? 6 : 0,
+    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 3 } : undefined,
+    elevation: Platform.OS === 'android' ? 3 : 0,
+  },
+  headerShadowVisible: false, // on masque l’ombre par défaut pour n’utiliser que la nôtre
+});
+
+
 export default function StackNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ 
-      headerShown: true,
-      headerBackTitle: 'Retour',
-      headerBackTitleVisible: true,
-    }}>
-      {/* Bottom Tabs avec toutes les sections principales */}
+    <Stack.Navigator screenOptions={{ headerShown: true }}>
+      {/* Bottom Tabs */}
       <Stack.Screen
         name="MainTabs"
         component={MainTabs}
         options={{ headerShown: false }}
       />
 
-      {/* Profil et édition */}
+      {/* Profil */}
       <Stack.Screen
         name="Profile"
         component={ProfileScreen}
-        options={gradientHeader('Mon Profil')}
+        options={{ headerShown: false }} // ⚠️ a déjà son propre AppBar
       />
       <Stack.Screen
         name="EditProfile"
@@ -60,7 +77,7 @@ export default function StackNavigator() {
         options={gradientHeader('Modifier le profil')}
       />
 
-      {/* Paramètres & autres */}
+      {/* Paramètres */}
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
@@ -96,7 +113,8 @@ export default function StackNavigator() {
         component={NotificationsScreen}
         options={gradientHeader('Notifications')}
       />
-      {/* Nouvelle page Messages */}
+
+      {/* Messages */}
       <Stack.Screen
         name="SessionMessages"
         component={SessionMessagesScreen}
@@ -112,50 +130,58 @@ export default function StackNavigator() {
         component={ActivitiesScreen}
         options={gradientHeader('Activités')}
       />
+
+      {/* Autres */}
       <Stack.Screen
-       name="UserProfile"
-       component={UserProfileScreen}
-       options={{ headerShown: false }}
-      />
-      <Stack.Screen name="RateSession" 
-      component={RateSessionScreen} 
-      options={gradientHeader('Laisser un avis')}
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
-      name="UserReview"
-      component={UserReviewScreen}
-      options={gradientHeader('Avis reçus')}
+        name="RateSession"
+        component={RateSessionScreen}
+        options={gradientHeader('Laisser un avis')}
       />
       <Stack.Screen
-      name="LeaderBoard"
-      component={LeaderBoardScreen}
-      options={gradientHeader('Classement Mensuel')}
+        name="UserReview"
+        component={UserReviewScreen}
+        options={gradientHeader('Avis reçus')}
       />
       <Stack.Screen
-      name="CollectiveChallenges"
-      component={CollectiveChallengesScreen}
-      options={gradientHeader('Défis collectifs')}
-     />
-     <Stack.Screen
-      name="FeedbackAndReport"
-      component={FeedbackAndReportScreen}
-      options={gradientHeader('Retour / Signalement')}
-     />
-     <Stack.Screen
-     name="SearchFriends"
-     component={SearchFriendsScreen}
-     options={gradientHeader('Recherche coéquipier')}
-     />
-     <Stack.Screen 
-     name="FriendsList"
-     component={FriendsListScreen}
-     options={gradientHeader('Coéquipiers')}
-     />
-     <Stack.Screen
-     name="EditReviewScreen"
-     component={EditReviewScreen}
-     options={gradientHeader('Modifier son avis')}
-     />
+        name="LeaderBoard"
+        component={LeaderBoardScreen}
+        options={gradientHeader('Classement Mensuel')}
+      />
+      <Stack.Screen
+        name="CollectiveChallenges"
+        component={CollectiveChallengesScreen}
+        options={gradientHeader('Défis collectifs')}
+      />
+      <Stack.Screen
+        name="FeedbackAndReport"
+        component={FeedbackAndReportScreen}
+        options={gradientHeader('Retour / Signalement')}
+      />
+      <Stack.Screen
+        name="SearchFriends"
+        component={SearchFriendsScreen}
+        options={gradientHeader('Recherche coéquipier')}
+      />
+      <Stack.Screen
+        name="FriendsList"
+        component={FriendsListScreen}
+        options={gradientHeader('Coéquipiers')}
+      />
+      <Stack.Screen
+        name="EditReviewScreen"
+        component={EditReviewScreen}
+        options={gradientHeader('Modifier son avis')}
+      />
+      <Stack.Screen
+        name="InviteFriendsToSession"
+        component={InviteFriendsToSession}
+        options={gradientHeader('Inviter un coéquipier')}
+      />
     </Stack.Navigator>
   );
 }

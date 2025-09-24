@@ -95,19 +95,22 @@ export default function UserReviewsScreen({ route }) {
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-              <Image
-                source={
-                  item.users?.profile_photo
-                    ? { uri: item.users.profile_photo }
-                    : require('../assets/avatar-default.png')
-                }
-                style={styles.avatar}
-              />
-              <Text style={styles.username}>{item.users?.username || "Utilisateur"}</Text>
-              <StarDisplay value={item.rating} size={18} />
-            </View>
-
+     <TouchableOpacity
+  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}
+  activeOpacity={0.7}
+  onPress={() => navigation.navigate('UserProfile', { userId: item.rater_id })}
+>
+  <Image
+    source={
+      item.users?.profile_photo
+        ? { uri: item.users.profile_photo }
+        : require('../assets/avatar-default.png')
+    }
+    style={styles.avatar}
+  />
+  <Text style={styles.username}>{item.users?.username || "Utilisateur"}</Text>
+  <StarDisplay value={item.rating} size={18} />
+</TouchableOpacity>
             {item.comment ? (
               <Text style={styles.comment}>{item.comment}</Text>
             ) : null}

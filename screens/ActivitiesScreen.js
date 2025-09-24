@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  Dimensions, RefreshControl, SafeAreaView
+  Dimensions, RefreshControl, SafeAreaView, Platform,
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import SessionCard from '../components/SessionCard';
@@ -10,27 +10,14 @@ import { useUser } from '../context/UserContext';
 import { AntDesign, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MiniAppBar from '../components/MiniAppBar';
-import { Platform } from 'react-native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const { width } = Dimensions.get('window');
 
 const TABS = [
-  {
-    key: 'created',
-    label: 'Créées',
-    icon: <AntDesign name="pluscircleo" size={16} color="#FF914D" />,
-  },
-  {
-    key: 'joined',
-    label: 'Rejointes',
-    icon: <Ionicons name="people-outline" size={16} color="#38d7b6" />,
-  },
-  {
-    key: 'past',
-    label: 'Passées',
-    icon: <MaterialCommunityIcons name="clock-time-eight-outline" size={16} color="#B1B1C4" />,
-  }
+  { key: 'created', label: 'Créées', icon: <AntDesign name="pluscircleo" size={16} color="#FF914D" /> },
+  { key: 'joined', label: 'Rejointes', icon: <Ionicons name="people-outline" size={16} color="#38d7b6" /> },
+  { key: 'past', label: 'Passées', icon: <MaterialCommunityIcons name="clock-time-eight-outline" size={16} color="#B1B1C4" /> }
 ];
 
 const ActivitiesScreen = () => {
@@ -43,7 +30,7 @@ const ActivitiesScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
 
-  // Met à jour l'onglet selon le param de navigation (tab)
+  // Met à jour l'onglet selon param navigation
   useEffect(() => {
     if (route.params?.tab && ['created', 'joined', 'past'].includes(route.params.tab)) {
       setSelectedTab(route.params.tab);
@@ -52,19 +39,33 @@ const ActivitiesScreen = () => {
     }
   }, [route.params?.tab]);
 
+  // Helper: construit la Date JS complète
+  function buildDateTime(session) {
+    if (!session.date) return null;
+    const dt = new Date(session.date);
+    if (session.time && typeof session.time === "string") {
+      let clean = session.time.replace("h", ":"); // ex: "14h30" → "14:30"
+      const [hh, mm] = clean.split(":").map(Number);
+      if (!isNaN(hh)) dt.setHours(hh, mm || 0, 0, 0);
+    }
+    return dt;
+  }
+
   const fetchSessions = useCallback(async () => {
     if (!user || !user.id) return;
-
     try {
+      // --- Créées par l'user
       const { data: created } = await supabase
         .from('sessions')
         .select('*')
         .eq('creator_id', user.id);
 
+      // --- Sessions rejointes
       const { data: joinedIds } = await supabase
         .from('session_participants')
         .select('session_id')
         .eq('user_id', user.id);
+
       const sessionIds = joinedIds?.map((s) => s.session_id) || [];
 
       let joined = [];
@@ -78,65 +79,39 @@ const ActivitiesScreen = () => {
 
       const joinedFiltered = (joined || []).filter(s => s.creator_id !== user.id);
 
+      // --- Classement
       const now = new Date();
-      function isPast(session) {
-        if (!session.date) return false;
-        let sessionDate = new Date(session.date);
-        if (session.time && typeof session.time === "string" && session.time.length === 5) {
-          const [hh, mm] = session.time.split(':').map(Number);
-          sessionDate.setHours(hh, mm, 0, 0);
-        }
-        return sessionDate < now;
-      }
 
-      // helper tri croissant
-      function sortByDateAsc(list) {
-        return list.sort((a, b) => {
-          const dateA = new Date(a.date);
-          const dateB = new Date(b.date);
+      const createdUpcoming = (created || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt >= now;
+      });
+      const createdPast = (created || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt < now;
+      });
 
-          if (a.time && typeof a.time === "string" && a.time.length === 5) {
-            const [hh, mm] = a.time.split(":").map(Number);
-            dateA.setHours(hh, mm, 0, 0);
-          }
-          if (b.time && typeof b.time === "string" && b.time.length === 5) {
-            const [hh, mm] = b.time.split(":").map(Number);
-            dateB.setHours(hh, mm, 0, 0);
-          }
-          return dateA - dateB; // ordre croissant
-        });
-      }
+      const joinedUpcoming = (joinedFiltered || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt >= now;
+      });
+      const joinedPast = (joinedFiltered || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt < now;
+      });
 
-      const createdPast = (created || []).filter(isPast);
-      const createdUpcoming = sortByDateAsc((created || []).filter(s => !isPast(s)));
-
-      const joinedPast = (joinedFiltered || []).filter(isPast);
-      const joinedUpcoming = sortByDateAsc((joinedFiltered || []).filter(s => !isPast(s)));
-
+      // Fusion des passées
       const pastMap = {};
       [...createdPast, ...joinedPast].forEach(s => { pastMap[s.id] = s; });
       const allPast = Object.values(pastMap);
 
-      // tri décroissant pour passées
-      allPast.sort((a, b) => {
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
+      // Tri
+      const sortAsc = (list) => list.sort((a, b) => buildDateTime(a) - buildDateTime(b));
+      const sortDesc = (list) => list.sort((a, b) => buildDateTime(b) - buildDateTime(a));
 
-        if (a.time && typeof a.time === "string" && a.time.length === 5) {
-          const [hh, mm] = a.time.split(":").map(Number);
-          dateA.setHours(hh, mm, 0, 0);
-        }
-        if (b.time && typeof b.time === "string" && b.time.length === 5) {
-          const [hh, mm] = b.time.split(":").map(Number);
-          dateB.setHours(hh, mm, 0, 0);
-        }
-
-        return dateB - dateA;
-      });
-
-      setSessionsCreated(createdUpcoming);
-      setSessionsJoined(joinedUpcoming);
-      setSessionsPast(allPast);
+      setSessionsCreated(sortAsc(createdUpcoming));
+      setSessionsJoined(sortAsc(joinedUpcoming));
+      setSessionsPast(sortDesc(allPast));
 
     } catch (err) {
       console.error(err);
@@ -145,9 +120,12 @@ const ActivitiesScreen = () => {
     }
   }, [user]);
 
+  // Auto-refresh toutes les 15s
   useFocusEffect(
     useCallback(() => {
       fetchSessions();
+      const interval = setInterval(() => fetchSessions(), 15000);
+      return () => clearInterval(interval);
     }, [fetchSessions])
   );
 
@@ -193,18 +171,14 @@ const ActivitiesScreen = () => {
           {TABS.map(tab => (
             <TouchableOpacity
               key={tab.key}
-              style={[
-                styles.tabBtn,
-                selectedTab === tab.key && styles.tabBtnActive
-              ]}
+              style={[styles.tabBtn, selectedTab === tab.key && styles.tabBtnActive]}
               onPress={() => setSelectedTab(tab.key)}
               activeOpacity={0.88}
             >
               <View style={styles.tabIconWrap}>{tab.icon}</View>
-              <Text style={[
-                styles.tabText,
-                selectedTab === tab.key && styles.tabTextActive
-              ]}>{tab.label}</Text>
+              <Text style={[styles.tabText, selectedTab === tab.key && styles.tabTextActive]}>
+                {tab.label}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>

@@ -22,8 +22,28 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const randomPastel = () =>
-  `hsl(${Math.floor(Math.random() * 360)}, 70%, 85%)`;
+const LETTER_COLORS = [
+  '#4A90E2', // A-B
+  '#50E3C2', // C-D
+  '#F5A623', // E-F
+  '#9013FE', // G-H
+  '#D0021B', // I-J
+  '#7ED321', // K-L
+  '#F8E71C', // M-N
+  '#B8E986', // O-P
+  '#417505', // Q-R
+  '#BD10E0', // S-T
+  '#FF3366', // U-V
+  '#00BCD4', // W-X
+  '#FF9800', // Y-Z
+];
+
+function getColorFromUsername(username = '') {
+  if (!username) return '#4A90E2'; // fallback
+  const firstLetter = username.charAt(0).toUpperCase();
+  const index = (firstLetter.charCodeAt(0) - 65) % LETTER_COLORS.length;
+  return LETTER_COLORS[index];
+}
 
 const Chip = ({ label }) => (
   <View style={styles.chip}>
@@ -146,7 +166,7 @@ const TouchableItem = ({ onPress, children, style }) => {
 const AppBar = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const BASE_H = 48;
+  const BASE_H = Platform.OS === 'ios' ? 45 : 52;
 
   return (
     <View
@@ -489,11 +509,14 @@ const openFriendsList = () => {
           {user?.profile_photo ? (
             <Image source={{ uri: user.profile_photo }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatar, { backgroundColor: randomPastel(), justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={styles.avatarInitial}>
-                {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-              </Text>
-            </View>
+       <View
+         style={[styles.avatar,
+         { backgroundColor: getColorFromUsername(user?.username), justifyContent: 'center', alignItems: 'center',},]}
+         >
+        <Text style={styles.avatarInitial}>
+         {user?.username?.charAt(0)?.toUpperCase() || 'U'}
+        </Text>
+       </View>
           )}
 
           {/* Pseudo */}
@@ -564,37 +587,41 @@ const openFriendsList = () => {
             </View>
           </View>
 
-          {/* =========== BADGES =========== */}
-          <View style={styles.badgesListContainer}>
-            {unlockedBadges.length === 0 ? (
-              <Text style={{
-                color: "#bbb",
-                fontStyle: "italic",
-                fontSize: 15,
-                marginVertical: 9,
-                textAlign: 'center',
-                width: '100%',
-              }}>
-                Aucun badge débloqué pour l’instant
-              </Text>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  flexGrow: 1,
-                  paddingLeft: 10,
-                  paddingRight: 10,
-                }}
-              >
-                {unlockedBadges.map(badge => (
-                  <BadgeCard badge={badge} key={badge.code} />
-                ))}
-              </ScrollView>
-            )}
-          </View>
+{/* =========== BADGES =========== */}
+<View style={styles.badgesListContainer}>
+  {unlockedBadges.length === 0 ? (
+    <Text
+      style={{
+        color: "#bbb",
+        fontStyle: "italic",
+        fontSize: 15,
+        marginVertical: 7,
+        marginBottom: -8, // 👈 petit offset pour éviter que ça colle trop
+        textAlign: "center",
+        width: "100%",
+      }}
+    >
+      Aucun badge débloqué pour l’instant
+    </Text>
+  ) : (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{
+        justifyContent: "center",
+        alignItems: "center",
+        flexGrow: 1,
+        paddingHorizontal: 10,
+      }}
+    >
+      {unlockedBadges.map((badge) => (
+        <BadgeCard badge={badge} key={badge.code} />
+      ))}
+    </ScrollView>
+  )}
+</View>
+{/* =========== FIN BADGES =========== */}
+
 
           <View style={styles.badgesRow}>
             {user?.birthdate ? <Badge icon="calendar" value={`${getAgeFromBirthdate(user.birthdate)} ans`} /> : null}
@@ -689,7 +716,7 @@ const styles = StyleSheet.create({
     borderRadius: wp('4.2%'),
     paddingVertical: hp('1.1%'),
     paddingHorizontal: wp('8.5%'),
-    marginBottom: hp('1%'),
+    marginBottom: hp('2%'),
     marginTop: 0,
     shadowColor: '#1877f2',
     shadowOpacity: 0.09,
@@ -875,7 +902,7 @@ const styles = StyleSheet.create({
   badgesListContainer: {
     marginTop: hp('2%'),
     marginBottom: hp('1.7%'),
-    minHeight: hp('12%'),
+    minHeight: hp("5%"),
     width: '100%',
     alignItems: 'center',
   },

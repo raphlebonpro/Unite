@@ -9,6 +9,7 @@ import {
   StatusBar,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Feather, Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -21,8 +22,28 @@ import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { LinearGradient } from 'expo-linear-gradient';
 import { notifyUser } from '../helpers/notifications';
 
-const randomPastel = () =>
-  `hsl(${Math.floor(Math.random() * 360)}, 70%, 85%)`;
+const LETTER_COLORS = [
+  '#4A90E2', // A-B
+  '#50E3C2', // C-D
+  '#F5A623', // E-F
+  '#9013FE', // G-H
+  '#D0021B', // I-J
+  '#7ED321', // K-L
+  '#F8E71C', // M-N
+  '#B8E986', // O-P
+  '#417505', // Q-R
+  '#BD10E0', // S-T
+  '#FF3366', // U-V
+  '#00BCD4', // W-X
+  '#FF9800', // Y-Z
+];
+
+function getColorFromUsername(username = '') {
+  if (!username) return '#4A90E2'; // couleur fallback
+  const firstLetter = username.charAt(0).toUpperCase();
+  const index = (firstLetter.charCodeAt(0) - 65) % LETTER_COLORS.length;
+  return LETTER_COLORS[index];
+}
 
 const Chip = ({ label }) => (
   <View style={styles.chip}>
@@ -207,24 +228,41 @@ const refreshFriendState = useCallback(async () => {
     fetchUserProfile();
   }, [userId]);
 
-  useEffect(() => {
-    const fetchSessionCounters = async () => {
-      if (!userId) return;
-      // Sessions créées
-      const { count: created } = await supabase
-        .from('sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('creator_id', userId);
-      // Sessions rejointes
-      const { count: joined } = await supabase
-        .from('session_participants')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
-      setCreatedCount(created || 0);
-      setJoinedCount(joined || 0);
-    };
-    fetchSessionCounters();
-  }, [userId]);
+useEffect(() => {
+  const fetchSessionCounters = async () => {
+    if (!userId) return;
+
+    // Sessions créées
+    const { data: createdRows, error: createdErr } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('creator_id', userId);
+
+    const createdIds = new Set((createdRows ?? []).map(r => r.id));
+    setCreatedCount(createdErr ? 0 : (createdRows?.length ?? 0));
+
+    // Participations
+    const { data: joinedRows, error: joinedErr } = await supabase
+      .from('session_participants')
+      .select('session_id')
+      .eq('user_id', userId);
+
+    if (joinedErr || !joinedRows) {
+      setJoinedCount(0);
+      return;
+    }
+
+    // Exclure les sessions créées par ce user
+    const uniqueJoined = new Set(joinedRows.map(r => r.session_id));
+    let count = 0;
+    for (const sid of uniqueJoined) {
+      if (!createdIds.has(sid)) count++;
+    }
+    setJoinedCount(count);
+  };
+
+  fetchSessionCounters();
+}, [userId]);
 
 const fetchAvgRating = useCallback(async () => {
   if (!userId) return;
@@ -466,9 +504,14 @@ const onDeclineFriend = async () => {
 };
 
   // ✅ Early return APRÈS tous les hooks, AVANT d’accéder à user.*
-  if (!user) {
-    return <ActivityIndicator size="large" style={{ flex: 1, justifyContent: 'center' }} />;
-  }
+if (!user) {
+  return (
+    <ActivityIndicator
+      size={Platform.OS === 'ios' ? 'large' : 50}
+      style={{ flex: 1, justifyContent: 'center' }}
+    />
+  );
+}
 
   // ─────────────────────────────────────────────────────
   // Données dérivées
@@ -524,20 +567,14 @@ return (
           {user?.profile_photo ? (
             <Image source={{ uri: user.profile_photo }} style={styles.avatar} />
           ) : (
-            <View
-              style={[
-                styles.avatar,
-                {
-                  backgroundColor: randomPastel(),
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                },
-              ]}
-            >
-              <Text style={styles.avatarInitial}>
-                {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-              </Text>
-            </View>
+         <View
+          style={[styles.avatar,
+          { backgroundColor: getColorFromUsername(user?.username), justifyContent: 'center', alignItems: 'center',},]}
+         >
+          <Text style={styles.avatarInitial}>
+          {user?.username?.charAt(0)?.toUpperCase() || 'U'}
+          </Text>
+        </View>
           )}
 
           {/* Pseudo */}
@@ -660,6 +697,7 @@ return (
                   fontStyle: 'italic',
                   fontSize: 15,
                   marginVertical: 7,
+                  marginBottom: -10,
                   textAlign: 'center',
                   width: '100%',
                 }}
@@ -816,7 +854,7 @@ const styles = StyleSheet.create({
     borderRadius: wp('4.2%'),
     paddingVertical: hp('1.1%'),
     paddingHorizontal: wp('8.5%'),
-    marginBottom: hp('1.1%'),
+    marginBottom: hp('2%'),
     marginTop: 0,
     shadowColor: '#1877f2',
     shadowOpacity: 0.09,
@@ -972,8 +1010,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: wp('12%'),
-    marginTop: hp('2%'),
-    marginBottom: hp('1.5%'),
+    marginTop: hp('1.5%'),
+    marginBottom: hp('2%'),
   },
   friendsCounterBox: {
     alignItems: 'center',
@@ -985,6 +1023,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: hp('1%'),
+    marginBottom: hp('1%'),
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -1014,6 +1053,7 @@ const styles = StyleSheet.create({
     borderColor: '#d8deea',
     alignSelf: 'center',
     marginTop: hp('1%'),
+    marginBottom: 10,
   },
   pillMutedText: {
     color: '#667085',

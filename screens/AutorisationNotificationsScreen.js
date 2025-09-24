@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,56 +15,83 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabaseClient';
+import Constants from 'expo-constants';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const NotificationsScreen = ({ navigation }) => {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
-  const scaleAnim = new Animated.Value(pushEnabled ? 1 : 0.96);
 
+  const scaleAnim = useRef(new Animated.Value(0.96)).current;
+
+  // 🔹 Demande permission + récup token
+  const requestPushPermission = async () => {
+    if (!Device.isDevice) {
+      Alert.alert("Simulateur", "Les notifications push ne fonctionnent que sur un vrai appareil.");
+      return null;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      Alert.alert("Permission refusée", "Active les notifications dans Réglages pour en profiter.");
+      return null;
+    }
+
+    const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
+
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : {}
+    );
+
+    console.log("📲 Expo Push Token:", tokenData.data);
+    return tokenData.data;
+  };
+
+  // 🔄 Récupère préférences au montage
   useEffect(() => {
     (async () => {
       if (!Device.isDevice) return setCheckingStatus(false);
-      const { status } = await Notifications.getPermissionsAsync();
-      setPushEnabled(status === 'granted');
-      setCheckingStatus(false);
 
-      // Récupère préférences actuelles de l'utilisateur dans Supabase
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from('users')
-          .select('notif_activity, notif_email')
-          .eq('id', user.id)
-          .single();
-        if (!error && data) {
-          setPushEnabled(data.notif_activity ?? false);
-          setEmailNotifications(data.notif_email ?? false);
-        }
+      if (!user) {
+        setCheckingStatus(false);
+        return;
       }
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('expo_push_token, notif_email')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        setPushEnabled(!!data.expo_push_token);
+        setEmailNotifications(data.notif_email ?? false);
+      }
+
+      setCheckingStatus(false);
     })();
   }, []);
 
+  // Toggle push
   const handlePushToggle = async (value) => {
     if (value) {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') {
-        setPushEnabled(true);
-      } else {
+      const token = await requestPushPermission();
+      if (!token) {
         setPushEnabled(false);
-        Alert.alert(
-          "Notifications désactivées",
-          "Tu dois autoriser les notifications dans les réglages du téléphone pour les recevoir."
-        );
+        return;
       }
-    } else {
-      setPushEnabled(false);
-      Alert.alert(
-        "Notifications désactivées",
-        "Tu ne recevras plus aucune notification push de Unite. Tu pourras réactiver à tout moment."
-      );
     }
+    setPushEnabled(value);
+
     Animated.spring(scaleAnim, {
       toValue: value ? 1 : 0.96,
       useNativeDriver: true,
@@ -72,40 +99,33 @@ const NotificationsScreen = ({ navigation }) => {
     }).start();
   };
 
-  const handleEmailToggle = (value) => {
-    setEmailNotifications(value);
-  };
+  const handleEmailToggle = (value) => setEmailNotifications(value);
 
-  // ➜ MODIFIE ICI POUR LOGUER TOUT LE RETOUR SUPABASE !
+  // Sauvegarde finale en DB
   const handleSubmit = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Utilisateur non connecté");
 
+      let token = null;
+      if (pushEnabled) {
+        token = await requestPushPermission();
+        if (!token) throw new Error("Impossible d'obtenir un token Expo");
+      }
+
       const { error } = await supabase
         .from('users')
         .update({
-          notif_activity: pushEnabled,
           notif_email: emailNotifications,
+          expo_push_token: token, // sera null si pushEnabled = false
         })
         .eq('id', user.id);
 
-      if (error) {
-        // ➜ Logue l’erreur détaillée
-        console.log("Erreur update notif:", error);
-        throw new Error(error.message || error.details || "Erreur lors de l'enregistrement");
-      }
+      if (error) throw error;
 
-      Alert.alert(
-        "Préférences enregistrées",
-        "Tes préférences de notifications ont bien été sauvegardées.",
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.goBack()
-          }
-        ]
-      );
+      Alert.alert("Succès", "Tes préférences ont bien été sauvegardées.", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
     } catch (e) {
       Alert.alert("Erreur", e.message || "Impossible d'enregistrer tes préférences.");
     }
@@ -124,12 +144,13 @@ const NotificationsScreen = ({ navigation }) => {
         <Text style={{ color: '#1976d2', fontWeight: '600' }}> Tu pourras modifier ce choix à tout moment.</Text>
       </Text>
 
+      {/* Push */}
       <View style={styles.card}>
         <View style={styles.cardRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>Notifications Push</Text>
             <Text style={styles.cardDescription}>
-              Sois alerté instantanément de toute activité (messages, sessions, rappels…) et reste connecté à ta communauté.
+              Sois alerté instantanément de toute activité (messages, sessions, rappels…).
             </Text>
           </View>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
@@ -143,19 +164,15 @@ const NotificationsScreen = ({ navigation }) => {
             />
           </Animated.View>
         </View>
-        {!pushEnabled &&
-          <Text style={styles.disabledText}>
-            Notifications push désactivées. Tu ne recevras plus aucun rappel, ni message en temps réel.
-          </Text>
-        }
       </View>
 
+      {/* Email */}
       <View style={styles.card}>
         <View style={styles.cardRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>Notifications Email</Text>
             <Text style={styles.cardDescription}>
-              Reçois conseils, nouveautés et offres exclusives par e-mail depuis <Text style={{ color: '#1976d2' }}>contact@uniteapp.fr</Text>.
+              Reçois conseils et nouveautés par e-mail depuis <Text style={{ color: '#1976d2' }}>contact@uniteapp.fr</Text>.
             </Text>
           </View>
           <Switch
@@ -166,19 +183,11 @@ const NotificationsScreen = ({ navigation }) => {
             ios_backgroundColor="#e4e5ed"
           />
         </View>
-        {!emailNotifications &&
-          <Text style={styles.disabledText}>
-            Tu ne recevras plus nos emails d'information, conseils ou promos.
-          </Text>
-        }
       </View>
 
+      {/* Bouton */}
       <View style={{ alignItems: 'center', marginTop: 24 }}>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleSubmit}
-          disabled={checkingStatus}
-        >
+        <TouchableOpacity activeOpacity={0.85} onPress={handleSubmit} disabled={checkingStatus}>
           <LinearGradient
             colors={['#ff9966', '#ff5e62']}
             start={{ x: 0, y: 0 }}

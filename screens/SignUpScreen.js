@@ -15,7 +15,7 @@ const SignUpScreen = () => {
   const navigation = useNavigation();
 
   const handleSignUp = () => {
-    navigation.navigate('RegisterForm');
+    navigation.navigate('Register');
   };
 
   return (

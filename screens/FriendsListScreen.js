@@ -14,6 +14,10 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import MiniAppBar from '../components/MiniAppBar';
+import {
+  notifyFriendRemovedSender,
+  notifyFriendRemovedReceiver,
+} from '../helpers/notifications';
 
 const FriendsListScreen = ({ route }) => {
   const navigation = useNavigation();
@@ -88,6 +92,60 @@ const FriendsListScreen = ({ route }) => {
     fetchFriends();
   }, [targetUserId]);
 
+  const handleRemoveFriend = async (item) => {
+    Alert.alert(
+      'Supprimer cet ami ?',
+      `Es-tu sûr de vouloir retirer ${item.username} de tes coéquipiers ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Supprimer la relation dans les deux sens
+              await supabase
+                .from('friends')
+                .delete()
+                .or(
+                  `and(follower_id.eq.${user.id},following_id.eq.${item.id}),and(follower_id.eq.${item.id},following_id.eq.${user.id})`
+                );
+
+              // 🔎 Récupère mon pseudo et celui du pote supprimé
+              const { data: me } = await supabase
+                .from('users')
+                .select('username')
+                .eq('id', user.id)
+                .maybeSingle();
+
+              const { data: friend } = await supabase
+                .from('users')
+                .select('username')
+                .eq('id', item.id)
+                .maybeSingle();
+
+              // 🔔 Notifs
+              await notifyFriendRemovedSender({
+                senderId: user.id,
+                removedName: friend?.username || 'Cet utilisateur',
+              });
+
+              await notifyFriendRemovedReceiver({
+                receiverId: item.id,
+                removerName: me?.username || 'Un utilisateur',
+              });
+
+              // Mettre à jour la liste localement
+              setFriends((prev) => prev.filter((f) => f.id !== item.id));
+            } catch (e) {
+              Alert.alert('Erreur', e.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderFriend = ({ item }) => (
     <View style={styles.friendItem}>
       <TouchableOpacity
@@ -106,35 +164,7 @@ const FriendsListScreen = ({ route }) => {
       {targetUserId === user?.id && (
         <TouchableOpacity
           style={styles.removeBtn}
-          onPress={async () => {
-            Alert.alert(
-              'Supprimer cet ami ?',
-              `Es-tu sûr de vouloir retirer ${item.username} de tes coéquipiers ?`,
-              [
-                { text: 'Annuler', style: 'cancel' },
-                {
-                  text: 'Supprimer',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      // Supprimer la relation dans les deux sens
-                      await supabase
-                        .from('friends')
-                        .delete()
-                        .or(
-                          `and(follower_id.eq.${user.id},following_id.eq.${item.id}),and(follower_id.eq.${item.id},following_id.eq.${user.id})`
-                        );
-
-                      // Mettre à jour la liste localement
-                      setFriends((prev) => prev.filter((f) => f.id !== item.id));
-                    } catch (e) {
-                      Alert.alert('Erreur', e.message);
-                    }
-                  },
-                },
-              ]
-            );
-          }}
+          onPress={() => handleRemoveFriend(item)}
         >
           <Text style={styles.removeBtnText}>✕</Text>
         </TouchableOpacity>
@@ -187,4 +217,3 @@ const styles = StyleSheet.create({
 });
 
 export default FriendsListScreen;
-

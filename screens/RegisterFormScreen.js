@@ -146,53 +146,82 @@ const handleSignUp = async () => {
     return;
   }
 
-  // 🚨 Vérif pseudo
   if (containsBadWord(pseudo)) {
     Alert.alert("Pseudo refusé", "Ton pseudo contient des mots interdits. Merci d'en choisir un autre.");
     return;
   }
 
   const toxicity = await analyzePseudoWithPerspective(pseudo);
-  if (toxicity > 0.8) { // seuil ajustable
+  if (toxicity > 0.8) {
     Alert.alert("Pseudo refusé", "Ton pseudo semble inapproprié. Merci d'en choisir un autre.");
     return;
   }
 
   setLoading(true);
   try {
+    console.log("📩 Tentative signUp avec email:", email);
+
+    // Étape 1 : création Auth
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
-    if (signUpError) throw new Error(signUpError.message);
+    if (signUpError) throw new Error("Erreur signUp: " + signUpError.message);
 
     const userId = signUpData?.user?.id;
     if (!userId) throw new Error("Impossible de récupérer l'ID utilisateur après inscription.");
 
-    let avatarUrl = '';
-    if (avatar) avatarUrl = await uploadAvatar(avatar, userId);
+    // Étape 2 : appel Edge Function pour créer un profil minimal
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-    const { error: upsertError } = await supabase
-      .from('users')
-      .upsert([{
-        id: userId,
+    const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/create_user_profile`;
+    const resp = await fetch(fnUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        user_id: userId,
         email,
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      console.warn("⚠️ Edge function erreur:", err);
+    }
+
+    // Étape 3 : upload avatar si présent
+    let avatarUrl = '';
+    if (avatar) {
+      avatarUrl = await uploadAvatar(avatar, userId);
+    }
+
+    // Étape 4 : mise à jour du profil complet
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
         username: pseudo,
-        birthdate: birthdate ? birthdate.split('T')[0] : null,
-        gender,
-        bio: description,
         profile_photo: avatarUrl,
-        first_login: true,
-      }]);
+        bio: description,
+        gender,
+        birthdate: birthdate,
+      })
+      .eq('id', userId);
 
-    if (upsertError) throw new Error(upsertError.message);
+    if (updateError) throw new Error("Erreur update profil: " + updateError.message);
 
+    // Étape 5 : notif bienvenue
     await supabase.from('notifications').insert([{
       user_id: userId,
       type: 'welcome',
       title: 'Bienvenue sur Unite 🎉',
       body: 'Ton compte a bien été créé ! Tu peux maintenant te connecter pour découvrir les sessions autour de toi.',
       is_read: false,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     }]);
 
+    // Étape 6 : déconnexion
     await supabase.auth.signOut();
 
     Toast.show({
@@ -202,7 +231,9 @@ const handleSignUp = async () => {
       position: 'top',
     });
 
+    navigation.navigate("Login"); // 👈 tu peux forcer retour login
   } catch (err) {
+    console.error("❌ Erreur handleSignUp:", err);
     Alert.alert("Erreur", err?.message || "Erreur inattendue à l'inscription.");
   } finally {
     setLoading(false);
@@ -716,7 +747,7 @@ const stylesA = StyleSheet.create({
   passwordContainer: { minHeight: 48 },
   descriptionInput: { minHeight: 120, textAlignVertical: 'top' },
 signUpButtonContainer: {
-  width: 260,        // 👈 largeur fixe
+  width: 260, 
   alignSelf: 'center',
   marginTop: hp('2.2%'),
   marginBottom: hp('2.8%'),

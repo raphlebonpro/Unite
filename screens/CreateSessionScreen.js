@@ -57,6 +57,7 @@ const otherSports = [
   'Yoga',
   'Padel',
   'Handball',
+  'Rugby',
   'Volleyball',
   'Badminton',
   'Triathlon',
@@ -96,6 +97,7 @@ const sportIcons = {
   Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
   Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
   Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
+  Rugby: { icon: <MaterialCommunityIcons name="rugby" size={18} color="#8E44AD" />, color: '#8E44AD' },
   Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
   Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
   Triathlon: { icon: <MaterialCommunityIcons name="medal" size={18} color="#FF9800" />, color: '#FF9800' },
@@ -317,6 +319,7 @@ useEffect(() => {
       setShowOtherSports(false);
       setSelectedLevel('');
       setSelectedParticipants('');
+      setMaxParticipants(null);
       setSelectedDate(new Date());
       setSelectedHour(getClampedDefaultHour());
       setShowCalendar(false);
@@ -482,8 +485,8 @@ const showTimePicker = () => setTimePickerVisible(true);
 const hideTimePicker = () => setTimePickerVisible(false);
 
   const handleConfirm = (pickedTime) => {
-    console.log("🔍 Time picked:", pickedTime);
-    
+    console.log("🔍 Time picked:", pickedTime)
+
     if (!(pickedTime instanceof Date) || isNaN(pickedTime)) {
       console.log("⚠️ Date invalide reçue du picker:", pickedTime);
       hideTimePicker();
@@ -528,14 +531,26 @@ const hideTimePicker = () => setTimePickerVisible(false);
     hideTimePicker();
   };
 
-  if (loadingInit) {
-    return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#5B4EFF" />
-        <Text style={{ fontSize: 16, color: '#666', marginTop: 12 }}>Chargement...</Text>
-      </SafeAreaView>
-    );
-  }
+if (loadingInit) {
+  return (
+    <SafeAreaView
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+      }}
+    >
+      <ActivityIndicator
+        size={Platform.OS === 'ios' ? 'large' : 50}
+        color="#5B4EFF"
+      />
+      <Text style={{ fontSize: 16, color: '#666', marginTop: 12 }}>
+        Chargement...
+      </Text>
+    </SafeAreaView>
+  );
+}
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>

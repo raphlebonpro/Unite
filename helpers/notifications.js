@@ -20,16 +20,18 @@ export async function notifyUser({
   const safeType = (type ?? 'default').toString();
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
     const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     if (!baseUrl) throw new Error('EXPO_PUBLIC_SUPABASE_URL manquant');
+
+    // 🔑 Récupérer le token utilisateur
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || '';
 
     const res = await fetch(`${baseUrl}/functions/v1/send_notifications`, {
       method: 'POST',
       headers: {
-        Authorization: token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}), // ✅ ajout du header
       },
       body: JSON.stringify({
         user_id,
@@ -46,6 +48,7 @@ export async function notifyUser({
       const txt = await res.text().catch(() => '');
       throw new Error(`send_notifications failed: ${res.status} ${txt}`);
     }
+
     return true;
   } catch (e) {
     console.warn('[notifyUser] fail:', e?.message || e);
@@ -86,7 +89,7 @@ export async function notifySessionDeletedCreator({ creatorId, sessionTitle, ses
     type: 'session_deleted_creator',
     session_id: sessionId,
     sender_id: creatorId,
-    push: false,
+    push: true,
   });
 }
 
@@ -268,13 +271,11 @@ export async function notifyExclusion({ creatorId, excludedId, excludedName, ses
    =========================== */
 
 export async function notifyNewMessage({ recipientId, senderId, senderName, sessionTitle, sessionId }) {
-  // Ne pas notifier si sender == recipient
   if (recipientId === senderId) return;
-
   await notifyUser({
     user_id: recipientId,
-    title: `Nouveau message`,
-    body: `${senderName} a envoyé un message dans la session "${sessionTitle}".`,
+    title: 'Nouveau message',
+    body: `${senderName} a écrit dans "${sessionTitle}".\n👉 Clique pour ouvrir la conversation.`,
     type: 'new_message',
     session_id: sessionId,
     sender_id: senderId,
@@ -291,7 +292,7 @@ export async function notifyFriendRequestReceived({ recipientId, senderId, sende
   await notifyUser({
     user_id: recipientId,
     title: 'Nouvelle demande d’ami',
-    body: `${senderName} t’a envoyé une demande d’ami.`,
+    body: `${senderName} t’a envoyé une demande d’ami 👋\n👉 Clique pour voir sa demande et y répondre.`,
     type: 'friend_request',
     sender_id: senderId,
     push: true,
@@ -366,12 +367,13 @@ export async function notifyBadgeAwarded({ userId, badgeName }) {
   });
 }
 
-export async function notifyNewSessionNearby({ userId, sport, distance }) {
+export async function notifyNewSessionNearby({ userId, sport, distance, sessionId }) {
   await notifyUser({
     user_id: userId,
     title: 'Nouvelle session près de toi',
     body: `Une session de ${sport} vient d’être créée à ${distance} km de ta localisation.`,
     type: 'new_session_nearby',
+    session_id: sessionId,  // ✅ Ajout
     push: true,
   });
 }
@@ -379,7 +381,7 @@ export async function notifyNewSessionNearby({ userId, sport, distance }) {
 export async function notifyCollectiveChallenge({ audienceUserIds = [], challengeTitle, challengeId }) {
   await notifyMany(audienceUserIds, () => ({
     title: 'Nouveau défi collectif',
-    body: challengeTitle || 'Un nouveau défi vient de commencer, rejoins-le !',
+    body: `${challengeTitle || 'Un nouveau défi vient de commencer !'}\n👉 Clique pour voir les détails et participer.`,
     type: 'collective_challenge',
     session_id: challengeId || null,
     push: true,
@@ -390,7 +392,7 @@ export async function notifyReviewReceived({ recipientId, reviewerName, sessionI
   await notifyUser({
     user_id: recipientId,
     title: 'Nouvel avis reçu',
-    body: `${reviewerName} a laissé un avis sur ton profil.`,
+    body: `${reviewerName} a laissé un avis sur ton profil.\n👉 Clique pour le lire.`,
     type: 'review_received',
     session_id: sessionId,
     push: true,
@@ -447,7 +449,7 @@ export async function notifyReportConfirmation({ reporterId, targetName }) {
     title: 'Signalement confirmé',
     body: `Ton signalement concernant ${targetName} a bien été pris en compte.`,
     type: 'report_confirmation',
-    push: false, // confirmation locale
+    push: true, // confirmation locale
   });
 }
 
@@ -461,18 +463,12 @@ export async function notifyReportedUser({ reportedId }) {
   });
 }
 
-export async function notifyFeedbackReceived({ userId, feedbackId }) {
-  // Ici tu peux cibler un compte admin fixe (par ex. ADMIN_USER_ID),
-  // ou une liste d’admins stockés en base
-  const ADMIN_USER_ID = process.env.EXPO_PUBLIC_ADMIN_USER_ID || null;
-  if (!ADMIN_USER_ID) return;
-
+export async function notifyFeedbackConfirmation({ userId }) {
   await notifyUser({
-    user_id: ADMIN_USER_ID,
-    title: 'Nouveau feedback reçu',
-    body: `Un utilisateur a soumis un feedback (#${feedbackId}).`,
+    user_id: userId,
+    title: 'Merci pour ton retour 🙌',
+    body: 'Ton feedback a bien été pris en compte.',
     type: 'feedback_received',
-    sender_id: userId,
     push: true,
   });
 }
@@ -515,3 +511,52 @@ export async function notifyNearbyUsersOnSessionCreated({ sessionId, sport, lat,
     return false;
   }
 }
+
+export async function notifyNewsletterSubscribed({ userId, email }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Inscription réussie 🎉',
+    body: `Ton email ${email} a bien été inscrit à la newsletter Unite.`,
+    type: 'newsletter_subscribed',
+    push: true,
+  });
+}
+
+/* ===========================
+   🤝 Amis – suppression
+   =========================== */
+
+export async function notifyFriendRemovedSender({ senderId, removedName }) {
+  await notifyUser({
+    user_id: senderId,
+    title: 'Coéquipier supprimé',
+    body: `Tu as retiré ${removedName} de tes coéquipiers.`,
+    type: 'friend_removed_sender',
+    sender_id: null,
+    push: false, // confirmation locale
+  });
+}
+
+export async function notifyFriendRemovedReceiver({ receiverId, removerName }) {
+  await notifyUser({
+    user_id: receiverId,
+    title: 'Coéquipier supprimé',
+    body: `${removerName} t’a retiré de ses coéquipiers.`,
+    type: 'friend_removed_receiver',
+    sender_id: null,
+    push: true, // notif visible
+  });
+}
+
+export async function notifyFriendInvitedToSession({ invitedId, inviterId, inviterName, sessionTitle, sessionId }) {
+  await notifyUser({
+    user_id: invitedId,
+    sender_id: inviterId,
+    session_id: sessionId,
+    type: 'friend_invited_session',
+    title: 'Invitation à une session',
+    message: `${inviterName} t’a invité à rejoindre sa session "${sessionTitle}". Clique ici pour la voir.`,
+    push: true,
+  });
+}
+

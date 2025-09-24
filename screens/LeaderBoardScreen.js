@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { useFocusEffect } from '@react-navigation/native';
 
 const TABS = [
   { key: 'created', label: 'Créateurs', title: "Les Constructeurs de Unite" },
@@ -20,12 +21,13 @@ const COLORS = {
   text: '#232323',
 };
 
-function GeneralCollectiveBanner({ onPress }) {
+function GeneralCollectiveBanner() {
   return (
-    <TouchableOpacity
-      activeOpacity={0.93}
-      style={styles.heroBannerCompactWrap}
-      onPress={onPress}
+    <View
+      style={[
+        styles.heroBannerCompactWrap,
+        { opacity: 0.9 } // effet visuel "désactivé"
+      ]}
     >
       <LinearGradient
         colors={['#5371ff', '#a259f7']}
@@ -42,13 +44,21 @@ function GeneralCollectiveBanner({ onPress }) {
           />
           <Text style={styles.heroTitleCompact}>Les Défis Collectifs</Text>
         </View>
-        <Text style={styles.heroDescCompact}>
+
+        {/* Texte principal en blanc */}
+        <Text style={[styles.heroDescCompact, { color: '#fff' }]}>
           Rejoins les grands challenges Unite et gagne des lots chaque mois !
         </Text>
+
+        {/* Message Bientôt dispo en gras et blanc */}
+        <Text style={[styles.heroDescCompact, { marginTop: 4, fontWeight: 'bold', color: '#fff', fontSize: 13 }]}>
+          🚧 Bientôt disponible !
+        </Text>
       </LinearGradient>
-    </TouchableOpacity>
+    </View>
   );
 }
+
 
 function getMonthStartDate() {
   const now = new Date();
@@ -164,9 +174,9 @@ const goToProfile = (uid) => {
         .order('count', { ascending: false });
       if (all && all.length > 0) {
         const foundIndex = all.findIndex(x => x.user_id === userId);
-        if (foundIndex > -1 && foundIndex >= 30) {
-          myData = { rank: foundIndex + 1, count: all[foundIndex].count };
-        }
+if (foundIndex > -1) {
+  myData = { rank: foundIndex + 1, count: all[foundIndex].count };
+}
       }
     }
     setLeaderboard(data || []);
@@ -177,6 +187,12 @@ const goToProfile = (uid) => {
   useEffect(() => {
     fetchLeaderboard();
   }, [selectedTab, userId]);
+
+useFocusEffect(
+  React.useCallback(() => {
+    fetchLeaderboard();
+  }, [selectedTab])
+);
 
   // ==== Podium extraction (places 1 à 3) ====
   const podium = [
@@ -227,7 +243,7 @@ const windowHeight = Dimensions.get('window').height;
 const maxContainerHeight = windowHeight * 0.82;
 
 return (
-  <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+  <SafeAreaView style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
     <GeneralCollectiveBanner onPress={() => navigation.navigate('CollectiveChallenges')} />
 <LinearGradient
   colors={['#fffefa', '#fff6e7', '#f7f3ff']}
@@ -238,32 +254,43 @@ return (
     {
       maxHeight: maxContainerHeight,
       flexShrink: 1,
-      marginTop: 4,
+      marginTop: 10,
       marginBottom: 4,
     }
   ]}
 >
-      <View style={{ alignItems: 'center', marginTop: 2 }}>
-        <Text style={styles.title}>{currentTab?.title}</Text>
-      </View>
-      <View style={styles.tabBar}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[
-              styles.tabBtn,
-              selectedTab === tab.key && styles.tabBtnActive
-            ]}
-            onPress={() => setSelectedTab(tab.key)}
-            activeOpacity={0.8}
+<View style={styles.tabBar}>
+  {TABS.map(tab => {
+    const isActive = selectedTab === tab.key;
+
+    return (
+      <TouchableOpacity
+        key={tab.key}
+        onPress={() => setSelectedTab(tab.key)}
+        activeOpacity={0.9}
+        style={{ flex: 1, marginHorizontal: 6 }}
+      >
+        {isActive ? (
+          <LinearGradient
+            colors={['#FF914D', '#FF4D97']} // 🔥 Dégradé Unite
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tabBtnGradient}
           >
-            <Text style={[
-              styles.tabLabel,
-              selectedTab === tab.key && styles.tabLabelActive
-            ]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+            <Text style={[styles.tabLabel, { color: '#fff', fontWeight: '700' }]}>
+              {tab.label}
+            </Text>
+          </LinearGradient>
+        ) : (
+          <View style={styles.tabBtn}>
+            <Text style={[styles.tabLabel, { color: '#555' }]}>{tab.label}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  })}
+</View>
+
 <View style={styles.podiumContainer}>
   <PodiumUser
     user={podium[0]?.users}
@@ -607,12 +634,32 @@ const styles = StyleSheet.create({
   heroDescCompact: {
     color: "#eae6ff",
     fontSize: wp('2.6%'),
-    fontWeight: "500",
+    fontWeight: "600",
     letterSpacing: 0.01,
     textAlign: "center",
     marginTop: 0,
     lineHeight: hp('1.7%'),
     maxWidth: wp('65%'),
   },
+  tabBtn: {
+  paddingVertical: 10,
+  borderRadius: 20,
+  backgroundColor: '#EAEAEA',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+tabBtnGradient: {
+  paddingVertical: 10,
+  borderRadius: 20,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+tabLabel: {
+  fontSize: 15,
+  fontWeight: '700',
+},
+
 });
 

@@ -21,31 +21,30 @@ export default function Navigation() {
   const [loading, setLoading] = useState(true);
   const [splashWait, setSplashWait] = useState(true);
 
-  // Délai d'une seconde pour éviter le flash Accueil après inscription
+  // Petit délai pour éviter le flash d'Accueil après inscription
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setSplashWait(false);
-    }, 1000);
+    const timer = setTimeout(() => setSplashWait(false), 1000);
     return () => clearTimeout(timer);
   }, []);
 
   // Récupération et écoute de la session Supabase
-useEffect(() => {
-  const getSession = async () => {
-    const { data } = await supabase.auth.getSession();
-    setSession(data.session);
-    setLoading(false);
-  };
-  getSession();
+  useEffect(() => {
+    const getSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+      setLoading(false);
+    };
+    getSession();
 
-  const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-    setSession(session);
-  });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("Auth event:", _event);
+      setSession(session);
+    });
 
-  return () => {
-    listener?.subscription?.unsubscribe?.();
-  };
-}, []);
+    return () => {
+      listener?.subscription?.unsubscribe?.();
+    };
+  }, []);
 
   // Loading écran de démarrage
   if (loading) {
@@ -56,27 +55,27 @@ useEffect(() => {
       </View>
     );
   }
-console.log("SESSION: ", session);
 
   if (splashWait) return null;
 
-return (
-  <NavigationContainer>
-    {session ? (
-      <Stack.Navigator initialRouteName="UniteWelcome" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="UniteWelcome" component={UniteWelcomeScreen} />
-        <Stack.Screen name="Main" component={StackNavigator} />
-        <Stack.Screen name="Bienvenue" component={BienvenueScreen} />
-      </Stack.Navigator>
-    ) : (
-      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignUp" component={SignUpScreen} />
-        <Stack.Screen name="Bienvenue" component={BienvenueScreen} />
-        <Stack.Screen name="RegisterForm" component={RegisterFormScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      </Stack.Navigator>
-    )}
-  </NavigationContainer>
-);
+  return (
+    <NavigationContainer>
+      {session ? (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {/* Accès quand l’utilisateur est connecté */}
+          <Stack.Screen name="UniteWelcome" component={UniteWelcomeScreen} />
+          <Stack.Screen name="Main" component={StackNavigator} />
+          <Stack.Screen name="Bienvenue" component={BienvenueScreen} />
+        </Stack.Navigator>
+      ) : (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {/* Accès quand l’utilisateur n’est PAS connecté */}
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="SignUp" component={SignUpScreen} />
+          <Stack.Screen name="Register" component={RegisterFormScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        </Stack.Navigator>
+      )}
+    </NavigationContainer>
+  );
 }

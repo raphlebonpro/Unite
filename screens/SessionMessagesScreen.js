@@ -135,6 +135,15 @@ const fetchMessages = async () => {
     return;
   }
   setMessages(data || []);
+
+  // ✅ Enregistre le vrai dernier message comme "vu"
+  if (data && data.length > 0 && user) {
+    const lastMsg = data[data.length - 1];
+    await AsyncStorage.setItem(
+      `last_seen_${sessionId}_${user.id}`,
+      lastMsg.created_at
+    );
+  }
 };
 
 useEffect(() => {
@@ -175,12 +184,6 @@ useEffect(() => {
     });
   }
 }, [messages]);
-
-useEffect(() => {
-  if (!sessionId || !user) return;
-  const now = new Date().toISOString();
-  AsyncStorage.setItem(`last_seen_${sessionId}_${user.id}`, now);
-}, [sessionId, user]);
 
 // --------- FONCTION ENVOI MESSAGE TEXTE ---------
 const sendMessage = async () => {

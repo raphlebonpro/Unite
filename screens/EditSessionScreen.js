@@ -479,7 +479,10 @@ const handleCancelSession = async () => {
  if (loadingInit) {
    return (
      <SafeAreaView style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#fff' }}>
-       <ActivityIndicator size="large" color="#5B4EFF" />
+       <ActivityIndicator
+  size={Platform.OS === 'ios' ? 'large' : 50}
+  color="#5B4EFF"
+/>
        <Text style={{ fontSize: 16, color: '#666', marginTop: 12 }}>Chargement...</Text>
      </SafeAreaView>
    );

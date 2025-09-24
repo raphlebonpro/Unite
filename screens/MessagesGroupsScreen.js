@@ -15,7 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import MiniAppBar from '../components/MiniAppBar';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { RefreshControl, Platform } from 'react-native';
@@ -52,6 +52,33 @@ useFocusEffect(
     }
   }, [])
 );
+
+const handleDeleteAllGroups = () => {
+  Alert.alert(
+    'Tout effacer',
+    'Es-tu sûr de vouloir supprimer tous tes groupes de messages ?',
+    [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Effacer',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('session_participants')
+            .delete()
+            .eq('user_id', user.id);
+
+          if (error) {
+            Alert.alert('Erreur', 'Impossible de supprimer tous les groupes.');
+          } else {
+            setSessions([]);
+            setUnreadMap({});
+          }
+        },
+      },
+    ]
+  );
+};
 
   // sessions visibles après filtre
   const filteredSessions = useMemo(() => {
@@ -202,11 +229,29 @@ useFocusEffect(
     setUnreadMap(prev => ({ ...prev, [sessionId]: hasUnread }));
   };
 
-  const handleGroupPress = (sessionId) => {
-    // Optimiste: on enlève la pastille tout de suite (le vrai last_seen sera écrit dans l’écran messages)
-    setUnreadMap(prev => ({ ...prev, [sessionId]: false }));
-    navigation.navigate('SessionMessages', { sessionId });
-  };
+const handleGroupPress = async (sessionId) => {
+  // On récupère le dernier message de la session
+  const { data } = await supabase
+    .from('messages')
+    .select('created_at')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (data && data.length > 0) {
+    const lastMsg = data[0];
+    await AsyncStorage.setItem(
+      `last_seen_${sessionId}_${user.id}`,
+      lastMsg.created_at
+    );
+  }
+
+  // Optimiste: enlever la pastille
+  setUnreadMap(prev => ({ ...prev, [sessionId]: false }));
+
+  // Navigation
+  navigation.navigate('SessionMessages', { sessionId });
+};
 
   const handleDeleteGroup = (sessionId, sessionTitle) => {
     Alert.alert(
@@ -258,45 +303,71 @@ return (
       onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
     />
 
-    {/* Search bar */}
-    <View style={styles.searchContainer}>
-      <Ionicons name="search-outline" size={22} color="#B8B8B8" />
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search group chats"
-        placeholderTextColor="#B8B8B8"
-        value={search}
-        onChangeText={setSearch}
-      />
-    </View>
+        {sessions.length > 0 && (
+  <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 4 }}>
+    <TouchableOpacity
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#FDECEC',
+      }}
+      onPress={handleDeleteAllGroups}
+      activeOpacity={0.84}
+    >
+      <Feather name="trash-2" size={17} color="#D83C3C" style={{ marginRight: 7 }} />
+      <Text style={{ color: '#D83C3C', fontWeight: '600' }}>
+        Effacer tous les groupes
+      </Text>
+    </TouchableOpacity>
+  </View>
+)}
+
+{/* Search bar */}
+{sessions.length > 0 && (
+  <View style={styles.searchContainer}>
+    <Ionicons name="search-outline" size={22} color="#B8B8B8" />
+    <TextInput
+      style={styles.searchInput}
+      placeholder="Chercher un groupe de session"
+      placeholderTextColor="#B8B8B8"
+      value={search}
+      onChangeText={setSearch}
+    />
+  </View>
+)}
 
     {/* List */}
     {loading ? (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2EB47B" />
-      </View>
+<View style={styles.loadingContainer}>
+  <ActivityIndicator
+    size={Platform.OS === 'ios' ? 'large' : 50}
+    color="#FF6B3C"
+  />
+</View>
     ) : filteredSessions.length === 0 ? (
-      <FlatList
-        data={[]}
-        keyExtractor={() => 'empty'}
-        ListEmptyComponent={
-          <View style={styles.loadingContainer}>
-            <Text style={{ color: '#aaa', fontSize: 17, fontWeight: '500' }}>
-              Aucun groupe trouvé
-            </Text>
-          </View>
-        }
-        // allow pull to refresh even on empty state
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#5B4EFF']}
-            tintColor="#5B4EFF"
-            progressBackgroundColor="#fff"
-          />
-        }
-      />
+<FlatList
+  data={[]}
+  keyExtractor={() => 'empty'}
+  ListEmptyComponent={
+    <View style={styles.emptyBox}>
+      <MaterialCommunityIcons name="message-text-outline" size={68} color="#bbb" />
+      <Text style={styles.emptyText}>Aucun groupe trouvé</Text>
+    </View>
+  }
+  // allow pull to refresh even on empty state
+  refreshControl={
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      colors={['#5B4EFF']}
+      tintColor="#5B4EFF"
+      progressBackgroundColor="#fff"
+    />
+  }
+/>
     ) : (
       <FlatList
         key={layoutKey}                    // small kick for Android layout after refresh
@@ -369,8 +440,8 @@ const styles = StyleSheet.create({
     borderRadius: wp('3.2%'),
     paddingHorizontal: wp('3.7%'),
     height: hp('5.3%'),
-    marginTop: hp('1.3%'),
-    marginBottom: hp('0.7%'),
+    marginTop: hp('0.7%'),
+    marginBottom: hp('0.4%'),
   },
   searchInput: {
     flex: 1,
@@ -441,6 +512,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: wp('1%'),
   },
+  emptyBox: {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginTop: 100, // ajuste si besoin pour bien centrer
+},
+emptyText: {
+  marginTop: 12,
+  fontSize: 17,
+  fontWeight: '500',
+  color: '#aaa',
+},
+
 });
 
 export default MessagesGroupsScreen;
