@@ -3,7 +3,7 @@ name: Session Start Notifier
 on:
   schedule:
     - cron: "*/5 * * * *" # toutes les 5 minutes
-  workflow_dispatch: # permet de lancer manuellement
+  workflow_dispatch:
 
 jobs:
   call-session-start-notifier:
@@ -13,5 +13,5 @@ jobs:
         run: |
           curl -X POST "https://vznufgpbrunadydudbix.supabase.co/functions/v1/relay" \
             -H "Content-Type: application/json" \
-            -H "x-relay-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "x-relay-key: ${{ secrets.SUPABASE_RELAY_KEY }}" \
             -d '{"target":"session_start_notifier"}'
