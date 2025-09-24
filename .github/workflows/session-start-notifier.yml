@@ -1,17 +1,1 @@
-name: Session Start Notifier
 
-on:
-  schedule:
-    - cron: "*/10 * * * *" # toutes les 1 minutes
-  workflow_dispatch:
-
-jobs:
-  call-session-start-notifier:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Call Supabase relay
-        run: |
-          curl -X POST "https://vznufgpbrunadydudbix.supabase.co/functions/v1/relay" \
-            -H "Content-Type: application/json" \
-            -H "x-relay-key: ${{ secrets.SUPABASE_RELAY_KEY }}" \
-            -d '{"target":"session_start_notifier"}'
