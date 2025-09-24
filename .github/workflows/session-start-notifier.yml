@@ -2,7 +2,7 @@ name: Session Start Notifier
 
 on:
   schedule:
-    - cron: "*/1 * * * *" # toutes les 1 minutes
+    - cron: "*/10 * * * *" # toutes les 1 minutes
   workflow_dispatch:
 
 jobs:
