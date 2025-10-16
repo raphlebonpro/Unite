@@ -2,6 +2,8 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainTabs from './MainTabs.js';
 import { Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
 
 import EditProfileScreen from '../screens/EditProfileScreen';
@@ -26,11 +28,17 @@ import SearchFriendsScreen from '../screens/SearchFriendsScreen.js';
 import FriendsListScreen from '../screens/FriendsListScreen';
 import EditReviewScreen from '../screens/EditReviewScreen';
 import InviteFriendsToSession from '../screens/InviteFriendsToSession';
+import SessionFeedbackScreen from '../screens/SessionFeedbackScreen.js';
+import SessionCancelledScreen from '../screens/SessionCancelledScreen';
+import VerifyEmailScreen from '../screens/VerifyEmailScreen';
+import MentionsLegalesScreen from '../screens/MentionsLegalesScreen.js';
 
 import GradientTitle from '../components/GradientTitle';
+import BienvenueScreen from '../screens/BienvenueScreen.js';
 
 const Stack = createNativeStackNavigator();
 
+/** 🎨 Header gradient avec flèche retour custom Android */
 const gradientHeader = (title) => ({
   headerTitle: () => (
     <GradientTitle style={{ fontWeight: 'bold', fontSize: 18 }}>
@@ -38,9 +46,8 @@ const gradientHeader = (title) => ({
     </GradientTitle>
   ),
   headerTitleAlign: 'center',
-  headerBackTitle: 'Retour',
-  headerBackVisible: true,
-  // 👉 Ombre et fond repris de CustomAppBar
+  headerBackTitleVisible: false,
+  headerTintColor: '#3F4FFF',
   headerStyle: {
     backgroundColor: '#fff',
     borderBottomColor: '#EEE',
@@ -51,9 +58,8 @@ const gradientHeader = (title) => ({
     shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 3 } : undefined,
     elevation: Platform.OS === 'android' ? 3 : 0,
   },
-  headerShadowVisible: false, // on masque l’ombre par défaut pour n’utiliser que la nôtre
+  headerShadowVisible: false,
 });
-
 
 export default function StackNavigator() {
   return (
@@ -181,6 +187,31 @@ export default function StackNavigator() {
         name="InviteFriendsToSession"
         component={InviteFriendsToSession}
         options={gradientHeader('Inviter un coéquipier')}
+      />
+      <Stack.Screen
+        name="SessionFeedback"
+        component={SessionFeedbackScreen}
+        options={gradientHeader('Noter la session')}
+      />
+      <Stack.Screen
+        name="SessionCancelled"
+        component={SessionCancelledScreen}
+        options={gradientHeader('Session annulée')}
+      />
+      <Stack.Screen
+        name="Bienvenue"
+        component={BienvenueScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+      name="VerifyEmail" 
+      component={VerifyEmailScreen} 
+      options={gradientHeader('Vérification e-mail')}
+      />
+      <Stack.Screen 
+      name="MentionsLegales" 
+      component={MentionsLegalesScreen} 
+      options={gradientHeader('Mentions Légales')}
       />
     </Stack.Navigator>
   );

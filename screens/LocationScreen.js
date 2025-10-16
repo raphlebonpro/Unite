@@ -126,16 +126,23 @@ export default function LocationScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <MaterialCommunityIcons
-        name={locationEnabled ? "map-marker-radius" : "map-marker-off"}
-        size={44}
-        color={locationEnabled ? "#1976d2" : "#bababa"}
-        style={{ alignSelf: 'center', marginTop: 12, marginBottom: 6 }}
-      />
-      <Text style={styles.subtitle}>
-        Active la localisation pour trouver des sessions de sport autour de toi.
-        <Text style={{ color: '#1976d2', fontWeight: '600' }}> Tu pourras modifier ce choix à tout moment.</Text>
-      </Text>
+<MaterialCommunityIcons
+  name={locationEnabled ? "map-marker-radius" : "map-marker-off"}
+  size={44}
+  color={locationEnabled ? "#FF6C4A" : "#bababa"}
+  style={{ alignSelf: 'center', marginTop: 50, marginBottom: 6 }}
+/>
+
+<Text style={styles.subtitle}>
+  Active la localisation pour <Text style={{ fontWeight: '600', color: '#FF6C4A' }}>trouver les sessions autour de toi</Text> et rejoindre le collectif proche de chez toi.
+</Text>
+
+<View style={styles.infoBox}>
+  <Text style={styles.infoText}>
+    Ta position reste privée. Elle sert uniquement à te proposer les sessions sportives les plus proches.
+  </Text>
+</View>
+
 
       <View style={styles.card}>
         <View style={styles.cardRow}>
@@ -256,4 +263,17 @@ const styles = StyleSheet.create({
     fontSize: wp('3.5%'),
     fontWeight: '600',
   },
+  infoBox: {
+  backgroundColor: '#fff3ef',
+  borderRadius: wp('3.5%'),
+  padding: wp('3.5%'),
+  marginHorizontal: wp('5.7%'),
+  marginBottom: hp('2%'),
+},
+infoText: {
+  color: '#FF6C4A',
+  fontSize: wp('3.6%'),
+  fontWeight: '500',
+  textAlign: 'center',
+},
 });

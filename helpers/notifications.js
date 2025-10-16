@@ -392,7 +392,7 @@ export async function notifyReviewReceived({ recipientId, reviewerName, sessionI
   await notifyUser({
     user_id: recipientId,
     title: 'Nouvel avis reçu',
-    body: `${reviewerName} a laissé un avis sur ton profil.\n👉 Clique pour le lire.`,
+    body: `${reviewerName} a laissé un avis sur ton profil.`,
     type: 'review_received',
     session_id: sessionId,
     push: true,

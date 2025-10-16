@@ -20,6 +20,7 @@ import { useNotificationRefresh } from '../context/NotificationContext';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Animated, TouchableWithoutFeedback } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ---------- Icônes par type
 const ICONS = {
@@ -77,6 +78,8 @@ const ICONS = {
  reminder: { name: 'alarm', color: '#ffb300' },
  welcome: { name: 'hand-wave', color: '#ff9100' },
  user_reported: { name: 'alert-circle', color: '#e53935' },
+ verify_email_prompt: { name: 'email-alert', color: '#FDD835' },
+ verify_email_confirmed: { name: 'check-decagram', color: '#FBC02D' },
 
 
  // Reviews (gestion)
@@ -112,6 +115,7 @@ const TYPE_MAP = {
  session_updated_participant: 'warning',
  session_joined: 'success',
  session_start_soon: 'info',
+ start: 'info',
  leave_review: 'warning',
  session_full: 'success',
 
@@ -156,8 +160,11 @@ const TYPE_MAP = {
 
  // Divers
  reminder: 'warning',
+ reminder_2h: 'warning',
  welcome: 'info',
  user_reported: 'danger',
+ verify_email_prompt: 'warning',
+ verify_email_confirmed: 'success',
 
 
  // Reviews
@@ -219,10 +226,10 @@ const fetchNotifications = useCallback(async (opts = { spinner: false }) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     setNotifications([]);
-    setLastOpenedAt(null);
     setLoading(false);
     return;
   }
+
   if (opts.spinner) setLoading(true);
 
   const { data, error } = await supabase
@@ -231,12 +238,11 @@ const fetchNotifications = useCallback(async (opts = { spinner: false }) => {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
-  if (!error) {
-    setNotifications(data || []);
-    // 👉 plus besoin de meta.last_opened_at, tu peux ignorer ou calculer via notifications si besoin
-    setLastOpenedAt(null);
-  } else {
+  if (error) {
     console.error("❌ Erreur fetchNotifications:", error);
+  } else {
+    setNotifications(data || []);
+    // 🚫 ne touche plus à lastOpenedAt ici
   }
 
   if (opts.spinner) setLoading(false);
@@ -311,11 +317,17 @@ const markAllAsRead = useCallback(async () => {
 
 useFocusEffect(
   useCallback(() => {
+    let active = true;
+
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Marquer toutes les notifs comme lues
+      // 🔸 Récupère la dernière ouverture (avant d’entrer)
+      const lastOpen = await AsyncStorage.getItem('lastNotifOpenAt');
+      if (lastOpen) setLastOpenedAt(lastOpen);
+
+      // 🔹 Marque toutes les notifs comme lues
       await supabase
         .from('notifications')
         .update({ is_read: true })
@@ -323,15 +335,20 @@ useFocusEffect(
         .eq('is_read', false);
 
       triggerRefreshNotifs();
-
-      // Recharge proprement
       await fetchNotifications({ spinner: false });
     })();
 
-    return () => {};
+    // 🔸 À la fermeture de la page → on enregistre la nouvelle "dernière ouverture"
+    return () => {
+      if (active) {
+        const now = new Date().toISOString();
+        AsyncStorage.setItem('lastNotifOpenAt', now);
+        setLastOpenedAt(now);
+      }
+      active = false;
+    };
   }, [fetchNotifications, triggerRefreshNotifs])
 );
-
 
  // Utils
  async function getToken() {
@@ -341,39 +358,120 @@ useFocusEffect(
 
 
 const handleNotificationPress = (notif) => {
-  // 🔹 Marque comme lue en optimiste (pas de await bloquant)
-  if (!notif.is_read) {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
-    );
-    triggerRefreshNotifs();
-    // Mise à jour silencieuse en arrière-plan
-    supabase.from('notifications')
-      .update({ is_read: true })
-      .eq('id', notif.id)
-      .catch(() => {});
-  }
+  try {
+    // 🔹 Marque comme lue en optimiste
+    if (!notif.is_read) {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+      );
+      triggerRefreshNotifs();
+      supabase.from('notifications')
+        .update({ is_read: true })
+        .eq('id', notif.id)
+        .catch(() => {});
+    }
 
-  // 🔗 Cas spécifiques
+    // 🔸 Sécurité : si notif sans type → ignore
+    if (!notif?.type) return;
 
-  // Demande d’ami
-  if (notif.type === 'friend_request' && notif.sender_id) {
-    navigation.navigate('Main', {
-      screen: 'UserProfile',
-      params: { userId: notif.sender_id, source: 'friend_request' },
-    });
-    return;
-  }
+    // === 🎯 ROUTAGE LOGIQUE PAR TYPE ===
 
-  // Bienvenue
-  if (notif.type === 'welcome') {
-    navigation.navigate('Bienvenue');
-    return;
-  }
+    // 👋 Bienvenue
+    if (notif.type === 'welcome') {
+      navigation.navigate('Bienvenue');
+      return;
+    }
 
-  // Sessions (créées, rejointes, modifiées, supprimées, etc.)
-  if (
-    [
+    // 💬 Nouveau message
+    if (notif.type === 'new_message' && notif.session_id) {
+      navigation.navigate('SessionMessages', {
+        sessionId: notif.session_id,
+      });
+      return;
+    }
+
+    // 🧍 Demande d’ami reçue
+    if (notif.type === 'friend_request' && notif.sender_id) {
+      navigation.navigate('UserProfile', {
+        userId: notif.sender_id,
+        source: 'friend_request',
+      });
+      return;
+    }
+
+// ⭐ Avis à laisser après session → d’abord la note globale de session
+if (notif.type === 'leave_review' && notif.session_id) {
+  navigation.navigate('SessionFeedback', {
+    sessionId: notif.session_id,
+    fromNotification: true,
+  });
+  return;
+}
+
+// ⭐ Nouvel avis reçu → redirige vers la page des avis reçus
+if (notif.type === 'review_received') {
+  supabase.auth.getUser().then(({ data, error }) => {
+    if (error || !data?.user?.id) {
+      console.warn("⚠️ Impossible d’obtenir l’utilisateur pour review_received", error);
+      return;
+    }
+
+    navigation.navigate('UserReview', { userId: data.user.id });
+  });
+  return;
+}
+
+    // 🏅 Badge gagné
+    if (notif.type === 'badge_awarded') {
+      navigation.navigate('Profile');
+      return;
+    }
+
+    // ⚔️ Défi collectif
+    if (notif.type === 'collective_challenge') {
+      navigation.navigate('CollectiveChallenges');
+      return;
+    }
+
+    // ⭐ Avis reçu
+    if (notif.type === 'review_received' && notif.sender_id) {
+      navigation.navigate('UserProfile', { userId: notif.sender_id });
+      return;
+    }
+
+    // 💥 Ami a rejoint une session
+if (notif.type === 'friend_joined_session' && notif.session_id) {
+  navigation.navigate('SessionDetail', {
+    sessionId: notif.session_id,
+    fromNotification: true,
+  });
+  return;
+}
+
+    //Notif compte vérifié
+    if (notif.type === 'verify_email_prompt') {
+  navigation.navigate('VerifyEmail'); // écran qu’on fera ensuite
+  return;
+}
+
+        // ❌ Session annulée faute de coéquipiers → redirige vers écran simplifié
+    if (notif.type === 'session_cancelled_solo') {
+      const sessionId =
+        notif.session_id ||
+        notif.data?.session_id ||
+        notif.metadata?.session_id ||
+        null;
+
+      navigation.navigate('SessionCancelled', {
+        sessionId,
+        title: notif.title,
+        body: notif.body,
+      });
+      return;
+    }
+
+    // 🔥 Tous les types liés à une session
+    const sessionTypes = [
       'session_created',
       'session_joined',
       'participant_joined_creator',
@@ -383,80 +481,45 @@ const handleNotificationPress = (notif) => {
       'session_deleted_creator',
       'session_deleted_participant',
       'session_start_soon',
+      'start',
+      'reminder_2h',
+      
       'excluded_from_session',
       'exclude_user',
       'participant_left_creator',
       'participant_left_participant',
       'participant_left_self',
-      'leave_review',
       'session_full',
-    ].includes(notif.type)
-  ) {
-    navigation.navigate('Main', {
-      screen: 'SessionDetail',
-      params: { sessionId: notif.session_id },
-    });
+      'new_session_nearby',
+      'friend_invited_session',
+      'friend_joined_session',
+    ];
+
+if (sessionTypes.includes(notif.type)) {
+  const sessionId =
+    notif.session_id ||
+    notif.data?.session_id ||
+    notif.metadata?.session_id ||
+    null;
+
+  if (!sessionId) {
+    console.warn(`⚠️ Pas de session_id pour la notif: ${notif.type}`);
     return;
   }
 
-  // Messages
-  if (notif.type === 'new_message') {
-    navigation.navigate('Main', {
-      screen: 'SessionMessages',
-      params: { sessionId: notif.session_id },
-    });
-    return;
-  }
-
-  // Badges
-  if (notif.type === 'badge_awarded') {
-    navigation.navigate('Main', { screen: 'Profile' });
-    return;
-  }
-
-  // Défis collectifs
-  if (notif.type === 'collective_challenge') {
-    navigation.navigate('Main', { screen: 'CollectiveChallenges' });
-    return;
-  }
-
-  // Avis publiés ou modifiés
-  if (['review_published', 'review_updated'].includes(notif.type)) {
-    navigation.navigate('Main', {
-      screen: 'UserReviewsScreen',
-      params: { userId: notif.sender_id },
-    });
-    return;
-  }
-
-  // Avis reçus
-  if (notif.type === 'review_received') {
-    navigation.navigate('Main', {
-      screen: 'UserProfile',
-      params: { userId: notif.sender_id },
-    });
-    return;
-  }
-
-// Invitation coéquipier à rejoindre session
-if ((notif.type === 'friend_invited_session') && notif.session_id) {
-  navigation.navigate('Main', {
-    screen: 'SessionDetail',
-    params: { sessionId: notif.session_id },
-  });
-  return;
-}
-// Session près de toi
-if (notif.type === 'new_session_nearby' && notif.session_id) {
-  navigation.navigate('Main', {
-    screen: 'SessionDetail',
-    params: { sessionId: notif.session_id },
+  // Redirection unique pour tous les cas liés à une session
+  navigation.navigate('SessionDetail', {
+    sessionId,
+    fromNotification: true,
   });
   return;
 }
 
+  } catch (err) {
+    console.error('❌ Erreur handleNotificationPress:', err);
+    Alert.alert('Erreur', "Impossible d’ouvrir cette notification.");
+  }
 };
-
 
  const handleDelete = async (notifId) => {
    Alert.alert('Supprimer cette notification ?', '', [
@@ -493,21 +556,24 @@ if (notif.type === 'new_session_nearby' && notif.session_id) {
 
 
  // ---------- Rendu (header de section + carte premium)
- const renderNotif = ({ item }) => {
-   // Header de section
-   if (item.__header__) {
-     return (
-       <View style={styles.sectionHeader}>
-         <Text style={styles.sectionHeaderText}>{item.label}</Text>
-       </View>
-     );
-   }
+const renderNotif = ({ item }) => {
+  // Header de section
+  if (item.__header__) {
+    return (
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionHeaderText}>{item.label}</Text>
+      </View>
+    );
+  }
 
+  const icon = ICONS[item.type] || ICONS.default;
+  const theme = themeFor(item.type);
 
-   const icon = ICONS[item.type] || ICONS.default;
-   const theme = themeFor(item.type);
-   const isNewSinceLastOpen = !lastOpenedAt ? true : new Date(item.created_at) > new Date(lastOpenedAt);
-
+  // 💡 Badge “Nouveau” : seulement si la notif est arrivée après la dernière fermeture
+const isNewSinceLastOpen =
+  lastOpenedAt && typeof lastOpenedAt === "string"
+    ? new Date(item.created_at) > new Date(lastOpenedAt)
+    : false;
 
 const Card = ({ onPress }) => {
   const scale = useRef(new Animated.Value(1)).current;

@@ -4,7 +4,7 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
-const GRADIENT_COLORS = ['#FFAD75', '#FF8269', '#FF5361'];
+const GRADIENT_COLORS = ['#FF9D3C', '#FF6C4A', '#FF375E'];
 const ANDROID_ORANGE = '#FF7146'; // 🎨 Orange uni pour Android
 
 function GradientTitle({ children, style, width }) {

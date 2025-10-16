@@ -18,7 +18,13 @@ const StarDisplay = ({ value = 0, size = 20 }) => (
 
 export default function UserReviewsScreen({ route }) {
   const navigation = useNavigation();
-  const { userId } = route.params;
+  const userId = route?.params?.userId ?? null;
+
+if (!userId) {
+  console.warn("⚠️ Aucun userId reçu dans UserReviewScreen");
+  return null;
+}
+
   const [reviews, setReviews] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
 

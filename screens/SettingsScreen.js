@@ -98,12 +98,12 @@ const SettingsScreen = () => {
 const handleShareApp = async () => {
   if (Platform.OS === 'android') {
     // ✅ Copy-to-clipboard pour Android (pas de bug layout)
-    await Clipboard.setString('🔥 Découvre Unite : https://testflight.apple.com/join/aWMTGZnf');
+    await Clipboard.setString(`Le sport est fait pour être partagé. Rejoins Unite, la nouvelle app qui connecte les sportifs autour de toi. Le collectif t’attend → https://testflight.apple.com/join/aWMTGZnf`);
     Alert.alert('Copié !', 'Le lien a été copié dans le presse-papier');
   } else {
     // ✅ Share API normal pour iOS
     await Share.share({
-      message: `🔥 Découvre Unite : l'app qui te connecte à des sportifs de tous niveaux pour bouger et partager le sport autour de toi ! Rejoins la bêta ici : https://testflight.apple.com/join/aWMTGZnf`
+      message: `Le sport est fait pour être partagé. Rejoins Unite, la nouvelle app qui connecte les sportifs autour de toi. Le collectif t’attend → https://testflight.apple.com/join/aWMTGZnf`
     });
   }
 };
@@ -151,7 +151,7 @@ const handleShareApp = async () => {
           />
           <ItemSeparator />
           <SettingsItem
-           icon={<Feather name="message-square" size={21} color="#888" />}
+           icon={<Feather name="message-square" size={21} color="#FF4C4C" />}
            label="Retour et Signalement"
            onPress={() => navigation.navigate('FeedbackAndReport')}
           />
@@ -162,7 +162,14 @@ const handleShareApp = async () => {
             label="Partager Unite"
             onPress={handleShareApp}
           />
-        </View>
+          <ItemSeparator />
+
+          <SettingsItem
+            icon={<AntDesign name="filetext1" size={21} color="#888" />}
+            label="Mentions légales"
+            onPress={() => navigation.navigate('MentionsLegales')}
+          />
+         </View>
 
         <View style={styles.cardAction}>
           <TouchableOpacity
@@ -286,7 +293,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   deleteBtn: {
-    backgroundColor: '#ff5a5f',
+    backgroundColor: '#ff0000',
     borderRadius: wp('3.3%'),
     alignItems: 'center',
     flexDirection: 'row',

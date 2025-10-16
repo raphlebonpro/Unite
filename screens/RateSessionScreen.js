@@ -176,7 +176,7 @@ const handleSubmit = async () => {
         activeOpacity={0.87}
       >
         <LinearGradient
-          colors={['#ff9966', '#ff5e62']}
+          colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
           start={{ x: 0.1, y: 0 }}
           end={{ x: 1, y: 0.8 }}
           style={[

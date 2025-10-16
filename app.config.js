@@ -9,19 +9,28 @@ export default {
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: false,
-    updates: { enabled: false },
+
+    // 🧩 Empêche toute mise à jour OTA + force le rechargement local du JS
+    updates: {
+      enabled: false,
+      checkAutomatically: "ON_ERROR_RECOVERY",
+      fallbackToCacheTimeout: 0,
+    },
+
+    // 🚀 Force un runtime unique à chaque version → plus de bundle OTA partagé
+      runtimeVersion: "1.0.0",
 
     icon: "./assets/icon1.png",
 
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#ffffff",
     },
 
     ios: {
       bundleIdentifier: "com.collectif.uniteapp",
-      buildNumber: "44",
+      buildNumber: "84",
       icon: "./assets/icon1.png",
       supportsTablet: true,
       config: {
@@ -37,50 +46,45 @@ export default {
           "Nous enregistrons des images dans votre galerie si vous l’autorisez.",
         NSLocationWhenInUseUsageDescription:
           "Nous utilisons votre position pour afficher les sessions sportives proches.",
-
-        // 🔑 Activation du mode push en arrière-plan (APNs)
         UIBackgroundModes: ["remote-notification"],
       },
     },
 
     android: {
       package: "com.collectif.uniteapp",
-      versionCode: 35,
+      versionCode: 39,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon-foreground1.png",
-        backgroundImage: "./assets/adaptive-icon-background1.png"
+        backgroundImage: "./assets/adaptive-icon-background1.png",
       },
       permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
       config: {
         googleMaps: {
-          apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY
-        }
+          apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
+        },
       },
-      softwareKeyboardLayoutMode: "resize"
+      softwareKeyboardLayoutMode: "resize",
     },
 
     web: {
-      favicon: "./assets/favicon.png"
+      favicon: "./assets/favicon.png",
     },
 
-plugins: [
-  [
-    "@rnmapbox/maps",
-    {
-      RNMapboxMapsDownloadToken: process.env.MAPBOX_SECRET_TOKEN
-    }
-  ],
-],
+    plugins: [
+      [
+        "@rnmapbox/maps",
+        {
+          RNMapboxMapsDownloadToken: process.env.MAPBOX_SECRET_TOKEN,
+        },
+      ],
+    ],
+
     extra: {
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-
-      // 🔑 Mapbox public token accessible dans ton code
       EXPO_PUBLIC_MAPBOX_TOKEN: process.env.EXPO_PUBLIC_MAPBOX_TOKEN,
-
-      eas: { projectId: "1fd6a80b-0337-4744-af25-0bcac83e416e" }
-    }
-  }
+      eas: { projectId: "1fd6a80b-0337-4744-af25-0bcac83e416e" },
+    },
+  },
 };
-

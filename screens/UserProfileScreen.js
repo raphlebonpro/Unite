@@ -108,6 +108,18 @@ const StarDisplay = ({ value = 0, size = 22 }) => (
   </View>
 );
 
+// 🔶 Badge de vérification Unite
+const VerifiedBadge = () => (
+  <LinearGradient
+    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 1 }}
+    style={styles.verifiedBadge}
+  >
+    <Text style={styles.verifiedText}>Profil Vérifié</Text>
+  </LinearGradient>
+);
+
 function getUnlockedBadges(stats) {
   return BADGES.filter((badge) => badge.check(stats));
 }
@@ -577,8 +589,15 @@ return (
         </View>
           )}
 
-          {/* Pseudo */}
-          <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
+<View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: hp('1.2%') }}>
+  <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
+
+  {user?.is_verified && (
+    <View style={{ marginTop: hp('0.3%') }}>
+      <VerifiedBadge />
+    </View>
+  )}
+</View>
 
           {/* Affichage de la moyenne des avis */}
           <TouchableOpacity
@@ -1062,6 +1081,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.2,
   },
+verifiedBadge: {
+  width: wp('30%'),
+  height: hp('3.2%'),
+  borderRadius: hp('1.8%'),
+  alignItems: 'center',
+  justifyContent: 'center',
+  shadowColor: '#FF6C4A',
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: 1 },
+  elevation: 3,
+  alignSelf: 'center',
+},
+verifiedText: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: wp('3.2%'),
+  letterSpacing: 0.3,
+},
 });
 
 export default UserProfileScreen;

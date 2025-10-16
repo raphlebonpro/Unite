@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -20,6 +19,7 @@ import { Buffer } from 'buffer';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '../context/UserContext';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 if (typeof global !== "undefined") global.Buffer = Buffer;
 
@@ -306,26 +306,27 @@ const EditProfileScreen = ({ navigation }) => {
             <Text style={styles.charCount}>{bio.length}/160</Text>
           </View>
 
-          <View style={styles.buttonContainer}>
-            <LinearGradient
-              colors={['#ff9966', '#ff5e62']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.buttonGradient}
-            >
-              <TouchableOpacity
-                style={styles.buttonTouchable}
-                onPress={handleSave}
-                activeOpacity={0.85}
-                disabled={saving}
-              >
-                <Text style={styles.buttonText}>
-                  {saving ? "Enregistrement..." : "Valider profil"}
-                </Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
-          <View style={{ height: 10 }} />
+<View style={styles.buttonContainer}>
+  <LinearGradient
+    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 0 }}
+    style={styles.buttonGradient}
+  >
+    <TouchableOpacity
+      style={styles.buttonTouchable}
+      onPress={handleSave}
+      activeOpacity={0.85}
+      disabled={saving}
+    >
+      <Text style={styles.buttonText}>
+        {saving ? "Enregistrement..." : "Valider profil"}
+      </Text>
+    </TouchableOpacity>
+  </LinearGradient>
+</View>
+
+<View style={{ height: 10 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -471,6 +472,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: wp('3.9%'),
   },
+  helperText: {
+  fontSize: wp('3.3%'),
+  color: '#888',
+  fontStyle: 'italic',
+  marginBottom: hp('0.6%'),
+},
 });
 
 export default EditProfileScreen;

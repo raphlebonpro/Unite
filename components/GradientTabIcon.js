@@ -2,7 +2,7 @@ import React from 'react';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const GRADIENT_COLORS = ['#FFAD75', '#FF8269', '#FF5361'];
+const GRADIENT_COLORS = ['#FF9D3C', '#FF6C4A', '#FF375E'];
 
 export default function GradientTabIcon({ IconComponent, name, size, style }) {
   return (

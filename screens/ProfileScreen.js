@@ -138,6 +138,18 @@ const StarDisplay = ({ value = 0, size = 22 }) => {
   );
 };
 
+// 🔶 Badge de vérification Unite
+const VerifiedBadge = () => (
+  <LinearGradient
+    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 1 }}
+    style={styles.verifiedBadge}
+  >
+    <Text style={styles.verifiedText}>Profil Vérifié</Text>
+  </LinearGradient>
+);
+
 const TouchableItem = ({ onPress, children, style }) => {
   if (Platform.OS === 'android') {
     return (
@@ -519,8 +531,15 @@ const openFriendsList = () => {
        </View>
           )}
 
-          {/* Pseudo */}
-          <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
+<View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: hp('1.2%') }}>
+  <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
+
+  {user?.is_verified && (
+    <View style={{ marginTop: hp('0.3%') }}>
+      <VerifiedBadge />
+    </View>
+  )}
+</View>
 
           {/* Bloc étoiles + nombre d’avis => pressable si au moins 1 avis */}
           <TouchableOpacity
@@ -928,6 +947,25 @@ friendLabel: {
   color: '#555',
   fontWeight: '500',
   marginTop: hp('0.2%'),
+},
+verifiedBadge: {
+  width: wp('30%'),
+  height: hp('3.2%'),
+  borderRadius: hp('1.8%'),
+  alignItems: 'center',
+  justifyContent: 'center',
+  shadowColor: '#FF6C4A',
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: 1 },
+  elevation: 3,
+  alignSelf: 'center',
+},
+verifiedText: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: wp('3.2%'),
+  letterSpacing: 0.3,
 },
 });
 

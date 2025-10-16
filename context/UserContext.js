@@ -21,28 +21,45 @@ export const UserProvider = ({ children }) => {
     return null;
   }, []);
 
-  const fetchUserProfile = useCallback(
-    async (authUser) => {
-      if (!authUser) {
-        setUser(null);
-        setAvatarUrl(null);
-        setLoading(false);
-        return;
-      }
+const fetchUserProfile = useCallback(
+  async (authUser) => {
+    if (!authUser) {
+      setUser(null);
+      setAvatarUrl(null);
+      setLoading(false);
+      return;
+    }
 
-      const { data } = await supabase
+    try {
+      const { data, error, status } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .maybeSingle();
 
+      if (error && status !== 406) {
+        // ⚠️ Erreur RLS = profil pas encore créé → on ignore
+        console.warn("⚠️ Impossible de lire le profil (probablement RLS ou profil inexistant)", error.message);
+        setUser(authUser);
+        setAvatarUrl(null);
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Fusionne les infos auth + profil s’il existe
       const merged = data ? { ...authUser, ...data } : authUser;
       setUser(merged);
       setAvatarUrl(resolvePublicAvatarUrl(data));
       setLoading(false);
-    },
-    [resolvePublicAvatarUrl]
-  );
+    } catch (err) {
+      console.error("❌ Erreur fetchUserProfile:", err.message);
+      setUser(authUser);
+      setAvatarUrl(null);
+      setLoading(false);
+    }
+  },
+  [resolvePublicAvatarUrl]
+);
 
   const refreshUser = useCallback(async () => {
     const { data } = await supabase.auth.getUser();

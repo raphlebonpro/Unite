@@ -51,74 +51,76 @@ const ActivitiesScreen = () => {
     return dt;
   }
 
-  const fetchSessions = useCallback(async () => {
-    if (!user || !user.id) return;
-    try {
-      // --- Créées par l'user
-      const { data: created } = await supabase
+const fetchSessions = useCallback(async () => {
+  if (!user || !user.id) return;
+  try {
+    // --- Créées par l'user (non annulées)
+    const { data: created } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('creator_id', user.id)
+      .eq('is_cancelled', false);
+
+    // --- Sessions rejointes
+    const { data: joinedIds } = await supabase
+      .from('session_participants')
+      .select('session_id')
+      .eq('user_id', user.id);
+
+    const sessionIds = joinedIds?.map((s) => s.session_id) || [];
+
+    let joined = [];
+    if (sessionIds.length > 0) {
+      const { data } = await supabase
         .from('sessions')
         .select('*')
-        .eq('creator_id', user.id);
-
-      // --- Sessions rejointes
-      const { data: joinedIds } = await supabase
-        .from('session_participants')
-        .select('session_id')
-        .eq('user_id', user.id);
-
-      const sessionIds = joinedIds?.map((s) => s.session_id) || [];
-
-      let joined = [];
-      if (sessionIds.length > 0) {
-        const { data } = await supabase
-          .from('sessions')
-          .select('*')
-          .in('id', sessionIds);
-        joined = data;
-      }
-
-      const joinedFiltered = (joined || []).filter(s => s.creator_id !== user.id);
-
-      // --- Classement
-      const now = new Date();
-
-      const createdUpcoming = (created || []).filter(s => {
-        const dt = buildDateTime(s);
-        return dt && dt >= now;
-      });
-      const createdPast = (created || []).filter(s => {
-        const dt = buildDateTime(s);
-        return dt && dt < now;
-      });
-
-      const joinedUpcoming = (joinedFiltered || []).filter(s => {
-        const dt = buildDateTime(s);
-        return dt && dt >= now;
-      });
-      const joinedPast = (joinedFiltered || []).filter(s => {
-        const dt = buildDateTime(s);
-        return dt && dt < now;
-      });
-
-      // Fusion des passées
-      const pastMap = {};
-      [...createdPast, ...joinedPast].forEach(s => { pastMap[s.id] = s; });
-      const allPast = Object.values(pastMap);
-
-      // Tri
-      const sortAsc = (list) => list.sort((a, b) => buildDateTime(a) - buildDateTime(b));
-      const sortDesc = (list) => list.sort((a, b) => buildDateTime(b) - buildDateTime(a));
-
-      setSessionsCreated(sortAsc(createdUpcoming));
-      setSessionsJoined(sortAsc(joinedUpcoming));
-      setSessionsPast(sortDesc(allPast));
-
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setRefreshing(false);
+        .in('id', sessionIds)
+        .eq('is_cancelled', false);
+      joined = data;
     }
-  }, [user]);
+
+    const joinedFiltered = (joined || []).filter(s => s.creator_id !== user.id);
+
+    // --- Classement
+    const now = new Date();
+
+    const createdUpcoming = (created || []).filter(s => {
+      const dt = buildDateTime(s);
+      return dt && dt >= now;
+    });
+    const createdPast = (created || []).filter(s => {
+      const dt = buildDateTime(s);
+      return dt && dt < now;
+    });
+
+    const joinedUpcoming = (joinedFiltered || []).filter(s => {
+      const dt = buildDateTime(s);
+      return dt && dt >= now;
+    });
+    const joinedPast = (joinedFiltered || []).filter(s => {
+      const dt = buildDateTime(s);
+      return dt && dt < now;
+    });
+
+    // Fusion des passées
+    const pastMap = {};
+    [...createdPast, ...joinedPast].forEach(s => { pastMap[s.id] = s; });
+    const allPast = Object.values(pastMap);
+
+    // Tri
+    const sortAsc = (list) => list.sort((a, b) => buildDateTime(a) - buildDateTime(b));
+    const sortDesc = (list) => list.sort((a, b) => buildDateTime(b) - buildDateTime(a));
+
+    setSessionsCreated(sortAsc(createdUpcoming));
+    setSessionsJoined(sortAsc(joinedUpcoming));
+    setSessionsPast(sortDesc(allPast));
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setRefreshing(false);
+  }
+}, [user]);
 
   // Auto-refresh toutes les 15s
   useFocusEffect(

@@ -421,17 +421,6 @@ if (
 
     const sessionId = data.id;
 
-    const { error: partError } = await supabase
-      .from('session_participants')
-      .insert([{ session_id: sessionId, user_id: user.id }]);
-
-    if (partError) {
-      Alert.alert(
-        'Erreur',
-        "La session est créée mais tu n'es pas dans les participants : " + partError.message
-      );
-    }
-
 // 🔔 Notifications via helpers
 // ✅ Notif pour le créateur
 await notifySessionCreated({
@@ -1137,7 +1126,7 @@ if (loadingInit) {
               onPress={handleCreateSession}
             >
               <LinearGradient
-                colors={['#ff9966', '#ff5e62']}
+                colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.buttonGradient, { width: '90%' }]}

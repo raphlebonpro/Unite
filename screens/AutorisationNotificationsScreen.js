@@ -137,53 +137,51 @@ const NotificationsScreen = ({ navigation }) => {
         name={pushEnabled ? "bell-ring" : "bell-off-outline"}
         size={44}
         color={pushEnabled ? "#43b97f" : "#bababa"}
-        style={{ alignSelf: 'center', marginTop: 12, marginBottom: 6 }}
+        style={{ alignSelf: 'center', marginTop: 50, marginBottom: 6 }}
       />
       <Text style={styles.subtitle}>
         Active les notifications pour profiter pleinement de Unite.
-        <Text style={{ color: '#1976d2', fontWeight: '600' }}> Tu pourras modifier ce choix à tout moment.</Text>
+        <Text style={{ color: '#FF6C4A', fontWeight: '600' }}> Tu pourras modifier ce choix à tout moment.</Text>
       </Text>
 
-      {/* Push */}
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Notifications Push</Text>
-            <Text style={styles.cardDescription}>
-              Sois alerté instantanément de toute activité (messages, sessions, rappels…).
-            </Text>
-          </View>
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <Switch
-              value={pushEnabled}
-              onValueChange={handlePushToggle}
-              trackColor={{ false: '#e4e5ed', true: '#43b97f' }}
-              thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
-              ios_backgroundColor="#e4e5ed"
-              disabled={checkingStatus}
-            />
-          </Animated.View>
-        </View>
-      </View>
+<View style={styles.card}>
+  <View style={styles.cardRow}>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.cardTitle}>Notifications Push</Text>
+      <Text style={styles.cardDescription}>
+        Sois alerté instantanément dès qu’un coéquipier t’envoie un message ou crée une session près de toi.
+      </Text>
+    </View>
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Switch
+        value={pushEnabled}
+        onValueChange={handlePushToggle}
+        trackColor={{ false: '#e4e5ed', true: '#43b97f' }}
+        thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
+        ios_backgroundColor="#e4e5ed"
+        disabled={checkingStatus}
+      />
+    </Animated.View>
+  </View>
+</View>
 
-      {/* Email */}
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Notifications Email</Text>
-            <Text style={styles.cardDescription}>
-              Reçois conseils et nouveautés par e-mail depuis <Text style={{ color: '#1976d2' }}>contact@uniteapp.fr</Text>.
-            </Text>
-          </View>
-          <Switch
-            value={emailNotifications}
-            onValueChange={handleEmailToggle}
-            trackColor={{ false: '#e4e5ed', true: '#1976d2' }}
-            thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
-            ios_backgroundColor="#e4e5ed"
-          />
-        </View>
-      </View>
+<View style={styles.card}>
+  <View style={styles.cardRow}>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.cardTitle}>Notifications Email</Text>
+      <Text style={styles.cardDescription}>
+        Reste informé des nouveautés de Unite. <Text style={{ color: '#FF6C4A' }}>Pas de spam, juste de l’énergie positive.</Text>
+      </Text>
+    </View>
+    <Switch
+      value={emailNotifications}
+      onValueChange={handleEmailToggle}
+      trackColor={{ false: '#e4e5ed', true: '#43b97f' }}
+      thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
+      ios_backgroundColor="#e4e5ed"
+    />
+  </View>
+</View>
 
       {/* Bouton */}
       <View style={{ alignItems: 'center', marginTop: 24 }}>

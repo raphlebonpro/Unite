@@ -36,7 +36,7 @@ const SignUpScreen = () => {
 {/* Bouton créer un compte */}
 <TouchableOpacity onPress={handleSignUp} activeOpacity={0.85}>
   <LinearGradient
-    colors={['#FF9A6C', '#FF5E62']}
+    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
     start={{ x: 0, y: 0 }}
     end={{ x: 1, y: 0 }}
     style={[styles.button, Platform.OS === 'android' && stylesA.button]}

@@ -25,6 +25,8 @@ import MapboxGL from '../mapboxConfig';
 import { Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import GradientTitle from '../components/GradientTitle';
+import { Keyboard } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native';
 
 const GOOGLE_MAPS_API_KEY =
 Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY ??
@@ -367,9 +369,14 @@ useEffect(() => {
 
 const handleSuggestionPress = async (placeId, description) => {
   try {
+    Keyboard.dismiss();
+    setSuggestions([]);
+    setSearch(description);
+
     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
     const res = await fetch(url);
     const data = await res.json();
+
     const { lat, lng } = data?.result?.geometry?.location || {};
     if (typeof lat !== 'number' || typeof lng !== 'number') return;
 
@@ -379,10 +386,17 @@ const handleSuggestionPress = async (placeId, description) => {
       latitudeDelta: 0.05,
       longitudeDelta: 0.05,
     };
+
     setRegion(newRegion);
-    setSuggestions([]);
-    setSearch(description);
-    mapRef.current?.animateToRegion(newRegion, 1000);
+
+    // ✅ Mapbox → on contrôle la caméra
+    cameraRef.current?.setCamera({
+      centerCoordinate: [lng, lat],
+      zoomLevel: 13,
+      animationDuration: 1000,
+    });
+
+    setTimeout(() => Keyboard.dismiss(), 150);
   } catch (e) {
     console.error('Place details error:', e);
   }
@@ -709,30 +723,59 @@ return (
    zIndex: 999,
  }}
 >
- <View
-   style={{
-     flexDirection: 'row',
-     alignItems: 'center',
-     backgroundColor: '#fff',
-     borderRadius: wp('4%'),
-     elevation: 6,
-     shadowColor: '#000',
-     shadowOpacity: 0.12,
-     shadowRadius: hp('0.6%'),
-     shadowOffset: { width: 0, height: hp('0.3%') },
-     height: SEARCH_H,
-     paddingHorizontal: wp('6%'),
-   }}
- >
-   <AntDesign name="search1" size={wp('4.5%')} color="#8A8C99" style={{ marginRight: wp('3%') }} />
-   <TextInput
-     placeholder="Où voulez-vous bouger ?"
-     value={search}
-     onChangeText={setSearch}
-     style={{ flex: 1, fontSize: wp('3.8%'), color: "#222", paddingVertical: 0 }}
-     placeholderTextColor="#666"
-   />
- </View>
+<View
+  style={{
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: wp('4%'),
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: hp('0.6%'),
+    shadowOffset: { width: 0, height: hp('0.3%') },
+    height: SEARCH_H,
+    paddingHorizontal: wp('5%'),
+  }}
+>
+  {/* 🔍 Icône recherche */}
+  <AntDesign
+    name="search1"
+    size={wp('4.5%')}
+    color="#8A8C99"
+    style={{ marginRight: wp('3%') }}
+  />
+
+  {/* Champ texte */}
+  <TextInput
+    placeholder="Où voulez-vous bouger ?"
+    value={search}
+    onChangeText={setSearch}
+    style={{
+      flex: 1,
+      fontSize: wp('3.8%'),
+      color: '#222',
+      paddingVertical: 0,
+    }}
+    placeholderTextColor="#666"
+  />
+
+  {/* ❌ Petite croix pour effacer le champ */}
+  {search.length > 0 && (
+    <TouchableOpacity
+      onPress={() => {
+        setSearch('');
+        setSuggestions([]);
+        clearFilters(); // 👈 recentre aussi la carte proprement
+      }}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      style={{ marginLeft: wp('1.5%') }}
+      activeOpacity={0.6}
+    >
+      <AntDesign name="closecircle" size={wp('4.3%')} color="#999" />
+    </TouchableOpacity>
+  )}
+</View>
 </View>
 
     {/* Suggestions */}
@@ -1056,6 +1099,36 @@ onRequestClose={() => setShowCalendar(false)}
   </View>
 </View>
 
+{filteredSessions.length === 0 && (
+  <View
+    style={{
+      position: 'absolute',
+      bottom: hp('13%'),
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+    }}
+  >
+    <Text
+      style={{
+        color: '#888',
+        fontSize: wp('3.8%'),
+        textAlign: 'center',
+      }}
+    >
+      Aucune session trouvée 🔍
+    </Text>
+    <Text
+      style={{
+        color: '#AAA',
+        fontSize: wp('3.4%'),
+        marginTop: 4,
+      }}
+    >
+      Essaie un autre sport ou élargis ta recherche
+    </Text>
+  </View>
+)}
 
 {/* Ma position */}
 {region && (
@@ -1091,7 +1164,7 @@ onRequestClose={() => setShowCalendar(false)}
   </TouchableOpacity>
 )}
   </SafeAreaView>
-);
+  );
 };
 
 export default HomeScreen;
@@ -1306,9 +1379,9 @@ const styles = StyleSheet.create({
    backgroundColor: "#fff",
    borderRadius: wp('6.5%'),
    padding: wp('3%'),
-   shadowColor: "#3F4FFF",
-   shadowOpacity: 0.17,
-   shadowRadius: hp('1.1%'),
+   shadowColor: "#000",
+   shadowOpacity: 0.15,
+   shadowRadius: hp('1,1%'),
    shadowOffset: { width: 0, height: hp('0.3%') },
    elevation: 10,
    zIndex: 100,

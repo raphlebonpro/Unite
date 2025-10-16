@@ -77,6 +77,9 @@ const SessionDetailScreen = () => {
   const [loadingJoin, setLoadingJoin] = useState(false);
   const [user, setUser] = useState(null);
   const [isParticipant, setIsParticipant] = useState(false);
+  const [hasGivenSessionFeedback, setHasGivenSessionFeedback] = useState(false);
+  const [hasRatedParticipants, setHasRatedParticipants] = useState(false);
+
 
   // Ajoute un nouvel état
 const [invitation, setInvitation] = useState(null);
@@ -143,9 +146,13 @@ if (!error && data) {
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (sessionId) fetchSession();
-  }, [sessionId]);
+useEffect(() => { if (sessionId) fetchSession(); }, [sessionId]);
+// ✅ Recharge les participants quand la session change (évite le vide au premier rendu)
+useEffect(() => {
+  if (session?.id) {
+    fetchParticipants();
+  }
+}, [session?.id]);
 
   // Vérification kickée
   useEffect(() => {
@@ -237,9 +244,37 @@ if (!error && data) {
     setParticipantsLoading(false);
   };
 
-  useEffect(() => {
-    fetchParticipants();
-  }, [session, user]);
+useEffect(() => {
+  const checkFeedbackStatus = async () => {
+    if (!user?.id || !session?.id) return;
+
+    try {
+      // Vérifie le feedback global (session_feedback)
+      const { data: feedback } = await supabase
+        .from('session_feedback')
+        .select('id')
+        .eq('session_id', session.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (feedback) setHasGivenSessionFeedback(true);
+
+      // Vérifie s’il a noté au moins un participant
+      const { data: ratings } = await supabase
+        .from('user_ratings')
+        .select('id')
+        .eq('session_id', session.id)
+        .eq('rater_id', user.id);
+
+      if (ratings && ratings.length > 0) setHasRatedParticipants(true);
+
+    } catch (e) {
+      console.warn('Erreur vérification avis:', e);
+    }
+  };
+
+  checkFeedbackStatus();
+}, [user, session]);
 
   if (loading || !session) {
     return (
@@ -444,28 +479,62 @@ const handleLeave = async () => {
 let actionButtons = null;
 const finished = isSessionFinished(session);
 
-// 1️⃣ Cas : session terminée -> laisser un avis
-if ((user && (session.creator_id === user.id || isParticipant)) && finished) {
-  actionButtons = (
-    <TouchableOpacity
-      style={{ borderRadius: 16, overflow: 'hidden', marginHorizontal: 18, marginTop: 4, marginBottom: 44 }}
-      onPress={() => navigation.navigate('RateSession', {
-        sessionId: session.id,
-        participants: participants.filter(u => u.id !== user.id),
-        currentUserId: user.id
-      })}
-      activeOpacity={0.92}
-    >
-      <LinearGradient
-        colors={['#7D78F8', '#6D6AFF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.joinButton}
+// 1️⃣ Cas : session terminée -> avis déjà donné ou non
+if ((user && (session.creator_id === user.id || isParticipant)) && finished && !session.is_cancelled) {
+  if (hasGivenSessionFeedback && hasRatedParticipants) {
+    // ✅ Déjà tout noté → affiche un message de remerciement
+    actionButtons = (
+      <View
+        style={{
+          backgroundColor: '#f2f7ff',
+          borderRadius: 14,
+          padding: 14,
+          marginHorizontal: 18,
+          marginTop: 10,
+          marginBottom: 44,
+          borderWidth: 1,
+          borderColor: '#d0e1ff'
+        }}
       >
-        <Text style={styles.joinButtonText}>Laisser un avis</Text>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+        <Text
+          style={{
+            textAlign: 'center',
+            fontSize: 15.5,
+            color: '#2959d4',
+            fontWeight: '600',
+            lineHeight: 22,
+          }}
+        >
+          ✅ Tu as déjà donné ton avis sur cette session et tes coéquipiers.{"\n"}
+          Merci pour ton retour ! 🙌
+        </Text>
+      </View>
+    );
+  } else {
+    // 👇 Sinon, bouton pour aller laisser un avis
+    actionButtons = (
+      <TouchableOpacity
+        style={{
+          borderRadius: 16,
+          overflow: 'hidden',
+          marginHorizontal: 18,
+          marginTop: 4,
+          marginBottom: 44,
+        }}
+        onPress={() => navigation.navigate('SessionFeedback', { sessionId: session.id })}
+        activeOpacity={0.92}
+      >
+        <LinearGradient
+          colors={['#7D78F8', '#6D6AFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.joinButton}
+        >
+          <Text style={styles.joinButtonText}>Laisser un avis</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
 }
 
 // 2️⃣ Cas : créateur (session pas terminée)
@@ -554,7 +623,7 @@ else if (invitation && !isParticipant && user && user.id !== session.creator_id)
       disabled={loadingJoin}
     >
       <LinearGradient
-        colors={['#FF9A6C', '#FF5E62']}
+        colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.joinButton}
@@ -577,7 +646,7 @@ else if (!isParticipant && user && user.id !== session.creator_id) {
       disabled={loadingJoin}
     >
       <LinearGradient
-        colors={['#FF9A6C', '#FF5E62']}
+        colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.joinButton}
@@ -778,7 +847,7 @@ await notifyExclusion({
     <Text style={styles.descriptionText}>{session.description || "Aucune description."}</Text>
   </View>
 
-{/* BLOC KICK/JOINTURE */}
+{/* BLOC KICK / ANNULATION */}
 {checkingKick || participantsLoading ? (
   <View style={{ height: 60, justifyContent: 'center', alignItems: 'center' }}>
     <ActivityIndicator color="#e17055" />
