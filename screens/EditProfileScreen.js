@@ -176,45 +176,72 @@ const EditProfileScreen = ({ navigation }) => {
     else setFavoriteSports([...favoriteSports, sport]);
   };
 
-  const handleSave = async () => {
-    if (containsBadWord(username)) {
-      Alert.alert("Pseudo refusé", "Ton pseudo contient des mots inappropriés. Merci d'en choisir un autre.");
-      return;
-    }
+const handleSave = async () => {
+  if (containsBadWord(username)) {
+    Alert.alert("Pseudo refusé", "Ton pseudo contient des mots inappropriés. Merci d'en choisir un autre.");
+    return;
+  }
 
-    setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setSaving(false);
-      Alert.alert("Erreur", "Impossible de retrouver ton compte.");
-      return;
-    }
+  setSaving(true);
 
-    const updates = {
-      username,
-      birthdate,
-      gender,
-      bio,
-      favorite_sports: favoriteSports,
-      profile_photo: avatar || '',
-    };
-
-    const { error } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('id', user.id);
-
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     setSaving(false);
+    Alert.alert("Erreur", "Impossible de retrouver ton compte.");
+    return;
+  }
 
-    if (error) {
-      Alert.alert("Erreur", "La mise à jour a échoué : " + error.message);
-      return;
-    }
+  // --- Vérification unicité du pseudo (insensible à la casse, garde la casse d'origine) ---
+  const { data: allUsers, error: allUsersError } = await supabase
+    .from('users')
+    .select('id, username');
 
-    await refreshUser();
-    Alert.alert("Profil mis à jour !");
-    navigation.goBack();
+  if (allUsersError) {
+    console.error("Erreur vérif pseudo:", allUsersError);
+    Alert.alert("Erreur", "Une erreur est survenue lors de la vérification du pseudo.");
+    setSaving(false);
+    return;
+  }
+
+  // Compare insensiblement à la casse, mais ignore ton propre pseudo
+  const pseudoExists = allUsers?.some(
+    u =>
+      u.id !== user.id &&
+      u.username?.trim().toLowerCase() === username.trim().toLowerCase()
+  );
+
+  if (pseudoExists) {
+    Alert.alert("Pseudo déjà pris", "Impossible, ce pseudo est déjà pris. Choisissez-en un autre.");
+    setSaving(false);
+    return;
+  }
+
+  // --- Mise à jour du profil ---
+  const updates = {
+    username: username.trim(), // on garde la casse de l'utilisateur
+    birthdate,
+    gender,
+    bio,
+    favorite_sports: favoriteSports,
+    profile_photo: avatar || '',
   };
+
+  const { error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', user.id);
+
+  setSaving(false);
+
+  if (error) {
+    Alert.alert("Erreur", "La mise à jour a échoué : " + error.message);
+    return;
+  }
+
+  await refreshUser();
+  Alert.alert("Profil mis à jour !");
+  navigation.goBack();
+};
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafe' }}>

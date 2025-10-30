@@ -140,6 +140,29 @@ const handleSignUp = async () => {
   try {
     console.log("📩 Tentative signUp avec email:", email);
 
+// --- Vérification unicité du pseudo (insensible à la casse mais garde la casse d'origine) ---
+const { data: existingUsers, error: existingUserError } = await supabase
+  .from('users')
+  .select('id, username');
+
+if (existingUserError) {
+  console.error("Erreur vérif pseudo:", existingUserError);
+  Alert.alert("Erreur", "Une erreur est survenue lors de la vérification du pseudo.");
+  setLoading(false);
+  return;
+}
+
+// Compare insensiblement à la casse
+const pseudoExists = existingUsers?.some(
+  u => u.username?.trim().toLowerCase() === pseudo.trim().toLowerCase()
+);
+
+if (pseudoExists) {
+  Alert.alert("Pseudo déjà pris", "Impossible, ce pseudo est déjà pris. Choisissez-en un autre.");
+  setLoading(false);
+  return;
+}
+
     // --- Étape 1 : Création Auth ---
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
     if (signUpError) throw signUpError;

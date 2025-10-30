@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
@@ -21,7 +22,7 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-nat
 import { RefreshControl, Platform } from 'react-native';
 import { SafeAreaView as SafeAreaViewCtx, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-
+import { LinearGradient } from 'expo-linear-gradient';
 
 const MessagesGroupsScreen = () => {
   const navigation = useNavigation();
@@ -34,6 +35,12 @@ const MessagesGroupsScreen = () => {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [layoutKey, setLayoutKey] = useState(0); // forces a tiny re-layout after refresh
+
+  const [activeTab, setActiveTab] = useState('sessions');
+
+  const [groups, setGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+
 
 const onRefresh = async () => {
   setRefreshing(true);
@@ -90,6 +97,7 @@ const handleDeleteAllGroups = () => {
   useEffect(() => {
     if (!user?.id) return;
     fetchSessions();
+    fetchGroups();
   }, [user?.id]);
 
   // Abonnement realtime: dès qu’un message arrive, on met à jour la pastille du groupe concerné
@@ -145,6 +153,49 @@ const handleDeleteAllGroups = () => {
       setLoading(false);
     }
   };
+
+  const fetchGroups = async () => {
+  try {
+    setLoadingGroups(true);
+    const { data, error } = await supabase
+      .from("group_members")
+      .select(`
+        group_id,
+        groups (
+          id,
+          name,
+          sport,
+          city,
+          cover_url
+        )
+      `)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Erreur fetchGroups:", error);
+      setGroups([]);
+      setLoadingGroups(false);
+      return;
+    }
+
+    // Nettoyage des données
+    const cleanGroups = (data || [])
+      .filter(item => item.groups)
+      .map(item => ({
+        id: item.groups.id,
+        name: item.groups.name,
+        sport: item.groups.sport,
+        city: item.groups.city,
+        cover_url: item.groups.cover_url,
+      }));
+
+    setGroups(cleanGroups);
+    setLoadingGroups(false);
+  } catch (err) {
+    console.error("Erreur globale fetchGroups:", err);
+    setLoadingGroups(false);
+  }
+};
 
   // Récupère le dernier message pour CHAQUE session et compare à last_seen
   const computeUnreadForSessions = async (list) => {
@@ -303,6 +354,40 @@ return (
       onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
     />
 
+{/* Toggle Sessions / Groupes */}
+<View style={styles.tabContainer}>
+  {['sessions', 'groups'].map((tab) => {
+    const isActive = activeTab === tab;
+    return (
+      <TouchableOpacity
+        key={tab}
+        style={styles.tabButton}
+        onPress={() => setActiveTab(tab)}
+        activeOpacity={0.9}
+      >
+        <View style={styles.gradientWrapper}>
+          {isActive && (
+            <LinearGradient
+              colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gradientBackground}
+            />
+          )}
+          <Text
+            style={[
+              styles.tabText,
+              isActive && styles.tabTextActive,
+            ]}
+          >
+            {tab === 'sessions' ? 'Sessions' : 'Groupes'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  })}
+</View>
+
         {sessions.length > 0 && (
   <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 4 }}>
     <TouchableOpacity
@@ -325,54 +410,59 @@ return (
   </View>
 )}
 
-{/* Search bar */}
-{sessions.length > 0 && (
-  <View style={styles.searchContainer}>
-    <Ionicons name="search-outline" size={22} color="#B8B8B8" />
-    <TextInput
-      style={styles.searchInput}
-      placeholder="Chercher un groupe de session"
-      placeholderTextColor="#B8B8B8"
-      value={search}
-      onChangeText={setSearch}
-    />
-  </View>
-)}
+{activeTab === 'sessions' ? (
+  <>
+    {/* Search bar */}
+    {sessions.length > 0 && (
+      <View style={styles.searchContainer}>
+        <Ionicons name="search-outline" size={22} color="#B8B8B8" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Chercher un groupe de session"
+          placeholderTextColor="#B8B8B8"
+          value={search}
+          onChangeText={setSearch}
+        />
+      </View>
+    )}
 
-    {/* List */}
+    {/* Liste des sessions */}
     {loading ? (
-<View style={styles.loadingContainer}>
-  <ActivityIndicator
-    size={Platform.OS === 'ios' ? 'large' : 50}
-    color="#FF6B3C"
-  />
-</View>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator
+          size={Platform.OS === 'ios' ? 'large' : 50}
+          color="#FF6B3C"
+        />
+      </View>
     ) : filteredSessions.length === 0 ? (
-<FlatList
-  data={[]}
-  keyExtractor={() => 'empty'}
-  ListEmptyComponent={
-    <View style={styles.emptyBox}>
-      <MaterialCommunityIcons name="message-text-outline" size={68} color="#bbb" />
-      <Text style={styles.emptyText}>Aucun groupe trouvé</Text>
-    </View>
-  }
-  // allow pull to refresh even on empty state
-  refreshControl={
-    <RefreshControl
-      refreshing={refreshing}
-      onRefresh={onRefresh}
-      colors={['#5B4EFF']}
-      tintColor="#5B4EFF"
-      progressBackgroundColor="#fff"
-    />
-  }
-/>
+      <FlatList
+        data={[]}
+        keyExtractor={() => 'empty'}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <MaterialCommunityIcons
+              name="message-text-outline"
+              size={68}
+              color="#bbb"
+            />
+            <Text style={styles.emptyText}>Aucun groupe trouvé</Text>
+          </View>
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#5B4EFF']}
+            tintColor="#5B4EFF"
+            progressBackgroundColor="#fff"
+          />
+        }
+      />
     ) : (
       <FlatList
-        key={layoutKey}                    // small kick for Android layout after refresh
+        key={layoutKey}
         data={filteredSessions}
-        keyExtractor={item => String(item.id)}
+        keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => {
           const hasUnread = !!unreadMap[item.id];
           return (
@@ -390,14 +480,22 @@ return (
 
                 <View style={styles.infoContainer}>
                   <View style={styles.titleRow}>
-                    <Text style={styles.groupTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.groupTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
                     {hasUnread && (
                       <View style={styles.unreadBadge}>
-                        <Ionicons name="mail-unread-outline" size={16} color="#ff6b6b" />
+                        <Ionicons
+                          name="mail-unread-outline"
+                          size={16}
+                          color="#ff6b6b"
+                        />
                       </View>
                     )}
                   </View>
-                  <Text style={styles.groupSport} numberOfLines={1}>{item.sport}</Text>
+                  <Text style={styles.groupSport} numberOfLines={1}>
+                    {item.sport}
+                  </Text>
                 </View>
               </TouchableOpacity>
 
@@ -415,18 +513,85 @@ return (
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#5B4EFF']}           // Android spinner color
-            tintColor="#5B4EFF"            // iOS spinner color
+            colors={['#5B4EFF']}
+            tintColor="#5B4EFF"
             progressBackgroundColor="#fff"
           />
         }
         contentContainerStyle={{
-          // make sure background shows under status area during pull
           paddingBottom: 8,
           backgroundColor: '#fff',
         }}
       />
     )}
+  </>
+) : (
+  // 👉 plus tard : liste des groupes (pour l’instant placeholder)
+loadingGroups ? (
+  <View style={styles.loadingContainer}>
+    <ActivityIndicator
+      size={Platform.OS === 'ios' ? 'large' : 50}
+      color="#FF6B3C"
+    />
+  </View>
+) : groups.length === 0 ? (
+  <View style={styles.emptyBox}>
+    <MaterialCommunityIcons
+      name="account-group-outline"
+      size={68}
+      color="#bbb"
+    />
+    <Text style={styles.emptyText}>Aucun groupe rejoint pour le moment</Text>
+  </View>
+) : (
+  <FlatList
+    data={groups}
+    keyExtractor={(item) => String(item.id)}
+    renderItem={({ item }) => (
+      <TouchableOpacity
+        style={styles.groupRow}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate("GroupChat", { groupId: item.id })}
+      >
+        <View style={styles.avatarCircle}>
+          {item.cover_url ? (
+            <Image
+              source={{ uri: item.cover_url }}
+              style={{ width: 50, height: 50, borderRadius: 25 }}
+            />
+          ) : (
+            <Text style={styles.avatarLetter}>
+              {item.name.charAt(0).toUpperCase()}
+            </Text>
+          )}
+        </View>
+        <View style={styles.infoContainer}>
+          <Text style={styles.groupTitle}>{item.name}</Text>
+          <Text style={styles.groupSport}>
+            {item.sport} • {item.city}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    )}
+    refreshControl={
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={async () => {
+          setRefreshing(true);
+          await fetchGroups();
+          setRefreshing(false);
+        }}
+        colors={['#FF6C4A']}
+        tintColor="#FF6C4A"
+      />
+    }
+    contentContainerStyle={{
+      paddingBottom: 8,
+      backgroundColor: "#fff",
+    }}
+  />
+)
+)}
   </SafeAreaViewCtx>
 );
 };
@@ -513,10 +678,9 @@ const styles = StyleSheet.create({
     padding: wp('1%'),
   },
   emptyBox: {
-  flex: 1,
   justifyContent: 'center',
   alignItems: 'center',
-  marginTop: 100, // ajuste si besoin pour bien centrer
+  marginTop: 30, // ajuste si besoin pour bien centrer
 },
 emptyText: {
   marginTop: 12,
@@ -524,7 +688,47 @@ emptyText: {
   fontWeight: '500',
   color: '#aaa',
 },
-
+tabContainer: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  backgroundColor: '#F6F6F7',
+  borderRadius: 30,
+  marginHorizontal: wp('5%'),
+  marginTop: 12,
+  marginBottom: 8,
+  padding: 4,
+},
+tabButton: {
+  flex: 1,
+  height: hp('4.6%'),
+  borderRadius: 25,
+  alignItems: 'center',
+  justifyContent: 'center',
+  overflow: 'hidden',
+},
+gradientWrapper: {
+  flex: 1,
+  width: '100%',
+  height: '100%',
+  borderRadius: 25,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+gradientBackground: {
+  ...StyleSheet.absoluteFillObject,
+  borderRadius: 25,
+},
+tabText: {
+  fontSize: hp('1.9%'),
+  color: '#777',
+  fontWeight: '600',
+  textAlign: 'center',
+},
+tabTextActive: {
+  color: '#fff',
+  fontWeight: '700',
+},
 });
 
 export default MessagesGroupsScreen;

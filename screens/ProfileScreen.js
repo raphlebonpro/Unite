@@ -69,27 +69,31 @@ function getUserBadges(stats) {
 
 const BadgeCard = ({ badge }) => {
   const iconData = BADGE_ICONS[badge.code];
+  const gradientColors = iconData
+    ? [iconData.color + '33', iconData.color + '11']
+    : ['#f6fafd', '#e6edfa'];
 
   return (
-    <View style={styles.premiumBadgeCard}>
+    <View style={[styles.premiumBadgeCard, { shadowColor: iconData?.color || '#000' }]}>
       <LinearGradient
-        colors={["#f6fafd", "#e6edfa"]}
+        colors={gradientColors}
         start={[0, 0]}
         end={[1, 1]}
         style={styles.premiumBadgeCircle}
       >
         {iconData ? (
-          <FontAwesome5
-            name={iconData.icon}
-            size={26}
-            color={iconData.color}
-            solid
-          />
+          <FontAwesome5 name={iconData.icon} size={26} color={iconData.color} solid />
         ) : (
           <Text style={styles.premiumBadgeEmoji}>{badge.emoji}</Text>
         )}
       </LinearGradient>
-      <Text style={styles.premiumBadgeLabel} numberOfLines={2}>
+      <Text
+        style={[
+          styles.premiumBadgeLabel,
+          { color: iconData?.color || '#333', fontWeight: '600' },
+        ]}
+        numberOfLines={2}
+      >
         {badge.label}
       </Text>
     </View>
@@ -302,38 +306,43 @@ const [friendsCount, setFriendsCount] = useState(0);
     if (!error && data) setUser(data);
   };
 
-  // 2) Compteurs (UUID only) – exclut les sessions que tu as créées
-  const fetchSessionCounters = async (userId) => {
-    if (!userId) return;
+// 2) Compteurs (UUID only) – exclut les sessions annulées
+const fetchSessionCounters = async (userId) => {
+  if (!userId) return;
 
-    // Sessions créées → IDs pour exclusion
-    const { data: createdRows, error: createdErr } = await supabase
-      .from('sessions')
-      .select('id')
-      .eq('creator_id', userId);
+  // 🔹 Sessions créées par l'utilisateur (non annulées)
+  const { data: createdRows, error: createdErr } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('creator_id', userId)
+    .eq('is_cancelled', false); // ✅ exclut les sessions annulées
 
-    const createdIds = new Set((createdRows ?? []).map(r => r.id));
-    setCreatedCount(createdErr ? 0 : (createdRows?.length ?? 0));
+  const createdIds = new Set((createdRows ?? []).map(r => r.id));
+  setCreatedCount(createdErr ? 0 : (createdRows?.length ?? 0));
 
-    // Participations du user (par UUID)
-    const { data: joinedRows, error: joinedErr } = await supabase
-      .from('session_participants')   // nom de table qui fonctionnait chez toi
-      .select('session_id')
-      .eq('user_id', userId);
+  // 🔹 Participations du user (sessions qu’il a rejointes, non annulées)
+  const { data: joinedRows, error: joinedErr } = await supabase
+    .from('session_participants')
+    .select(`
+      session_id,
+      sessions!inner(is_cancelled)
+    `)
+    .eq('user_id', userId)
+    .eq('sessions.is_cancelled', false); // ✅ exclut les sessions annulées
 
-    if (joinedErr || !joinedRows || joinedRows.length === 0) {
-      setJoinedCount(0);
-      return;
-    }
+  if (joinedErr || !joinedRows?.length) {
+    setJoinedCount(0);
+    return;
+  }
 
-    // Déduplication + exclusion des sessions créées par l'user
-    const uniqueJoined = new Set(joinedRows.map(r => r.session_id));
-    let count = 0;
-    for (const sid of uniqueJoined) {
-      if (!createdIds.has(sid)) count++;
-    }
-    setJoinedCount(count);
-  };
+  // 🔹 Déduplication + exclusion des sessions créées par l'utilisateur
+  const uniqueJoined = new Set(joinedRows.map(r => r.session_id));
+  let count = 0;
+  for (const sid of uniqueJoined) {
+    if (!createdIds.has(sid)) count++;
+  }
+  setJoinedCount(count);
+};
 
   // 3) Rating (inchangé)
   const fetchUserRating = async (userId) => {
@@ -503,8 +512,24 @@ useEffect(() => {
 }, [currentUserId, refreshFriendState]);
 
   // ======= BADGES À AFFICHER =======
-  const stats = { createdCount, joinedCount };
-  const unlockedBadges = getUserBadges(stats);
+// === Données pour les badges ===
+let accountAge = 0;
+if (user?.created_at) {
+  const diff = Date.now() - new Date(user.created_at).getTime();
+  accountAge = Math.floor(diff / (1000 * 60 * 60 * 24)); // en jours
+}
+
+const stats = {
+  createdCount,
+  joinedCount,
+  isPremium: !!user?.is_premium,
+  accountAge, // ✅ maintenant toujours défini
+  createdAt: user?.created_at || null,
+  invitedUsers: user?.invited_users || 0,
+  reportsCount: user?.reports_count || 0,
+};
+
+  const unlockedBadges = user?.is_premium ? getUserBadges(stats) : [];
 
 const openFriendsList = () => {
   if (!currentUserId) return;
@@ -516,6 +541,52 @@ const openFriendsList = () => {
       <StatusBar barStyle="dark-content" />
       <AppBar />
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        
+{/* 🏆 Bloc classement Unite — visible uniquement pour les membres Unite+ */}
+{user?.is_premium && (
+  <TouchableOpacity
+    activeOpacity={0.85}
+    onPress={() => navigation.navigate('LeaderBoard')}
+    style={styles.leaderboardContainer}
+  >
+    <LinearGradient
+      colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.leaderboardGradient}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+        <FontAwesome5 name="trophy" size={16} color="#fff" style={{ marginRight: 8 }} />
+        <Text style={styles.leaderboardText}>Voir le classement</Text>
+      </View>
+    </LinearGradient>
+  </TouchableOpacity>
+)}
+
+{/* 🔥 Bloc Unite+ (juste sous le classement) */}
+{!user?.is_premium && (
+  <TouchableOpacity
+    activeOpacity={0.9}
+    onPress={() => navigation.navigate('UnitePlusCompare')}
+    style={styles.unitePlusContainer}
+  >
+    <LinearGradient
+      colors={['#6A11CB', '#2575FC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.unitePlusGradient}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+        <FontAwesome5 name="bolt" size={15} color="#fff" style={{ marginRight: 8 }} />
+        <Text style={styles.unitePlusTitle}>Passe à Unite+</Text>
+      </View>
+      <Text style={styles.unitePlusSubtitle}>
+        Sessions illimitées, groupes exclusifs et badges premium.
+      </Text>
+    </LinearGradient>
+  </TouchableOpacity>
+)}
+
         <View style={styles.profileCard}>
           {/* Avatar */}
           {user?.profile_photo ? (
@@ -531,14 +602,34 @@ const openFriendsList = () => {
        </View>
           )}
 
+            {/* 🔹 Badges alignés en ligne */}
+  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: hp('0.3%'), gap: 6 }}>
+    {user?.is_verified && <VerifiedBadge />}
+
+    {user?.is_premium && (
+      <LinearGradient
+        colors={['#6A11CB', '#2575FC']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 18,
+          paddingVertical: 8,
+          marginTop: 10,
+          marginBottom: 10,
+          borderRadius: 999,
+          gap: 5,
+        }}
+      >
+        <FontAwesome5 name="bolt" size={14} color="#fff" />
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>Unite+</Text>
+      </LinearGradient>
+    )}
+  </View>
+
 <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: hp('1.2%') }}>
   <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
-
-  {user?.is_verified && (
-    <View style={{ marginTop: hp('0.3%') }}>
-      <VerifiedBadge />
-    </View>
-  )}
 </View>
 
           {/* Bloc étoiles + nombre d’avis => pressable si au moins 1 avis */}
@@ -608,39 +699,79 @@ const openFriendsList = () => {
 
 {/* =========== BADGES =========== */}
 <View style={styles.badgesListContainer}>
-  {unlockedBadges.length === 0 ? (
-    <Text
-      style={{
-        color: "#bbb",
-        fontStyle: "italic",
-        fontSize: 15,
-        marginVertical: 7,
-        marginBottom: -8, // 👈 petit offset pour éviter que ça colle trop
-        textAlign: "center",
-        width: "100%",
-      }}
-    >
-      Aucun badge débloqué pour l’instant
-    </Text>
+  {user?.is_premium ? (
+    unlockedBadges.length === 0 ? (
+      <Text
+        style={{
+          color: "#bbb",
+          fontStyle: "italic",
+          fontSize: 15,
+          marginVertical: 7,
+          marginBottom: -8,
+          textAlign: "center",
+          width: "100%",
+        }}
+      >
+        Aucun badge débloqué pour l’instant
+      </Text>
+    ) : (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          justifyContent: "center",
+          alignItems: "center",
+          flexGrow: 1,
+          paddingHorizontal: 10,
+        }}
+      >
+        {[...unlockedBadges].reverse().map((badge) => (
+  <BadgeCard badge={badge} key={badge.code} />
+        ))}
+      </ScrollView>
+    )
   ) : (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{
-        justifyContent: "center",
-        alignItems: "center",
-        flexGrow: 1,
-        paddingHorizontal: 10,
-      }}
-    >
-      {unlockedBadges.map((badge) => (
-        <BadgeCard badge={badge} key={badge.code} />
-      ))}
-    </ScrollView>
+    <>
+      {getUserBadges(stats).length > 0 ? (
+        <Text
+          style={{
+            color: "#666",
+            fontStyle: "italic",
+            fontSize: 14.5,
+            marginVertical: 7,
+            textAlign: "center",
+            width: "100%",
+            opacity: 0.85,
+          }}
+        >
+          Tu as déjà débloqué des badges !{" "}
+ <Text
+  style={{ fontWeight: "700", color: "#2575FC" }}
+  onPress={() => navigation.navigate("UnitePlusCompare")}
+>
+  Passe à Unite+
+</Text>{" "}
+          pour les afficher sur ton profil !
+        </Text>
+      ) : (
+        <Text
+          style={{
+            color: "#bbb",
+            fontStyle: "italic",
+            fontSize: 15,
+            marginVertical: 7,
+            marginBottom: -8,
+            textAlign: "center",
+            width: "100%",
+          }}
+        >
+          Aucun badge débloqué pour l’instant
+        </Text>
+      )}
+    </>
   )}
 </View>
 {/* =========== FIN BADGES =========== */}
-
 
           <View style={styles.badgesRow}>
             {user?.birthdate ? <Badge icon="calendar" value={`${getAgeFromBirthdate(user.birthdate)} ans`} /> : null}
@@ -966,6 +1097,66 @@ verifiedText: {
   fontWeight: '700',
   fontSize: wp('3.2%'),
   letterSpacing: 0.3,
+},
+leaderboardContainer: {
+  width: wp('55%'),
+  alignSelf: 'center',
+  marginTop: hp('-1.2%'),
+  marginBottom: hp('1.5%'),
+  borderRadius: wp('7%'),
+  shadowColor: '#FF6C4A',
+  shadowOpacity: 0.15,
+  shadowRadius: 5,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 3,
+},
+leaderboardGradient: {
+  borderRadius: wp('7%'),
+  paddingVertical: hp('1.1%'),
+  paddingHorizontal: wp('3%'),
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexDirection: 'row',
+},
+leaderboardText: {
+  color: '#fff',
+  fontSize: wp('3.8%'),
+  fontWeight: '700',
+  letterSpacing: 0.3,
+},
+unitePlusContainer: {
+  width: wp('65%'),
+  alignSelf: 'center',
+  marginTop: hp('-0.3%'),
+  marginBottom: hp('1.8%'),
+  borderRadius: wp('7%'),
+  shadowColor: '#FF6C4A',
+  shadowOpacity: 0.12,
+  shadowRadius: 5,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 2,
+  overflow: 'hidden',
+},
+unitePlusGradient: {
+  borderRadius: wp('7%'),
+  paddingVertical: hp('1.1%'),
+  paddingHorizontal: wp('3.5%'),
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+unitePlusTitle: {
+  color: '#fff',
+  fontSize: wp('3.8%'),
+  fontWeight: '700',
+  letterSpacing: 0.3,
+  textAlign: 'center',
+},
+unitePlusSubtitle: {
+  color: 'rgba(255,255,255,0.95)',
+  fontSize: wp('3.1%'),
+  textAlign: 'center',
+  marginTop: 3,
+  lineHeight: hp('2.2%'),
 },
 });
 

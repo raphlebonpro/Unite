@@ -18,7 +18,7 @@ export default {
     },
 
     // 🚀 Force un runtime unique à chaque version → plus de bundle OTA partagé
-      runtimeVersion: "1.0.0",
+    runtimeVersion: "1.0.0",
 
     icon: "./assets/icon1.png",
 
@@ -57,13 +57,20 @@ export default {
         foregroundImage: "./assets/adaptive-icon-foreground1.png",
         backgroundImage: "./assets/adaptive-icon-background1.png",
       },
-      permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      permissions: [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "NOTIFICATIONS",
+      ],
       config: {
         googleMaps: {
           apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
         },
       },
+      // 👇 obligatoire pour les push Android via Firebase
+      googleServicesFile: "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
+      useNextNotificationsApi: true,
     },
 
     web: {
@@ -77,9 +84,18 @@ export default {
           RNMapboxMapsDownloadToken: process.env.MAPBOX_SECRET_TOKEN,
         },
       ],
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/notification-icon.png", // crée un petit pictogramme blanc/gris
+          color: "#FF6C4A", // couleur d'accent pour Android
+        },
+      ],
     ],
 
     extra: {
+      EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY:
+        process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,

@@ -80,6 +80,10 @@ const BadgeCard = ({ badge }) => {
   );
 };
 
+function getUserBadges(stats) {
+  return BADGES.filter((badge) => badge.check(stats));
+}
+
 const Badge = ({ icon, value }) => (
   <View style={styles.badge}>
     <Feather name={icon} size={14} color="#ff9100" style={{ marginRight: 6 }} />
@@ -244,27 +248,32 @@ useEffect(() => {
   const fetchSessionCounters = async () => {
     if (!userId) return;
 
-    // Sessions créées
+    // 🔹 Sessions créées (non annulées)
     const { data: createdRows, error: createdErr } = await supabase
       .from('sessions')
       .select('id')
-      .eq('creator_id', userId);
+      .eq('creator_id', userId)
+      .eq('is_cancelled', false); // ✅ exclut les sessions annulées
 
     const createdIds = new Set((createdRows ?? []).map(r => r.id));
     setCreatedCount(createdErr ? 0 : (createdRows?.length ?? 0));
 
-    // Participations
+    // 🔹 Participations (sessions non annulées)
     const { data: joinedRows, error: joinedErr } = await supabase
       .from('session_participants')
-      .select('session_id')
-      .eq('user_id', userId);
+      .select(`
+        session_id,
+        sessions!inner(is_cancelled)
+      `)
+      .eq('user_id', userId)
+      .eq('sessions.is_cancelled', false); // ✅ exclut les sessions annulées
 
-    if (joinedErr || !joinedRows) {
+    if (joinedErr || !joinedRows?.length) {
       setJoinedCount(0);
       return;
     }
 
-    // Exclure les sessions créées par ce user
+    // 🔹 Exclut les sessions que ce user a créées
     const uniqueJoined = new Set(joinedRows.map(r => r.session_id));
     let count = 0;
     for (const sid of uniqueJoined) {
@@ -542,7 +551,8 @@ if (!user) {
     avgRating,
     nbRatings,
   };
-  const unlockedBadges = getUnlockedBadges(stats);
+  const unlockedBadges = user?.is_premium ? getUserBadges(stats) : [];
+
 
   const openFriendsList = () => {
   navigation.navigate('FriendsList', { userId });
@@ -589,14 +599,52 @@ return (
         </View>
           )}
 
-<View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: hp('1.2%') }}>
+<View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: hp('1.5%') }}>
   <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
 
-  {user?.is_verified && (
-    <View style={{ marginTop: hp('0.3%') }}>
-      <VerifiedBadge />
-    </View>
-  )}
+            {/* 🔹 Badges alignés en ligne */}
+  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: hp('0.3%'), gap: 6 }}>
+    {user?.is_verified && <VerifiedBadge />}
+
+    {user?.is_premium && (
+      <LinearGradient
+        colors={['#6A11CB', '#2575FC']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 18,
+          paddingVertical: 8,
+          marginTop: 10,
+          marginBottom: 10,
+          borderRadius: 999,
+          gap: 5,
+        }}
+      >
+        <FontAwesome5 name="bolt" size={14} color="#fff" />
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>Unite+</Text>
+      </LinearGradient>
+    )}
+  </View>
+
+{/* 💬 Phrase de soutien discrète et élégante */}
+{user?.is_premium && (
+  <Text
+    style={{
+      marginTop: hp('0.7%'),
+      color: '#666',
+      fontSize: 13.5,
+      fontWeight: '500',
+      textAlign: 'center',
+      letterSpacing: 0.3,
+      opacity: 0.8,
+      fontStyle: 'italic',
+    }}
+  >
+    {user?.username || 'Pseudo'} soutient le collectif Unite 🫶
+  </Text>
+)}
 </View>
 
           {/* Affichage de la moyenne des avis */}
@@ -707,39 +755,26 @@ return (
   )
 )}
 
-          {/* ========== BADGES ========== */}
-          <View style={styles.badgesListContainer}>
-            {unlockedBadges.length === 0 ? (
-              <Text
-                style={{
-                  color: '#bbb',
-                  fontStyle: 'italic',
-                  fontSize: 15,
-                  marginVertical: 7,
-                  marginBottom: -10,
-                  textAlign: 'center',
-                  width: '100%',
-                }}
-              >
-                Aucun badge débloqué pour l’instant
-              </Text>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  flexGrow: 1,
-                }}
-              >
-               {unlockedBadges.map((badge) => (
-               <BadgeCard badge={badge} key={badge.code} />
-               ))}
-              </ScrollView>
-            )}
-          </View>
-          {/* ========== FIN BADGES ========== */}
+{/* =========== BADGES =========== */}
+{user?.is_premium && unlockedBadges.length > 0 && (
+  <View style={styles.badgesListContainer}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{
+        justifyContent: "center",
+        alignItems: "center",
+        flexGrow: 1,
+        paddingHorizontal: 10,
+      }}
+    >
+{[...unlockedBadges].reverse().map((badge) => (
+  <BadgeCard badge={badge} key={badge.code} />
+))}
+    </ScrollView>
+  </View>
+)}
+{/* =========== FIN BADGES =========== */}
 
           <View style={{ height: 16 }} />
 

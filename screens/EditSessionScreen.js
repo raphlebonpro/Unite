@@ -95,10 +95,7 @@ const sportIcons = {
  '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
 
-
 const levels = ["Pour s'amuser", 'Débutant', 'Intermédiaire', 'Avancé'];
-const participants = Array.from({ length: 14 }, (_, i) => i + 2);
-
 
 /* ---------- Helpers date/heure (identiques à Création) ---------- */
 function pad2(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -156,9 +153,6 @@ const EditSessionScreen = () => {
 
 
  const [selectedLevel, setSelectedLevel] = useState('');
- const [maxParticipants, setMaxParticipants] = useState(null); // affichage
- const [selectedParticipants, setSelectedParticipants] = useState(''); // compat Supabase (string)
-
 
  const [selectedDate, setSelectedDate] = useState(new Date());
  const [showCalendar, setShowCalendar] = useState(false);
@@ -184,7 +178,6 @@ const [addressModalVisible, setAddressModalVisible] = useState(false);
  // Modals
  const [sportPickerVisible, setSportPickerVisible] = useState(false);
  const [levelPickerVisible, setLevelPickerVisible] = useState(false);
- const [participantsPickerVisible, setParticipantsPickerVisible] = useState(false);
 
 
  const insets = useSafeAreaInsets();
@@ -226,8 +219,6 @@ const [addressModalVisible, setAddressModalVisible] = useState(false);
 
      setSelectedSport(data.sport || '');
      setSelectedLevel(data.level || '');
-     setSelectedParticipants(String(data.participants_max || ''));
-     setMaxParticipants(data.participants_max || null);
 
 
      setTitle(data.title || '');
@@ -298,7 +289,7 @@ const [addressModalVisible, setAddressModalVisible] = useState(false);
 const handleEditSession = async () => {
   if (
     !selectedSport || !location || latitude === null || longitude === null ||
-    !selectedLevel || !selectedParticipants || !title
+    !selectedLevel || !title
   ) {
     Alert.alert('Champs manquants', 'Merci de remplir tous les champs obligatoires.');
     return;
@@ -333,7 +324,6 @@ const handleEditSession = async () => {
     lat: latitude,
     lng: longitude,
     level: selectedLevel,
-    participants_max: parseInt(String(selectedParticipants), 10),
     date: formatDateYYYYMMDD(selectedDate),
     time: formatTimeHHMM(selectedHour),
     title,
@@ -808,42 +798,64 @@ const handleCancelSession = async () => {
  </View>
 </Modal>
 
+{/* Heure — natif Android, modal iOS */}
+<TouchableOpacity style={styles.input} onPress={showTimePicker}>
+  <Text style={selectedHour ? styles.inputText : styles.placeholder}>
+    {selectedHour
+      ? `${selectedHour.getHours().toString().padStart(2, '0')}:${selectedHour
+          .getMinutes()
+          .toString()
+          .padStart(2, '0')}`
+      : 'Heure de la session...'}
+  </Text>
+</TouchableOpacity>
 
-           {/* Heure (modal + spinner, style Création) */}
-           <TouchableOpacity style={styles.input} onPress={showTimePicker}>
-             <Text style={selectedHour ? styles.inputText : styles.placeholder}>
-               {selectedHour
-                 ? `${selectedHour.getHours().toString().padStart(2,'0')}:${selectedHour.getMinutes().toString().padStart(2,'0')}`
-                 : "Heure de la session..."}
-             </Text>
-           </TouchableOpacity>
-
-
-           <Modal
-             transparent
-             visible={timePickerVisible}
-             animationType="fade"
-             onRequestClose={() => setTimePickerVisible(false)}
-           >
-             <View style={styles.modalOverlay}>
-               <View style={styles.modalContainer}>
-                 <Text style={styles.modalTitle}>Heure de la session</Text>
-                 <DateTimePicker
-                   value={selectedHour || new Date()}
-                   mode="time"
-                   is24Hour={true}
-                   display="spinner"
-                   onChange={(event, date) => {
-                     if (date) setSelectedHour(date);
-                   }}
-                 />
-                 <TouchableOpacity style={styles.validateButton} onPress={() => handleConfirmTime(selectedHour)}>
-                   <Text style={styles.validateText}>Valider</Text>
-                 </TouchableOpacity>
-               </View>
-             </View>
-           </Modal>
-
+{timePickerVisible && (
+  Platform.OS === 'ios' ? (
+    // ✅ iOS : affiché dans un modal avec bouton
+    <Modal
+      transparent
+      animationType="fade"
+      visible={timePickerVisible}
+      onRequestClose={hideTimePicker}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>Heure de la session</Text>
+          <DateTimePicker
+            value={selectedHour || new Date()}
+            mode="time"
+            is24Hour={true}
+            display="spinner"
+            onChange={(event, date) => {
+              if (date) setSelectedHour(date);
+            }}
+          />
+          <TouchableOpacity
+            style={styles.validateButton}
+            onPress={() => handleConfirmTime(selectedHour)}
+          >
+            <Text style={styles.validateText}>Valider</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  ) : (
+    // ✅ Android : picker natif directement, sans container ni modal
+    <DateTimePicker
+      value={selectedHour || new Date()}
+      mode="time"
+      is24Hour={true}
+      display="spinner"
+      onChange={(event, date) => {
+        if (event.type === 'set' && date) {
+          handleConfirmTime(date);
+        }
+        setTimePickerVisible(false); // ferme après choix ou annulation
+      }}
+    />
+  )
+)}
 
            {/* Niveau (modal) */}
            <TouchableOpacity style={styles.input} onPress={() => setLevelPickerVisible(true)}>
@@ -882,47 +894,6 @@ const handleCancelSession = async () => {
                </View>
              </View>
            </Modal>
-
-
-           {/* Participants (modal) */}
-           <TouchableOpacity style={styles.input} onPress={() => setParticipantsPickerVisible(true)}>
-             <Text style={maxParticipants ? styles.inputText : styles.dropdownText}>
-               {maxParticipants ? `${maxParticipants} participants` : "Participants max..."}
-             </Text>
-           </TouchableOpacity>
-
-
-           <Modal
-             transparent
-             visible={participantsPickerVisible}
-             animationType="fade"
-             onRequestClose={() => setParticipantsPickerVisible(false)}
-           >
-             <View style={styles.modalOverlay}>
-               <View style={styles.modalContainer}>
-                 <Text style={styles.modalTitle}>Participants maximum</Text>
-                 <ScrollView style={{ maxHeight: 250, width:'100%' }}>
-                   {participants.map((p) => (
-                     <TouchableOpacity
-                       key={p}
-                       style={styles.dropdownItemCentered}
-                       onPress={() => {
-                         setMaxParticipants(p);
-                         setSelectedParticipants(String(p));
-                         setParticipantsPickerVisible(false);
-                       }}
-                     >
-                       <Text style={styles.dropdownItemTextCentered}>{p}</Text>
-                     </TouchableOpacity>
-                   ))}
-                 </ScrollView>
-                 <TouchableOpacity style={styles.validateButton} onPress={() => setParticipantsPickerVisible(false)}>
-                   <Text style={styles.validateText}>Fermer</Text>
-                 </TouchableOpacity>
-               </View>
-             </View>
-           </Modal>
-
 
            {/* Titre */}
            <TextInput
@@ -998,16 +969,12 @@ const handleCancelSession = async () => {
     </Text>
   </LinearGradient>
 </TouchableOpacity>
-
-
-
          </ScrollView>
        </TouchableWithoutFeedback>
      </KeyboardAvoidingView>
    </SafeAreaView>
  );
 };
-
 
 /* ---------- Styles alignés avec Création ---------- */
 const styles = StyleSheet.create({

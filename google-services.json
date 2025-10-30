@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "379142959805",
+    "project_id": "unite-36844",
+    "storage_bucket": "unite-36844.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:379142959805:android:dd8ba4eb82ef2ca44ebdd4",
+        "android_client_info": {
+          "package_name": "com.collectif.uniteapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnR8NES8hyFh3hPN2NvTfhzaXtf9YGrzE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

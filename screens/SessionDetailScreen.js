@@ -130,29 +130,68 @@ if (!error && data) {
     fetchUser();
   }, []);
 
-  // 👉 Déplacé en fonction réutilisable
-  const fetchSession = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-    if (error) {
-      Alert.alert('Erreur', error.message);
-    } else {
-      setSession(data);
-    }
-    setLoading(false);
-  };
+const fetchSession = async () => {
+  setLoading(true);
 
-useEffect(() => { if (sessionId) fetchSession(); }, [sessionId]);
-// ✅ Recharge les participants quand la session change (évite le vide au premier rendu)
-useEffect(() => {
-  if (session?.id) {
-    fetchParticipants();
+  // 🚨 Vérifie que sessionId existe bien
+  if (!sessionId) {
+    setLoading(false);
+    Alert.alert(
+      "Erreur",
+      "Aucune session à afficher.",
+      [
+        {
+          text: "OK",
+          onPress: () => navigation.navigate("Notifications"),
+        },
+      ]
+    );
+    return;
   }
-}, [session?.id]);
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle(); // ✅ empêche le crash
+
+  // ⚠️ Si erreur serveur Supabase
+  if (error) {
+    console.error("⚠️ fetchSession error:", error);
+    Alert.alert(
+      "Erreur",
+      "Impossible de charger cette session.",
+      [
+        {
+          text: "OK",
+          onPress: () => navigation.navigate("Notifications"),
+        },
+      ]
+    );
+    setLoading(false);
+    return;
+  }
+
+  // ❌ Si aucune session trouvée
+  if (!data) {
+    Alert.alert(
+      "Session introuvable",
+      "Cette session n’existe plus ou a été supprimée.",
+      [
+        {
+          text: "OK",
+          onPress: () => navigation.navigate("Notifications"),
+        },
+      ]
+    );
+    setLoading(false);
+    return;
+  }
+
+  // ✅ Si tout est bon
+  setSession(data);
+  setLoading(false);
+};
 
   // Vérification kickée
   useEffect(() => {
@@ -178,12 +217,19 @@ useEffect(() => {
   }, [session?.id]);
 
   // 🔄 Recharge session + participants à chaque retour sur l'écran
-  useFocusEffect(
-    useCallback(() => {
-      fetchSession();
-      fetchParticipants();
-    }, [sessionId, user])
-  );
+useFocusEffect(
+  useCallback(() => {
+    const load = async () => {
+      await fetchSession();        // 🔹 attend la session
+      await fetchParticipants();   // 🔹 ensuite charge les participants
+    };
+    load();
+  }, [sessionId, user])
+);
+
+useEffect(() => {
+  if (session?.id) fetchParticipants();
+}, [session?.id]);
 
   // Fetch participants
   const fetchParticipants = async () => {
@@ -298,7 +344,7 @@ useEffect(() => {
 const handleJoin = async () => {
   setLoadingJoin(true);
 
-  // 1. Auth check
+  // 1️⃣ Auth check
   const { data: userData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !userData.user) {
     setLoadingJoin(false);
@@ -306,7 +352,29 @@ const handleJoin = async () => {
   }
   const userId = userData.user.id;
 
-  // 2. Check si déjà participant
+  // 2️⃣ Anti-spam : empêcher de rejoindre trop vite après avoir quitté
+  const { data: recentLeave } = await supabase
+    .from('session_leaves')
+    .select('created_at')
+    .eq('session_id', session.id)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentLeave) {
+    const lastLeave = new Date(recentLeave.created_at);
+    const diffMinutes = (Date.now() - lastLeave.getTime()) / 60000;
+    if (diffMinutes < 30) {
+      setLoadingJoin(false);
+      return Alert.alert(
+        "Rejoins plus tard",
+        "Tu viens de quitter cette session. Tu pourras la rejoindre dans environ 30 minutes."
+      );
+    }
+  }
+
+  // 3️⃣ Check si déjà participant
   const { data: ex, error: exErr } = await supabase
     .from('session_participants')
     .select()
@@ -321,7 +389,7 @@ const handleJoin = async () => {
     return Alert.alert('Info', 'Tu participes déjà.');
   }
 
-  // *** PATCH FEMME UNIQUEMENT ***
+  // 4️⃣ Vérifie les sessions "femmes uniquement"
   if (session.girls_only) {
     const { data: userProfile, error: genderErr } = await supabase
       .from('users')
@@ -341,14 +409,14 @@ const handleJoin = async () => {
     }
   }
 
-  // 3. Ajoute comme participant
+  // 5️⃣ Ajoute comme participant
   const { error: insErr } = await supabase
     .from('session_participants')
     .insert({ session_id: session.id, user_id: userId });
   setLoadingJoin(false);
   if (insErr) return Alert.alert('Erreur', insErr.message);
 
-  // 4. Toast visuel
+  // 6️⃣ Toast visuel
   Toast.show({
     type: 'success',
     text1: 'Session rejointe !',
@@ -358,7 +426,7 @@ const handleJoin = async () => {
     visibilityTime: 2600,
   });
 
-  // 5. Infos user pour notif
+  // 7️⃣ Infos user pour notif
   const { data: userProfile } = await supabase
     .from('users')
     .select('username, email')
@@ -380,13 +448,14 @@ const handleJoin = async () => {
     });
   }
 
-  // (notif au participant lui-même)
+  // notif au participant lui-même
   await notifyYouJoinedSession({
     userId,
     sessionTitle: session.title,
     sessionId: session.id,
   });
 
+  // notif aux autres participants
   await notifyParticipantJoinedOthers({
     participantIds: participants.map(p => p.id).filter(pid => pid !== userId && pid !== session.creator_id),
     joinerId: userId,
@@ -396,14 +465,9 @@ const handleJoin = async () => {
   });
 
   await scheduleSessionReminder(session);
-
   fetchParticipants();
-  navigation.navigate('MainTabs', {
-  screen: 'Activités',
-  params: { tab: 'joined' }, // ✅ forcer l’onglet "Rejointes"
-});
+  navigation.navigate('MainTabs', { screen: 'Activités', params: { tab: 'joined' } });
 };
-
 
 const handleLeave = async () => {
   Alert.alert(
@@ -417,11 +481,17 @@ const handleLeave = async () => {
         onPress: async () => {
           setLoadingJoin(true);
 
+          // 1️⃣ Supprime le participant
           const { error } = await supabase
             .from('session_participants')
             .delete()
             .eq('session_id', session.id)
             .eq('user_id', user.id);
+
+          // 2️⃣ Logue le départ (anti-spam)
+          await supabase
+            .from('session_leaves')
+            .insert([{ session_id: session.id, user_id: user.id }]);
 
           setLoadingJoin(false);
           if (error) {
@@ -431,6 +501,7 @@ const handleLeave = async () => {
 
           setIsParticipant(false);
 
+          // 3️⃣ Notifications
           if (session.creator_id && user.id !== session.creator_id) {
             let userProfile;
             try {
@@ -455,7 +526,9 @@ const handleLeave = async () => {
               leaverName: pseudoAffiche,
               sessionTitle: session.title,
               sessionId: session.id,
-              otherParticipantIds: participants.map(p => p.id).filter(pid => pid !== user.id && pid !== session.creator_id),
+              otherParticipantIds: participants
+                .map(p => p.id)
+                .filter(pid => pid !== user.id && pid !== session.creator_id),
             });
           }
 
@@ -469,8 +542,8 @@ const handleLeave = async () => {
           });
 
           navigation.navigate('MainTabs', { screen: 'Activités' });
-        }
-      }
+        },
+      },
     ]
   );
 };
@@ -564,7 +637,7 @@ else if (user && session.creator_id === user.id) {
         activeOpacity={0.88}
       >
         <LinearGradient
-          colors={['#FF9A6C', '#FF5E62']}
+          colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.joinButton}

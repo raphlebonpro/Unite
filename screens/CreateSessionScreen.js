@@ -210,7 +210,6 @@ const CreateSessionScreen = () => {
   const [selectedSport, setSelectedSport] = useState('');
   const [showOtherSports, setShowOtherSports] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('');
-  const [selectedParticipants, setSelectedParticipants] = useState('');
 
   // ✅ Date/heure corrigées
   const [timePickerVisible, setTimePickerVisible] = useState(false);
@@ -318,8 +317,6 @@ useEffect(() => {
       setSelectedSport('');
       setShowOtherSports(false);
       setSelectedLevel('');
-      setSelectedParticipants('');
-      setMaxParticipants(null);
       setSelectedDate(new Date());
       setSelectedHour(getClampedDefaultHour());
       setShowCalendar(false);
@@ -353,7 +350,6 @@ if (
   !Number.isFinite(latitude) ||
   !Number.isFinite(longitude) ||
   !selectedLevel ||
-  !selectedParticipants ||
   !title
 ) {
   Alert.alert('Champs manquants', 'Merci de remplir tous les champs obligatoires.');
@@ -399,7 +395,6 @@ if (
       lat: latitude,
       lng: longitude,
       level: selectedLevel,
-      participants_max: parseInt(String(selectedParticipants), 10),
       date: formatDateYYYYMMDD(selectedDate),
       time: formatTimeHHMM(selectedHour),
       title,
@@ -465,9 +460,6 @@ Alert.alert('Session créée !', 'Ta session a bien été enregistrée.', [
 const [sportPickerVisible, setSportPickerVisible] = useState(false);
 
 const [levelPickerVisible, setLevelPickerVisible] = useState(false);
-
-const [participantsPickerVisible, setParticipantsPickerVisible] = useState(false);
-const [maxParticipants, setMaxParticipants] = useState(null);
 
   // ✅ Fonctions TimePicker corrigées
 const showTimePicker = () => setTimePickerVisible(true);
@@ -653,7 +645,7 @@ if (loadingInit) {
   </View>
 </Modal>
 
-            {/* Lieu */}
+{/* Lieu */}
 {/* Lieu (ouvre un modal dédié) */}
 <View style={{ marginTop: 5 }}>
   <TouchableOpacity
@@ -809,7 +801,6 @@ if (loadingInit) {
    </TouchableWithoutFeedback>
  </KeyboardAvoidingView>
 </Modal>
-
 
 {/* Date */}
 <View style={{ marginTop: 5 }}>
@@ -989,73 +980,6 @@ if (loadingInit) {
     </View>
   </View>
 </Modal>
-
-            {/* Participants */}
-<TouchableOpacity
-  style={styles.input}
-  onPress={() => setParticipantsPickerVisible(true)}
->
-  <Text style={maxParticipants ? styles.inputText : styles.dropdownText}>
-    {maxParticipants ? `${maxParticipants} participants` : "Participants max..."}
-  </Text>
-</TouchableOpacity>
-
-{/* Modal Participants */}
-<Modal
-  transparent={true}
-  visible={participantsPickerVisible}
-  animationType="fade"
-  onRequestClose={() => setParticipantsPickerVisible(false)}
->
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalContainer}>
-      <Text style={styles.modalTitle}>Participants maximum</Text>
-      
-      <ScrollView style={{ maxHeight: 250, width: '100%' }}>
-        {Array.from({ length: 14 }, (_, i) => i + 2).map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={styles.dropdownItem}
-            onPress={() => {
-              setMaxParticipants(p);
-              setSelectedParticipants(String(p)); // ⚡️ garde la compatibilité avec ta logique supabase
-              setParticipantsPickerVisible(false);
-            }}
-          >
-            <Text style={styles.dropdownItemText}>{p}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <TouchableOpacity
-        style={styles.validateButton}
-        onPress={() => setParticipantsPickerVisible(false)}
-      >
-        <Text style={styles.validateText}>Fermer</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
-
-            {showDropdown.participants && (
-              <>
-                <TouchableOpacity activeOpacity={1} style={styles.overlay} onPress={closeAllDropdowns} />
-                <View style={{ zIndex: 99 }}>
-                  {participants.map((p) => (
-                    <TouchableOpacity
-                      key={p}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setSelectedParticipants(String(p));
-                        toggleDropdown('participants');
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{p}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
 
             {/* Titre */}
             <TextInput
@@ -1339,12 +1263,19 @@ addressModalOverlay: {
     borderRadius: 10,
     backgroundColor: '#f2f2f2',
   },
-  addressValidateBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#5B4EFF',
-  },
+addressValidateBtn: {
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+  borderRadius: 10,
+  backgroundColor: "#5B4EFF",
+  alignItems: "center",
+  justifyContent: "center",
+},
+addressValidateText: {
+  fontWeight: "700",
+  color: "#fff",
+  fontSize: 16,
+},
   calendarBox: {
   borderRadius: 12,
   width: '99%',
@@ -1358,7 +1289,6 @@ addressModalOverlay: {
   marginBottom: 12,
 },
   addressCancelText: { fontWeight: '600', color: '#444' },
-  addressValidateText: { fontWeight: '700', color: '#fff' },
 });
 
 export default CreateSessionScreen;

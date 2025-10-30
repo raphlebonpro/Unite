@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Image, View } from 'react-native';
+import { Image, View, StyleSheet } from 'react-native';
 import { useUser } from '../context/UserContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,7 +19,6 @@ const Tab = createBottomTabNavigator();
 export default function MainTabs() {
   const { user } = useUser();
   const insets = useSafeAreaInsets();
-
   const GRADIENT_COLORS = ['#FF9D3C', '#FF6C4A', '#FF375E'];
 
   return (
@@ -27,6 +26,8 @@ export default function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
+        // 🔹 on masque le label uniquement pour "Créer"
+        tabBarLabel: route.name === 'Créer' ? '' : route.name,
         tabBarLabelStyle: {
           fontSize: wp('3.3%'),
           fontWeight: '500',
@@ -57,10 +58,64 @@ export default function MainTabs() {
                 ? <GradientTabIcon IconComponent={MaterialCommunityIcons} name="heart-pulse" size={size} />
                 : <MaterialCommunityIcons name="heart-pulse" size={size} color={color} />;
 
-            case 'Créer':
-              return focused
-                ? <GradientTabIcon IconComponent={Ionicons} name="add-circle-outline" size={size} />
-                : <Ionicons name="add-circle-outline" size={size} color={color} />;
+case 'Créer':
+  return (
+    <View
+      style={{
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: wp('-5.5%'),
+      }}
+    >
+      {focused ? (
+        // === Bouton actif : rond blanc avec bordure dégradée plus fine ===
+        <LinearGradient
+          colors={GRADIENT_COLORS}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            padding: wp('0.25%'), // ✅ bordure plus fine
+            borderRadius: wp('6%'),
+          }}
+        >
+          <View
+            style={{
+              width: wp('11%'),
+              height: wp('11%'),
+              borderRadius: wp('5.5%'),
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: '#fff',
+            }}
+          >
+            <GradientTabIcon
+              IconComponent={MaterialCommunityIcons}
+              name="plus"
+              size={wp('5.5%')}
+            />
+          </View>
+        </LinearGradient>
+      ) : (
+        // === Bouton inactif : rond gris clair ===
+        <View
+          style={{
+            width: wp('11%'),
+            height: wp('11%'),
+            borderRadius: wp('5.5%'),
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: '#f4f4f4',
+          }}
+        >
+          <MaterialCommunityIcons
+            name="plus"
+            size={wp('5.5%')}
+            color={color}
+          />
+        </View>
+      )}
+    </View>
+  );
 
             case 'Messages':
               return focused

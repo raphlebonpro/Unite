@@ -153,25 +153,27 @@ const goToProfile = (uid) => {
     setLoading(true);
     const monthStart = getMonthStartDate();
 
-    const { data, error } = await supabase
-      .from('monthly_leaderboard')
-      .select(`
-        count, user_id,
-        users:user_id (username, profile_photo)
-      `)
-      .eq('type', selectedTab)
-      .eq('month', monthStart)
-      .order('count', { ascending: false })
-      .limit(30);
+const { data, error } = await supabase
+  .from('monthly_leaderboard_premium')
+  .select(`
+    count, user_id,
+    users:user_id (username, profile_photo, is_premium)
+  `)
+  .eq('type', selectedTab)
+  .eq('month', monthStart)
+  .eq('users.is_premium', true) // ✅ ici le filtre clé
+  .order('count', { ascending: false })
+  .limit(30);
 
     let myData = null;
     if (userId) {
-      const { data: all } = await supabase
-        .from('monthly_leaderboard')
-        .select('user_id, count')
-        .eq('type', selectedTab)
-        .eq('month', monthStart)
-        .order('count', { ascending: false });
+const { data: all } = await supabase
+  .from('monthly_leaderboard_premium')
+  .select('user_id, count, users:user_id(is_premium)')
+  .eq('type', selectedTab)
+  .eq('month', monthStart)
+  .eq('users.is_premium', true)
+  .order('count', { ascending: false });
       if (all && all.length > 0) {
         const foundIndex = all.findIndex(x => x.user_id === userId);
 if (foundIndex > -1) {

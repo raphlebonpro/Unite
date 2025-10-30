@@ -32,7 +32,15 @@ import SessionFeedbackScreen from '../screens/SessionFeedbackScreen.js';
 import SessionCancelledScreen from '../screens/SessionCancelledScreen';
 import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import MentionsLegalesScreen from '../screens/MentionsLegalesScreen.js';
-
+import GroupsScreen from '../screens/GroupsScreen';
+import CreateGroupScreen from '../screens/CreateGroupScreen';
+import GroupDetailScreen from '../screens/GroupDetailScreen';
+import EditGroupScreen from "../screens/EditGroupScreen";
+import GroupChatScreen from '../screens/GroupChatScreen.js';
+import CreateSessionGroupScreen from "../screens/CreateSessionGroupScreen";
+import GroupSessionDetailScreen from '../screens/GroupSessionDetailScreen.js';
+import UnitePlusScreen from '../screens/UnitePlusScreen.js';
+import UnitePlusCompareScreen from '../screens/UnitePlusCompareScreen.js';
 import GradientTitle from '../components/GradientTitle';
 import BienvenueScreen from '../screens/BienvenueScreen.js';
 
@@ -127,6 +135,11 @@ export default function StackNavigator() {
         options={gradientHeader('Messages')}
       />
       <Stack.Screen
+        name="GroupChat"
+        component={GroupChatScreen}
+        options={gradientHeader('Groupes')}
+      />
+      <Stack.Screen
         name="EditSession"
         component={EditSessionScreen}
         options={gradientHeader('Modifier la session')}
@@ -204,14 +217,54 @@ export default function StackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen 
-      name="VerifyEmail" 
-      component={VerifyEmailScreen} 
-      options={gradientHeader('Vérification e-mail')}
+        name="VerifyEmail" 
+        component={VerifyEmailScreen} 
+        options={gradientHeader('Vérification e-mail')}
       />
       <Stack.Screen 
-      name="MentionsLegales" 
-      component={MentionsLegalesScreen} 
-      options={gradientHeader('Mentions Légales')}
+        name="MentionsLegales" 
+        component={MentionsLegalesScreen} 
+        options={gradientHeader('Mentions Légales')}
+      />
+      <Stack.Screen
+        name="Groups"
+        component={GroupsScreen}
+        options={gradientHeader('Groupes')}
+      />
+      <Stack.Screen
+        name="CreateGroup"
+        component={CreateGroupScreen}
+        options={gradientHeader('Créer un groupe')}
+      />
+      <Stack.Screen
+        name="GroupDetail"
+        component={GroupDetailScreen}
+        options={gradientHeader('Détail du groupe')}
+      />
+      <Stack.Screen
+        name="EditGroup"
+        component={EditGroupScreen}
+        options={gradientHeader("Modifier le groupe")}
+      />
+      <Stack.Screen
+        name="CreateSessionGroup"
+        component={CreateSessionGroupScreen}
+        options={gradientHeader("Créer session de groupe")}
+      />
+      <Stack.Screen
+        name="GroupSessionDetail"
+        component={GroupSessionDetailScreen}
+        options={gradientHeader('Détail session de groupe')}
+      />
+      <Stack.Screen
+        name="UnitePlusScreen"
+        component={UnitePlusScreen}
+        options={gradientHeader('Unite+')}
+      />
+      <Stack.Screen 
+      name="UnitePlusCompare" 
+      component={UnitePlusCompareScreen} 
+      options={gradientHeader('Comparer Abonnement')}
       />
     </Stack.Navigator>
   );

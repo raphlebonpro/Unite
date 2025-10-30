@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import GradientTitle from '../components/GradientTitle';
 import { Keyboard } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native';
+import SessionGroupCard from '../components/SessionGroupCard';
 
 const GOOGLE_MAPS_API_KEY =
 Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY ??
@@ -171,10 +172,16 @@ const FILTERS_TOP = CHIPS_TOP + CHIPS_H + 5;
 
   // --- FETCH SESSIONS (utilisé partout) ---
 const fetchSessions = useCallback(async () => {
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('*')
-    .order('date', { ascending: true });
+const { data, error } = await supabase
+  .from('sessions')
+  .select(`
+    *,
+    groups (
+      id,
+      name
+    )
+  `)
+  .order('date', { ascending: true });
 
   if (error) {
     console.error('Erreur fetch sessions:', error);
@@ -366,7 +373,6 @@ useEffect(() => {
   ).start();
 }, []);
 
-
 const handleSuggestionPress = async (placeId, description) => {
   try {
     Keyboard.dismiss();
@@ -402,24 +408,88 @@ const handleSuggestionPress = async (placeId, description) => {
   }
 };
 
+// ✅ Géoloc rapide et optimisée (Android-friendly)
+const getFastLocation = async () => {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.warn("❌ Permission localisation refusée");
+      return null;
+    }
+
+    // 1️⃣ Récupère la dernière position connue (instantané sur Android)
+    const last = await Location.getLastKnownPositionAsync({});
+    if (last?.coords) {
+      // Retourne tout de suite cette position (instantané)
+      return {
+        latitude: last.coords.latitude,
+        longitude: last.coords.longitude,
+      };
+    }
+
+    // 2️⃣ Sinon, récupère une position plus précise (en tâche courte)
+    const fresh = await Promise.race([
+      Location.getCurrentPositionAsync({
+        accuracy: Platform.OS === 'android'
+          ? Location.Accuracy.Low // ⚡️ évite d’activer le GPS complet
+          : Location.Accuracy.Balanced,
+        maximumAge: 10000, // accepte une position vieille de 10s
+        timeout: 5000, // 5 secondes max
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      ),
+    ]);
+
+    if (fresh?.coords) {
+      return {
+        latitude: fresh.coords.latitude,
+        longitude: fresh.coords.longitude,
+      };
+    }
+
+    return null;
+  } catch (e) {
+    console.warn('getFastLocation error:', e.message);
+    return null;
+  }
+};
+
 const clearFilters = async () => {
   setSelectedSport('');
   setSelectedLevel('');
   setSelectedDate(null);
   setSearch('');
   setSuggestions([]);
-  let { status } = await Location.requestForegroundPermissionsAsync();
-  if (status !== 'granted') return;
-  let location = await Location.getCurrentPositionAsync({});
+
+  const coords = await getFastLocation();
+  if (!coords) {
+    // fallback Paris si GPS KO
+    setRegion(PARIS_COORDS);
+    setMyLocation(PARIS_COORDS);
+    cameraRef.current?.setCamera({
+      centerCoordinate: [PARIS_COORDS.longitude, PARIS_COORDS.latitude],
+      zoomLevel: 13,
+      animationDuration: 800,
+    });
+    return;
+  }
+
   const currentCoords = {
-    latitude: location.coords.latitude,
-    longitude: location.coords.longitude,
+    ...coords,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   };
+
   setRegion(currentCoords);
   setMyLocation(currentCoords);
-  mapRef.current?.animateToRegion(currentCoords, 800);
+
+  // 🔥 instantané, fluide
+  cameraRef.current?.setCamera({
+    centerCoordinate: [coords.longitude, coords.latitude],
+    zoomLevel: 15,
+    animationDuration: 800,
+  });
 };
 
 function formatTime(time) {
@@ -1087,81 +1157,94 @@ onRequestClose={() => setShowCalendar(false)}
         paddingRight: wp('2.5%'),
       }}
       ItemSeparatorComponent={() => <View style={{ width: wp('2.5%') }} />}
-      renderItem={({ item }) => (
-        <SessionCardHome
-          session={item}
-          onPress={() =>
-            navigation.navigate('SessionDetail', { sessionId: item.id })
-          }
-        />
-      )}
+renderItem={({ item }) => {
+  if (item.group_id) {
+    return (
+      <SessionGroupCard
+        session={item}
+        onPress={() =>
+          navigation.navigate('GroupDetail', { groupId: item.group_id })
+        }
+      />
+    );
+  }
+  return (
+    <SessionCardHome
+      session={item}
+      onPress={() =>
+        navigation.navigate('SessionDetail', { sessionId: item.id })
+      }
+    />
+  );
+}}
     />
   </View>
 </View>
 
 {filteredSessions.length === 0 && (
-  <View
-    style={{
-      position: 'absolute',
-      bottom: hp('13%'),
-      left: 0,
-      right: 0,
-      alignItems: 'center',
-    }}
-  >
-    <Text
-      style={{
-        color: '#888',
-        fontSize: wp('3.8%'),
-        textAlign: 'center',
-      }}
+  <View style={styles.noSessionContainerCompact}>
+    <LinearGradient
+      colors={['#F7F8FF', '#FFFFFF']}
+      style={styles.noSessionCompactGradient}
     >
-      Aucune session trouvée 🔍
-    </Text>
-    <Text
-      style={{
-        color: '#AAA',
-        fontSize: wp('3.4%'),
-        marginTop: 4,
-      }}
-    >
-      Essaie un autre sport ou élargis ta recherche
-    </Text>
+      <MaterialCommunityIcons
+        name="map-search-outline"
+        size={wp('8%')}
+        color="#3F4FFF"
+        style={{ marginBottom: hp('0.8%') }}
+      />
+
+      <Text style={styles.noSessionCompactTitle}>Aucune session trouvée</Text>
+
+      <Text style={styles.noSessionCompactSubtitle}>
+        Essaie un autre sport ou élargis ta recherche
+      </Text>
+
+      <TouchableOpacity
+        style={styles.noSessionButton}
+        activeOpacity={0.85}
+        onPress={clearFilters}
+      >
+        <LinearGradient
+          colors={['#3F4FFF', '#7A5CFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.noSessionButtonGradient}
+        >
+          <Text style={styles.noSessionButtonText}>Effacer tous les filtres</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </LinearGradient>
   </View>
 )}
 
 {/* Ma position */}
 {region && (
-  <TouchableOpacity
-    style={styles.myLocationBtn}
-    onPress={async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+<TouchableOpacity
+  style={styles.myLocationBtn}
+  onPress={async () => {
+    const coords = await getFastLocation();
+    if (!coords) return;
 
-      let location = await Location.getCurrentPositionAsync({});
-      const currentCoords = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      };
+    const currentCoords = {
+      ...coords,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    };
 
-      setRegion({
-        ...currentCoords,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      });
-      setMyLocation(currentCoords);
+    setRegion(currentCoords);
+    setMyLocation(coords);
 
-      // ✅ Utilisation de MapboxGL.Camera
-      cameraRef.current?.setCamera({
-        centerCoordinate: [currentCoords.longitude, currentCoords.latitude],
-        zoomLevel: 15,
-        animationDuration: 1000,
-      });
-    }}
-    activeOpacity={0.8}
-  >
-    <MaterialIcons name="my-location" size={wp('6.2%')} color="#3F4FFF" />
-  </TouchableOpacity>
+    cameraRef.current?.setCamera({
+      centerCoordinate: [coords.longitude, coords.latitude],
+      zoomLevel: 15,
+      animationDuration: 800,
+    });
+  }}
+  activeOpacity={0.8}
+>
+  <MaterialIcons name="my-location" size={wp('6.2%')} color="#3F4FFF" />
+</TouchableOpacity>
 )}
   </SafeAreaView>
   );
@@ -1557,4 +1640,56 @@ validateText: {
  fontSize: 16,
  fontWeight: '700',
 },
+  noSessionContainerCompact: {
+    position: 'absolute',
+    bottom: hp('2%'), // 👈 encore plus bas
+    left: wp('6%'),
+    right: wp('6%'),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: wp('4%'),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  noSessionCompactGradient: {
+    width: '100%',
+    paddingVertical: hp('2.2%'),
+    paddingHorizontal: wp('4%'),
+    borderRadius: wp('4%'),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noSessionCompactTitle: {
+    fontSize: wp('3.9%'),
+    fontWeight: '600',
+    color: '#2E2E2E',
+    textAlign: 'center',
+  },
+  noSessionCompactSubtitle: {
+    fontSize: wp('3.3%'),
+    color: '#777',
+    textAlign: 'center',
+    marginTop: hp('0.5%'),
+    marginBottom: hp('1.2%'),
+  },
+  noSessionButton: {
+    marginTop: hp('0.5%'),
+    borderRadius: wp('5%'),
+    overflow: 'hidden',
+  },
+  noSessionButtonGradient: {
+    paddingVertical: hp('1.2%'),
+    paddingHorizontal: wp('5%'),
+    borderRadius: wp('5%'),
+  },
+  noSessionButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: wp('3.6%'),
+    textAlign: 'center',
+  },
 });

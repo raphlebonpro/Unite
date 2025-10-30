@@ -12,6 +12,7 @@ export async function notifyUser({
   message,
   type,
   session_id = null,
+  group_id = null,
   sender_id = null,
   push = false,
 }) {
@@ -39,6 +40,7 @@ export async function notifyUser({
         message: safeMessage,
         type: safeType,
         session_id,
+        group_id,
         sender_id,
         push,
       }),
@@ -556,6 +558,372 @@ export async function notifyFriendInvitedToSession({ invitedId, inviterId, invit
     type: 'friend_invited_session',
     title: 'Invitation à une session',
     message: `${inviterName} t’a invité à rejoindre sa session "${sessionTitle}". Clique ici pour la voir.`,
+    push: true,
+  });
+}
+
+/* ===========================
+   👥 Groupes
+   =========================== */
+
+export async function notifyGroupCreated({ creatorId, groupId, groupName }) {
+  if (!creatorId || !groupId) return;
+  await notifyUser({
+    user_id: creatorId,
+    title: 'Groupe créé',
+    body: `Le groupe "${groupName}" a bien été créé.`,
+    type: 'group_created',
+    sender_id: creatorId,
+    group_id: groupId,
+    push: false,
+  });
+}
+
+export async function notifyGroupJoinedSelf({ userId, groupName, groupId }) {
+  if (!userId || !groupId) return;
+  await notifyUser({
+    user_id: userId,
+    title: 'Groupe rejoint',
+    body: `Tu as bien rejoint le groupe "${groupName}".`,
+    type: 'group_joined_self',
+    sender_id: userId,
+    group_id: groupId, // ✅ AJOUT
+    push: true,
+  });
+}
+
+export async function notifyGroupLeftSelf({ userId, groupName, groupId }) {
+  if (!userId || !groupId) return;
+  await notifyUser({
+    user_id: userId,
+    title: 'Groupe quitté',
+    body: `Tu as bien quitté le groupe "${groupName}".`,
+    type: 'group_left_self',
+    sender_id: userId,
+    group_id: groupId, // ✅ AJOUT
+    push: false,
+  });
+}
+
+export async function notifyGroupDeleted({ creatorId, groupName, groupId }) {
+  if (!creatorId || !groupId) return;
+  await notifyUser({
+    user_id: creatorId,
+    title: 'Groupe supprimé',
+    body: `Le groupe "${groupName}" a bien été supprimé.`,
+    type: 'group_deleted',
+    sender_id: creatorId,
+    group_id: groupId, // ✅ AJOUT
+    push: true,
+  });
+}
+
+export async function notifyGroupUpdated({ creatorId, groupName, groupId }) {
+  if (!creatorId || !groupId) return;
+  await notifyUser({
+    user_id: creatorId,
+    title: 'Groupe modifié',
+    body: `Le groupe "${groupName}" a bien été modifié.`,
+    type: 'group_updated',
+    sender_id: creatorId,
+    group_id: groupId, // ✅ AJOUT
+    push: true,
+  });
+}
+
+export async function notifyGroupMemberJoined({ memberName, groupName, groupId, otherMemberIds = [] }) {
+  if (!groupId || !otherMemberIds?.length) return;
+  await notifyMany(otherMemberIds, () => ({
+    title: 'Nouveau membre',
+    body: `${memberName} a rejoint le groupe "${groupName}".`,
+    type: 'group_member_joined',
+    sender_id: null,
+    group_id: groupId, // ✅ AJOUT
+    push: true,
+  }));
+}
+
+export async function notifyGroupMemberLeft({ memberName, groupName, groupId, otherMemberIds = [] }) {
+  if (!groupId || !otherMemberIds?.length) return;
+  await notifyMany(otherMemberIds, () => ({
+    title: 'Membre parti',
+    body: `${memberName} a quitté le groupe "${groupName}".`,
+    type: 'group_member_left',
+    sender_id: null,
+    group_id: groupId, // ✅ AJOUT
+    push: true,
+  }));
+}
+
+export async function notifyGroupExclusion({ excludedId, excludedName, groupName, groupId, creatorId, otherMemberIds = [] }) {
+  if (!groupId) return;
+
+  // Exclu
+  if (excludedId) {
+    await notifyUser({
+      user_id: excludedId,
+      title: 'Exclusion du groupe',
+      body: `Tu as été exclu du groupe "${groupName}".`,
+      type: 'group_excluded_self',
+      sender_id: creatorId,
+      group_id: groupId, // ✅ AJOUT
+      push: true,
+    });
+  }
+
+  // Créateur (confirmation)
+  if (creatorId) {
+    await notifyUser({
+      user_id: creatorId,
+      title: 'Exclusion effectuée',
+      body: `Tu as exclu ${excludedName} du groupe "${groupName}".`,
+      type: 'group_exclusion_done',
+      sender_id: excludedId,
+      group_id: groupId, // ✅ AJOUT
+      push: false,
+    });
+  }
+
+  // Autres membres
+  if (otherMemberIds?.length) {
+    await notifyMany(otherMemberIds, () => ({
+      title: 'Membre exclu',
+      body: `${excludedName} a été exclu du groupe "${groupName}".`,
+      type: 'group_excluded_others',
+      sender_id: creatorId,
+      group_id: groupId, // ✅ AJOUT
+      push: true,
+    }));
+  }
+}
+
+/* ===========================
+   👥 Groupes – Sessions
+   =========================== */
+
+export async function notifyGroupSessionCreated({ groupId, creatorId, sessionTitle, sessionId }) {
+  if (!groupId || !creatorId) return;
+
+  try {
+    // 🔹 Récupère tous les membres du groupe sauf le créateur
+    const { data: members, error: groupErr } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId);
+
+    if (groupErr) throw groupErr;
+
+    const memberIds = (members || [])
+      .map(m => m.user_id)
+      .filter(uid => uid !== creatorId);
+
+    if (memberIds.length === 0) return;
+
+    // 🔹 Envoie la notification à chaque membre
+    await Promise.all(
+      memberIds.map(uid =>
+        notifyUser({
+          user_id: uid,
+          title: 'Nouvelle session dans ton groupe',
+          body: `Une nouvelle session "${sessionTitle}" vient d’être créée dans ton groupe.`,
+          type: 'group_session_created',
+          session_id: sessionId,
+          group_id: groupId,
+          sender_id: creatorId,
+          push: true,
+        })
+      )
+    );
+
+    // 🔹 Confirmation pour le créateur (optionnelle)
+    await notifyUser({
+      user_id: creatorId,
+      title: 'Session créée dans ton groupe',
+      body: `Ta session "${sessionTitle}" a bien été publiée dans ton groupe.`,
+      type: 'group_session_created_self',
+      session_id: sessionId,
+      group_id: groupId,
+      sender_id: creatorId,
+      push: false,
+    });
+
+  } catch (e) {
+    console.warn('❌ notifyGroupSessionCreated error:', e?.message || e);
+  }
+}
+
+/* ===========================
+   👥 Sessions de groupe — NOTIFS SPÉCIFIQUES
+   =========================== */
+
+// 🔹 Quand une session est créée dans un groupe
+export async function notifyGroupSessionCreatedForMembers({ groupId, creatorId, sessionTitle, sessionId }) {
+  if (!groupId || !creatorId) return;
+
+  try {
+    const { data: members } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId);
+
+    const memberIds = (members || [])
+      .map(m => m.user_id)
+      .filter(uid => uid !== creatorId);
+
+    if (memberIds.length === 0) return;
+
+    await Promise.all(
+      memberIds.map(uid =>
+        notifyUser({
+          user_id: uid,
+          title: 'Nouvelle session dans ton groupe',
+          body: `Une session "${sessionTitle}" vient d’être créée dans ton groupe.`,
+          type: 'group_session_created',
+          session_id: sessionId,
+          group_id: groupId, // ✅ clé essentielle
+          sender_id: creatorId,
+          push: true,
+        })
+      )
+    );
+
+    // Confirmation pour le créateur (non push)
+    await notifyUser({
+      user_id: creatorId,
+      title: 'Session publiée dans ton groupe',
+      body: `Ta session "${sessionTitle}" a bien été publiée dans ton groupe.`,
+      type: 'group_session_created_self',
+      session_id: sessionId,
+      group_id: groupId,
+      sender_id: creatorId,
+      push: false,
+    });
+  } catch (e) {
+    console.warn('❌ notifyGroupSessionCreatedForMembers error:', e?.message || e);
+  }
+}
+
+// 🔹 Quand une session de groupe est modifiée
+export async function notifyGroupSessionUpdatedForMembers({ groupId, sessionTitle, sessionId, editorId }) {
+  if (!groupId || !sessionId) return;
+
+  try {
+    const { data: members } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId);
+
+    const memberIds = (members || [])
+      .map(m => m.user_id)
+      .filter(uid => uid !== editorId);
+
+    if (memberIds.length === 0) return;
+
+    await Promise.all(
+      memberIds.map(uid =>
+        notifyUser({
+          user_id: uid,
+          title: 'Session mise à jour dans ton groupe',
+          body: `La session "${sessionTitle}" de ton groupe a été modifiée.`,
+          type: 'group_session_updated',
+          session_id: sessionId,
+          group_id: groupId,
+          sender_id: editorId,
+          push: true,
+        })
+      )
+    );
+  } catch (e) {
+    console.warn('❌ notifyGroupSessionUpdatedForMembers error:', e?.message || e);
+  }
+}
+
+// 🔹 Quand un membre rejoint une session de groupe
+export async function notifyGroupSessionJoinedForMembers({ groupId, joinerName, sessionTitle, sessionId, joinerId }) {
+  if (!groupId || !sessionId) return;
+
+  try {
+    const { data: members } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId);
+
+    const memberIds = (members || [])
+      .map(m => m.user_id)
+      .filter(uid => uid !== joinerId);
+
+    if (memberIds.length === 0) return;
+
+    await Promise.all(
+      memberIds.map(uid =>
+        notifyUser({
+          user_id: uid,
+          title: 'Nouveau participant dans une session du groupe',
+          body: `${joinerName} a rejoint la session "${sessionTitle}" du groupe.`,
+          type: 'group_session_joined',
+          session_id: sessionId,
+          group_id: groupId,
+          sender_id: joinerId,
+          push: true,
+        })
+      )
+    );
+  } catch (e) {
+    console.warn('❌ notifyGroupSessionJoinedForMembers error:', e?.message || e);
+  }
+}
+
+/* ===========================
+   💬 Messages – Groupes
+   =========================== */
+
+export async function notifyGroupNewMessage({ groupId, senderId, senderName, groupName }) {
+  try {
+    // 🔹 Récupère les membres du groupe sauf l’expéditeur
+    const { data: members, error: groupErr } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId);
+
+    if (groupErr) throw groupErr;
+
+    const memberIds = (members || [])
+      .map(m => m.user_id)
+      .filter(uid => uid !== senderId);
+
+    if (memberIds.length === 0) return;
+
+    // 🔹 Envoie la notif à chaque autre membre
+    await Promise.all(
+      memberIds.map(uid =>
+        notifyUser({
+          user_id: uid,
+          title: 'Nouveau message dans le groupe',
+          body: `${senderName} a écrit dans "${groupName}".`,
+          type: 'group_new_message',
+          group_id: groupId,
+          sender_id: senderId,
+          push: true,
+        })
+      )
+    );
+
+    console.log(`📩 notifyGroupNewMessage envoyé à ${memberIds.length} membres`);
+  } catch (e) {
+    console.warn('❌ notifyGroupNewMessage error:', e?.message || e);
+  }
+}
+
+/* ===========================
+   💳 Paiement Unite+
+   =========================== */
+
+export async function notifyPaymentSuccess({ userId }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Paiement réussi !',
+    body: 'Votre paiement a été accepté ! Bienvenue sur Unite+',
+    type: 'payment_success',
     push: true,
   });
 }
