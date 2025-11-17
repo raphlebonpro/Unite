@@ -534,7 +534,7 @@ if (loadingInit) {
 }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <MiniAppBar
         title="Création de session"
@@ -550,11 +550,12 @@ if (loadingInit) {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+
 
 {/* Sport */}
 <TouchableOpacity
-  style={[styles.input, { marginTop: 10 }]}
+  style={[styles.input, { marginTop: 20 }]}
   onPress={() => setSportPickerVisible(true)}
 >
   {selectedSport ? (
@@ -1046,7 +1047,7 @@ if (loadingInit) {
 
             {/* CTA créer */}
             <TouchableOpacity
-              style={{ borderRadius: 16, overflow: 'hidden', marginTop: 12, marginBottom: 30, alignSelf: 'center', }}
+              style={{ borderRadius: 16, overflow: 'hidden', marginTop: 12, marginBottom: 20, alignSelf: 'center', }}
               onPress={handleCreateSession}
             >
               <LinearGradient
@@ -1061,7 +1062,7 @@ if (loadingInit) {
           </ScrollView>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -1099,7 +1100,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: '#fff',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 18,
   },
   inputText: {
     fontSize: 15,
@@ -1113,7 +1114,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: '#fff',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 18,
   },
   dropdownText: {
     fontSize: 15,

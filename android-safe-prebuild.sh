@@ -26,7 +26,18 @@ else
   exit 0
 fi
 
-# 3️⃣ Restauration automatique du backup
+# 3️⃣ Copie automatique du fichier google-services.json
+echo ""
+if [ -f "google-services.json" ]; then
+  echo "📄 Copie du fichier google-services.json vers android/app..."
+  cp google-services.json android/app/google-services.json
+  echo "✅ Copie réussie."
+else
+  echo "❌ Aucun fichier google-services.json trouvé à la racine !"
+  echo "⛔ Le build échouera sans ce fichier."
+fi
+
+# 4️⃣ Restauration optionnelle du backup
 echo ""
 read -p "♻️  Restaurer les fichiers android/ sauvegardés ? (y/n): " restore
 if [[ "$restore" == "y" || "$restore" == "Y" ]]; then

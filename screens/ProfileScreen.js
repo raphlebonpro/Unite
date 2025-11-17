@@ -10,6 +10,7 @@ import {
   StatusBar,
   Platform,
   Pressable,
+  AppState
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Feather, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
@@ -21,6 +22,9 @@ import { BADGES, BADGE_ICONS } from '../constants/badges';
 import { LinearGradient } from 'expo-linear-gradient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Linking from "expo-linking";
+import * as WebBrowser from 'expo-web-browser';
+import { useSafeTop } from '../components/SafeTop';
 
 const LETTER_COLORS = [
   '#4A90E2', // A-B
@@ -181,36 +185,38 @@ const TouchableItem = ({ onPress, children, style }) => {
 
 const AppBar = () => {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
-  const BASE_H = Platform.OS === 'ios' ? 45 : 52;
+const safeTop = useSafeTop();
 
-  return (
+const STATUSBAR_H = Platform.OS === 'android' ? safeTop : 0;  
+const BAR_H = Platform.OS === 'ios' ? 48 : 52;
+
+return (
     <View
       style={{
-        minHeight: BASE_H + insets.top,
-        paddingTop: insets.top,
+        paddingTop: STATUSBAR_H,
+        height: BAR_H + STATUSBAR_H,
         backgroundColor: '#fff',
-        borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
-        borderBottomColor: '#EEE',
+        borderBottomWidth: 0.4,
+        borderBottomColor: '#EAEAEA',
         justifyContent: 'center',
         paddingHorizontal: 12,
         shadowColor: '#000',
-        shadowOpacity: Platform.OS === 'ios' ? 0.05 : 0,
-        shadowRadius: Platform.OS === 'ios' ? 5 : 0,
-        shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 2 } : undefined,
+        shadowOpacity: Platform.OS === 'ios' ? 0.06 : 0.1,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
         elevation: Platform.OS === 'android' ? 3 : 0,
+        zIndex: 10,
       }}
     >
-      {/* Ligne gauche/droite (identique à MiniAppBar) */}
+      {/* Ligne principale */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: BASE_H,
+          height: BAR_H,
         }}
       >
-        {/* 🔍 Recherche (gauche) */}
         <TouchableItem
           onPress={() => navigation.navigate('SearchFriends')}
           style={{
@@ -224,7 +230,6 @@ const AppBar = () => {
           <GradientIcon name="search" size={20} />
         </TouchableItem>
 
-        {/* ⚙️ Réglages (droite) */}
         <TouchableItem
           onPress={() => navigation.navigate('Settings')}
           style={{
@@ -239,26 +244,21 @@ const AppBar = () => {
         </TouchableItem>
       </View>
 
-      {/* Titre centré en absolute (comme MiniAppBar) */}
+      {/* Titre centré */}
       <View
         style={{
           position: 'absolute',
           left: 0,
           right: 0,
-          top: insets.top,
-          bottom: 0,
+          top: STATUSBAR_H,
+          height: BAR_H,
           justifyContent: 'center',
           alignItems: 'center',
           pointerEvents: 'none',
         }}
       >
         <GradientTitle
-          style={{
-            fontWeight: 'bold',
-            fontSize: 18,
-            textAlign: 'center',
-          }}
-          numberOfLines={1}
+          style={{ fontWeight: 'bold', fontSize: 18, textAlign: 'center' }}
         >
           Mon Profil
         </GradientTitle>
@@ -367,6 +367,36 @@ const fetchSessionCounters = async (userId) => {
       fetchUserData();
     }, [])
   );
+
+  useEffect(() => {
+  const subscription = AppState.addEventListener("change", (state) => {
+    if (state === "active") {
+      console.log("APP ACTIVE → refresh user");
+      fetchUserData();
+    }
+  });
+
+  return () => subscription.remove();
+}, []);
+
+  // 🔄 Realtime : met à jour le user quand Stripe change is_premium
+useEffect(() => {
+  if (!currentUserId) return;
+
+  const channel = supabase
+    .channel(`user_changes_${currentUserId}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${currentUserId}` },
+      (payload) => {
+        // Rafraîchit le user quand is_premium change
+        fetchUserData();
+      }
+    )
+    .subscribe();
+
+  return () => supabase.removeChannel(channel);
+}, [currentUserId]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -537,7 +567,7 @@ const openFriendsList = () => {
 };
   
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fafbff' }}>
+    <View style={{ flex: 1, backgroundColor: '#fafbff' }}>
       <StatusBar barStyle="dark-content" />
       <AppBar />
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
@@ -563,20 +593,48 @@ const openFriendsList = () => {
   </TouchableOpacity>
 )}
 
-{/* 🔥 Bloc Unite+ (juste sous le classement) */}
-{!user?.is_premium && (
+{/* 🔥 Bloc dynamique juste sous le classement */}
+{user?.is_premium ? (
+  // --- CAS : UTILISATEUR PREMIUM → Résiliation directe (Framer) ---
   <TouchableOpacity
     activeOpacity={0.9}
-    onPress={() => navigation.navigate('UnitePlusCompare')}
+    onPress={async () => {
+      const result = await WebBrowser.openBrowserAsync('https://www.uniteapp.fr/uniteplus');
+
+      // Quand l'utilisateur ferme le navigateur
+      if (result.type === "dismiss") {
+        console.log("NAVIGATEUR FERMÉ → refresh user");
+        fetchUserData();
+      }
+    }}
+    style={styles.cancelSubContainer}
+  >
+    <LinearGradient
+      colors={["#6A11CB", "#2575FC"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.cancelSubGradient}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+        <FontAwesome5 name="ban" size={13} color="#fff" style={{ marginRight: 6 }} />
+        <Text style={styles.cancelSubText}>Résilier l’abonnement Unite+</Text>
+      </View>
+    </LinearGradient>
+  </TouchableOpacity>
+) : (
+  // --- CAS : UTILISATEUR NON-PREMIUM → Page comparaison avant Framer ---
+  <TouchableOpacity
+    activeOpacity={0.9}
+    onPress={() => navigation.navigate("UnitePlusCompare")}
     style={styles.unitePlusContainer}
   >
     <LinearGradient
-      colors={['#6A11CB', '#2575FC']}
+      colors={["#6A11CB", "#2575FC"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.unitePlusGradient}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
         <FontAwesome5 name="bolt" size={15} color="#fff" style={{ marginRight: 8 }} />
         <Text style={styles.unitePlusTitle}>Passe à Unite+</Text>
       </View>
@@ -603,30 +661,46 @@ const openFriendsList = () => {
           )}
 
             {/* 🔹 Badges alignés en ligne */}
-  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: hp('0.3%'), gap: 6 }}>
-    {user?.is_verified && <VerifiedBadge />}
+<View style={{ alignItems: 'center', justifyContent: 'center', marginTop: hp('0.5%') }}>
+  {user?.is_verified && (
+    <LinearGradient
+      colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{
+        borderRadius: 999,
+        paddingHorizontal: 18,  // réduit
+        paddingVertical: 7,     // réduit
+        marginBottom: user?.is_premium ? 7 : 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Profil Vérifié</Text>
+    </LinearGradient>
+  )}
 
-    {user?.is_premium && (
-      <LinearGradient
-        colors={['#6A11CB', '#2575FC']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 18,
-          paddingVertical: 8,
-          marginTop: 10,
-          marginBottom: 10,
-          borderRadius: 999,
-          gap: 5,
-        }}
-      >
-        <FontAwesome5 name="bolt" size={14} color="#fff" />
-        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>Unite+</Text>
-      </LinearGradient>
-    )}
-  </View>
+  {user?.is_premium && (
+    <LinearGradient
+      colors={['#6A11CB', '#2575FC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{
+        borderRadius: 999,
+        paddingHorizontal: 18,
+        paddingVertical: 7,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 5,
+      }}
+    >
+      <FontAwesome5 name="bolt" size={13} color="#fff" />
+      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Unite+</Text>
+    </LinearGradient>
+  )}
+</View>
 
 <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: hp('1.2%') }}>
   <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
@@ -806,7 +880,7 @@ const openFriendsList = () => {
           ) : null}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -1157,6 +1231,26 @@ unitePlusSubtitle: {
   textAlign: 'center',
   marginTop: 3,
   lineHeight: hp('2.2%'),
+},
+cancelSubContainer: {
+  marginHorizontal: 24,
+  borderRadius: 12,
+  overflow: 'hidden',
+  marginBottom: 18,
+  marginTop: -2,
+},
+cancelSubGradient: {
+  paddingVertical: 8,   // 🔹 encore plus fin
+  paddingHorizontal: 14,
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+cancelSubText: {
+  color: '#fff',
+  fontSize: 14,         // 🔹 plus petit
+  fontWeight: '600',
+  letterSpacing: 0.2,
 },
 });
 

@@ -19,7 +19,7 @@ export default function UnitePlusCompareScreen() {
   const features = [
     {
       title: "Création de sessions",
-      free: "Jusqu’à 5 / mois",
+      free: "Jusqu’à 10 / mois",
       plus: "Illimitée",
       icon: "activity",
     },

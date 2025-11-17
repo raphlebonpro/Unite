@@ -165,7 +165,7 @@ const insets = useSafeAreaInsets();
 
 const [appBarH, setAppBarH] = useState(56);
 
-const SEARCH_TOP  = insets.top + appBarH + 10;
+const SEARCH_TOP  = appBarH + 10;
 const CHIPS_TOP   = SEARCH_TOP + SEARCH_H + 15;
 const FILTERS_TOP = CHIPS_TOP + CHIPS_H + 5;
 
@@ -552,23 +552,44 @@ let filteredSessions = [];
 if (isNoFilter && region) {
   filteredSessions = [...sessions]
     .filter(session => isSessionInFuture(session))
-    .map(session => ({
-      ...session,
-      distance: getDistance(
-        { latitude: region.latitude, longitude: region.longitude },
-        { latitude: Number(session.lat), longitude: Number(session.lng) }
-      )
-    }))
-    .sort((a, b) => a.distance - b.distance);
+    .map(session => {
+      const sessionDateTime = new Date(
+        `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
+      );
+
+      return {
+        ...session,
+        distance: getDistance(
+          { latitude: region.latitude, longitude: region.longitude },
+          { latitude: Number(session.lat), longitude: Number(session.lng) }
+        ),
+        sessionDateTime,
+      };
+    })
+    .sort((a, b) => {
+      // 👇 D’abord la session la plus proche dans le temps
+      const dateDiff = a.sessionDateTime - b.sessionDateTime;
+      if (dateDiff !== 0) return dateDiff;
+      // 👇 Puis celle la plus proche géographiquement
+      return a.distance - b.distance;
+    });
 } else {
-  filteredSessions = sessions.filter(session => {
-    if (!isSessionInFuture(session)) return false;
-    if (selectedSport && session.sport !== selectedSport) return false;
-    if (selectedLevel && session.level !== selectedLevel) return false;
-    if (selectedDate && session.date !== selectedDate) return false;
-    if (search && session.location && !session.location.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  filteredSessions = sessions
+    .filter(session => {
+      if (!isSessionInFuture(session)) return false;
+      if (selectedSport && session.sport !== selectedSport) return false;
+      if (selectedLevel && session.level !== selectedLevel) return false;
+      if (selectedDate && session.date !== selectedDate) return false;
+      if (search && session.location && !session.location.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    })
+    .map(session => {
+      const sessionDateTime = new Date(
+        `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
+      );
+      return { ...session, sessionDateTime };
+    })
+    .sort((a, b) => a.sessionDateTime - b.sessionDateTime);
 }
 
 
@@ -594,7 +615,7 @@ return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 
 </TouchableOpacity>
 
 return (
-  <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+  <View style={{ flex: 1, backgroundColor: "#fff" }}>
     {region ? (
       <MapboxGL.MapView
         ref={mapRef}
@@ -1104,28 +1125,39 @@ onRequestClose={() => setShowCalendar(false)}
 {/* Bouton Créer une session */}
 <TouchableOpacity
   onPress={() => navigation.navigate('Créer')}
-  style={{
-    position: 'absolute',
-    bottom: hp('21%'), // 👈 juste au-dessus des cartes
-    left: wp('5%'),
-    zIndex: 60,
-    backgroundColor: '#fff', // ✅ fond blanc
-    borderRadius: 20,
-    paddingVertical: hp('0.8%'),
-    paddingHorizontal: wp('3.5%'),
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1.5 },
+  style={[
+    {
+      position: 'absolute',
+      left: wp('5%'),
+      backgroundColor: '#fff',
+      borderRadius: 20,
+      paddingVertical: hp('0.8%'),
+      paddingHorizontal: wp('3.5%'),
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 3,
+      shadowOffset: { width: 0, height: 1.5 },
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+Platform.select({
+  ios: {
+    bottom: hp('21%'),
     elevation: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  }}
+    zIndex: 60,
+  },
+  android: {
+    bottom: hp('21%'), // ✅ identique à iOS
+    elevation: 12,
+    zIndex: 999,
+  },
+}),
+  ]}
   activeOpacity={0.85}
 >
   <Text
     style={{
-      color: '#3F4FFF', // 🎨 bleu foncé
+      color: '#3F4FFF',
       fontWeight: '700',
       fontSize: wp('3.3%'),
       textAlign: 'center',
@@ -1134,7 +1166,6 @@ onRequestClose={() => setShowCalendar(false)}
     + Créer une session
   </Text>
 </TouchableOpacity>
-
 
   {/* Liste des sessions */}
   <View
@@ -1182,26 +1213,23 @@ renderItem={({ item }) => {
 </View>
 
 {filteredSessions.length === 0 && (
-  <View style={styles.noSessionContainerCompact}>
+  <View style={styles.noSessionContainerFixed}>
     <LinearGradient
-      colors={['#F7F8FF', '#FFFFFF']}
-      style={styles.noSessionCompactGradient}
+      colors={['#F9FAFF', '#FFFFFF']}
+      style={styles.noSessionGradientFixed}
     >
       <MaterialCommunityIcons
         name="map-search-outline"
-        size={wp('8%')}
+        size={wp('6%')}
         color="#3F4FFF"
-        style={{ marginBottom: hp('0.8%') }}
+        style={{ marginBottom: hp('0.6%') }}
       />
 
-      <Text style={styles.noSessionCompactTitle}>Aucune session trouvée</Text>
-
-      <Text style={styles.noSessionCompactSubtitle}>
-        Essaie un autre sport ou élargis ta recherche
-      </Text>
+      <Text style={styles.noSessionTitleFixed}>Aucune session trouvée</Text>
+      <Text style={styles.noSessionSubtitleFixed}>Essaie un autre sport ou élargis ta recherche</Text>
 
       <TouchableOpacity
-        style={styles.noSessionButton}
+        style={styles.noSessionButtonFixed}
         activeOpacity={0.85}
         onPress={clearFilters}
       >
@@ -1209,9 +1237,9 @@ renderItem={({ item }) => {
           colors={['#3F4FFF', '#7A5CFF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.noSessionButtonGradient}
+          style={styles.noSessionButtonGradientFixed}
         >
-          <Text style={styles.noSessionButtonText}>Effacer tous les filtres</Text>
+          <Text style={styles.noSessionButtonTextFixed}>Effacer tous les filtres</Text>
         </LinearGradient>
       </TouchableOpacity>
     </LinearGradient>
@@ -1246,7 +1274,7 @@ renderItem={({ item }) => {
   <MaterialIcons name="my-location" size={wp('6.2%')} color="#3F4FFF" />
 </TouchableOpacity>
 )}
-  </SafeAreaView>
+  </View>
   );
 };
 
@@ -1613,9 +1641,6 @@ calendarBoxHome: {
  marginBottom: 12,
  alignSelf: 'center',
 },
-
-
-// si pas déjà présent
 modalOverlay: {
  flex: 1,
  backgroundColor: 'rgba(0,0,0,0.4)',
@@ -1640,56 +1665,61 @@ validateText: {
  fontSize: 16,
  fontWeight: '700',
 },
-  noSessionContainerCompact: {
-    position: 'absolute',
-    bottom: hp('2%'), // 👈 encore plus bas
-    left: wp('6%'),
-    right: wp('6%'),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: wp('4%'),
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  noSessionCompactGradient: {
-    width: '100%',
-    paddingVertical: hp('2.2%'),
-    paddingHorizontal: wp('4%'),
-    borderRadius: wp('4%'),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  noSessionCompactTitle: {
-    fontSize: wp('3.9%'),
-    fontWeight: '600',
-    color: '#2E2E2E',
-    textAlign: 'center',
-  },
-  noSessionCompactSubtitle: {
-    fontSize: wp('3.3%'),
-    color: '#777',
-    textAlign: 'center',
-    marginTop: hp('0.5%'),
-    marginBottom: hp('1.2%'),
-  },
-  noSessionButton: {
-    marginTop: hp('0.5%'),
-    borderRadius: wp('5%'),
-    overflow: 'hidden',
-  },
-  noSessionButtonGradient: {
-    paddingVertical: hp('1.2%'),
-    paddingHorizontal: wp('5%'),
-    borderRadius: wp('5%'),
-  },
-  noSessionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: wp('3.6%'),
-    textAlign: 'center',
-  },
+noSessionContainerFixed: {
+  position: 'absolute',
+  bottom: Platform.OS === 'ios' ? hp('2.5%') : hp('1.5%'), // ⬇️ on descend le container sur Android
+  left: wp('7%'),
+  right: wp('7%'),
+  backgroundColor: '#fff',
+  borderRadius: 24,
+  alignItems: 'center',
+  justifyContent: 'center',
+  shadowColor: '#000',
+  shadowOpacity: 0.08,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 5,
+  zIndex: 1,
+  overflow: 'hidden',
+},
+noSessionGradientFixed: {
+  width: '100%',
+  paddingVertical: hp('2.5%'), // ✅ légèrement réduit
+  paddingHorizontal: wp('6%'),
+  borderRadius: 24,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+noSessionTitleFixed: {
+  fontSize: wp('4.2%'),
+  fontWeight: '700',
+  color: '#1E1E1E',
+  textAlign: 'center',
+  marginBottom: hp('0.4%'),
+},
+noSessionSubtitleFixed: {
+  fontSize: wp('3.4%'),
+  color: '#6E6E6E',
+  textAlign: 'center',
+  marginBottom: hp('1.4%'),
+  lineHeight: hp('2.2%'),
+},
+noSessionButtonFixed: {
+  borderRadius: wp('5%'),
+  overflow: 'hidden',
+},
+noSessionButtonGradientFixed: {
+  borderRadius: wp('5%'),
+  paddingVertical: hp('1.3%'),
+  paddingHorizontal: wp('7%'),
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: wp('55%'),
+},
+noSessionButtonTextFixed: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: wp('3.6%'),
+  textAlign: 'center',
+},
 });

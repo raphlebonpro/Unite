@@ -1,104 +1,30 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   ScrollView,
+  ActivityIndicator,
+  Linking,
   Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useStripe } from "@stripe/stripe-react-native";
-import { supabase } from "../lib/supabaseClient";
-import * as Notifications from "expo-notifications";
 import { FontAwesome5, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 export default function UnitePlusScreen() {
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = React.useState(false);
 
-  const handleSubscribe = async () => {
+  // 🔗 Redirection vers ta page Framer
+  const handleOpenUnitePlusPage = async () => {
     try {
       setLoading(true);
-
-      // 🔹 Vérifie la session utilisateur
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        Alert.alert("Erreur", "Tu dois être connecté.");
-        return;
-      }
-
-      // 🔹 Appel Edge Function Stripe
-      const { data, error } = await supabase.functions.invoke("create-payment-intent", {
-        body: { user_id: user.id, amount: 399 }, // ✅ 3,99 €
-      });
-
-      if (error) throw new Error(error.message || "Erreur serveur");
-      if (!data?.clientSecret)
-        throw new Error("Impossible d’obtenir le clientSecret Stripe");
-
-      // 🔹 Initialisation Stripe
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: data.clientSecret,
-        merchantDisplayName: "Unite+",
-        defaultBillingDetails: {
-          address: { country: "FR" },
-        },
-        appearance: {
-          colors: { primary: "#2575FC" },
-          shapes: { borderRadius: 10 },
-        },
-        style: "automatic",
-        locale: "fr", // ✅ force l’interface Stripe en français
-      });
-
-      if (initError) throw new Error(initError.message);
-
-      // 🔹 Présentation du paiement
-      const { error: paymentError } = await presentPaymentSheet();
-
-      if (paymentError) {
-        // Traduction des messages d’erreur
-        let message = "Le paiement a été annulé.";
-        if (paymentError.code === "Canceled") {
-          message = "Le paiement a été annulé.";
-        } else if (paymentError.code === "Failed") {
-          message = "Le paiement a échoué. Vérifie ta carte ou ta connexion.";
-        } else if (paymentError.localizedMessage) {
-          message = paymentError.localizedMessage;
-        }
-
-        Alert.alert("Paiement annulé", message);
+      const url = "https://www.uniteapp.fr/uniteplus";
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
       } else {
-        // ✅ Mise à jour du statut premium
-        const { error: updateErr } = await supabase
-          .from("users")
-          .update({ is_premium: true })
-          .eq("id", user.id);
-
-        if (updateErr) throw new Error("Erreur de mise à jour du compte.");
-
-        // 🔔 Ajoute une notification en base
-        await supabase.from("notifications").insert({
-          user_id: user.id,
-          title: "Bienvenue dans Unite+ ⚡️",
-          message:
-            "Tu fais maintenant partie du collectif premium ! Profite de tous les avantages sans limites.",
-          type: "unite_plus",
-          is_read: false,
-        });
-
-        // 🔔 Notification locale Expo
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Bienvenue dans Unite+ ⚡️",
-            body: "Tu as débloqué toutes les fonctionnalités premium. Merci de soutenir le collectif !",
-          },
-          trigger: null,
-        });
-
-        Alert.alert("✅ Succès", "Abonnement activé — Bienvenue dans Unite+ !");
+        Alert.alert("Erreur", "Impossible d’ouvrir la page Unite+.");
       }
     } catch (err) {
       Alert.alert("Erreur", err.message);
@@ -135,25 +61,25 @@ export default function UnitePlusScreen() {
           iconSet="Feather"
           icon="users"
           title="Groupes illimités"
-          desc="Anime plusieurs collectifs sportifs, développe ta communauté et fais grandir ton réseau sans contrainte."
+          desc="Anime plusieurs collectifs sportifs et développe ta communauté sans contrainte."
         />
         <BenefitCard
           iconSet="MaterialCommunityIcons"
           icon="trophy-outline"
           title="Classements mensuels"
-          desc="Accède au classement des créateurs et participants les plus actifs, avec des récompenses à la clé."
+          desc="Accède au classement des créateurs et participants les plus actifs."
         />
         <BenefitCard
           iconSet="Feather"
           icon="award"
           title="Badges premium"
-          desc="Obtiens des badges exclusifs selon ton activité et affiche ton statut de leader sur ton profil."
+          desc="Obtiens des badges exclusifs selon ton activité et affiche ton statut de leader."
         />
         <BenefitCard
           iconSet="Feather"
           icon="heart"
           title="Soutenir le collectif"
-          desc="En rejoignant Unite+, tu participes directement au développement de l’app et du mouvement sportif local."
+          desc="En rejoignant Unite+, tu participes directement au développement du mouvement."
         />
       </View>
 
@@ -167,7 +93,7 @@ export default function UnitePlusScreen() {
       <TouchableOpacity
         activeOpacity={0.9}
         style={styles.subscribeBtn}
-        onPress={handleSubscribe}
+        onPress={handleOpenUnitePlusPage}
         disabled={loading}
       >
         <LinearGradient
@@ -179,7 +105,7 @@ export default function UnitePlusScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.subscribeText}>Rejoindre Unite+</Text>
+            <Text style={styles.subscribeText}>Obtenir Unite+</Text>
           )}
         </LinearGradient>
       </TouchableOpacity>

@@ -39,61 +39,59 @@ const SettingsScreen = () => {
     );
   };
 
-  const handleDeleteAccount = async () => {
-    Alert.alert(
-      'Supprimer le compte',
-      "Attention, cette action est irréversible.\n\nConfirmer la suppression du compte ?",
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { data: userData, error: userError } = await supabase.auth.getUser();
-              if (userError || !userData?.user) {
-                Alert.alert('Erreur', "Impossible de récupérer l'utilisateur.");
-                return;
-              }
-              const user_id = userData.user.id;
-              const { data: sessionData } = await supabase.auth.getSession();
-              const access_token = sessionData?.session?.access_token;
-              if (!access_token) {
-                Alert.alert("Erreur", "Token d'accès introuvable.");
-                return;
-              }
-              console.log("Suppression user_id :", user_id);
-
-              const response = await fetch('https://vznufgpbrunadydudbix.supabase.co/functions/v1/delete-user', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${access_token}`,
-                },
-                body: JSON.stringify({ user_id }),
-              });
-
-              const result = await response.json();
-              console.log("Résultat delete-user:", result);
-
-              if (!response.ok) {
-                Alert.alert('Erreur', result.error || 'Erreur inconnue');
-                return;
-              }
-
-              await supabase.auth.signOut();
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'SignUp' }],
-              });
-            } catch (err) {
-              Alert.alert('Erreur', err.message || 'Erreur inconnue');
+const handleDeleteAccount = () => {
+  Alert.alert(
+    'Supprimer le compte',
+    "Attention, cette action est irréversible.\n\nConfirmer la suppression du compte ?",
+    [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const { data: userData, error: userError } = await supabase.auth.getUser();
+            if (userError || !userData?.user) {
+              Alert.alert('Erreur', "Impossible de récupérer l'utilisateur.");
+              return;
             }
-          },
+
+            const user_id = userData.user.id;
+            const { data: sessionData } = await supabase.auth.getSession();
+            const access_token = sessionData?.session?.access_token;
+            if (!access_token) {
+              Alert.alert("Erreur", "Token d'accès introuvable.");
+              return;
+            }
+
+            const response = await fetch('https://vznufgpbrunadydudbix.supabase.co/functions/v1/delete-user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${access_token}`,
+              },
+              body: JSON.stringify({ user_id }),
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+              Alert.alert('Erreur', result.error || 'Erreur inconnue');
+              return;
+            }
+
+            await supabase.auth.signOut();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'SignUp' }],
+            });
+          } catch (err) {
+            Alert.alert('Erreur', err.message || 'Erreur inconnue');
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
 
 const handleShareApp = async () => {
   if (Platform.OS === 'android') {

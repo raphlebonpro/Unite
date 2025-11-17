@@ -27,7 +27,8 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.collectif.uniteapp</string>
+          <string>unite</string>
+          <string>com.uniteapp.collectif</string>
         </array>
       </dict>
       <dict>
@@ -38,9 +39,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>44</string>
-    <key>GMSApiKey</key>
-    <string>AIzaSyBMfgMxiCRhVLnumIdJukUpEg1g0VPV7Ao</string>
+    <string>89</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>

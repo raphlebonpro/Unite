@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:379142959805:android:dd8ba4eb82ef2ca44ebdd4",
+        "mobilesdk_app_id": "1:379142959805:android:d30419b4a428d2c84ebdd4",
         "android_client_info": {
-          "package_name": "com.collectif.uniteapp"
+          "package_name": "com.uniteapp.collectif"
         }
       },
       "oauth_client": [],

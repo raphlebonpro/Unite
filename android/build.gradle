@@ -1,14 +1,21 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
+  ext {
+    // ✅ Kotlin stable compatible Expo SDK 53 + Mapbox 10.x
+    kotlin_version = "1.9.25"
+  }
+
   repositories {
     google()
     mavenCentral()
   }
+
   dependencies {
-    classpath('com.android.tools.build:gradle')
-    classpath('com.facebook.react:react-native-gradle-plugin')
-    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    classpath "com.google.gms:google-services:4.4.2"
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    classpath "com.android.tools.build:gradle:8.6.1"
+    classpath "com.facebook.react:react-native-gradle-plugin"
   }
 }
 
@@ -22,32 +29,24 @@ def reactNativeAndroidDir = new File(
 
 allprojects {
   repositories {
-    maven {
-      // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
-      url(reactNativeAndroidDir)
-    }
-
+    maven { url(reactNativeAndroidDir) }
     google()
     mavenCentral()
-    maven { url 'https://www.jitpack.io' }
-  }
-}
+    maven { url 'https://jitpack.io' }
 
-apply plugin: "expo-root-project"
-apply plugin: "com.facebook.react.rootproject"
-// @generated begin @rnmapbox/maps-v2-maven - expo prebuild (DO NOT MODIFY) sync-32f1b7024bb5099f2805443b1960a3233ccde124
-
-allprojects {
-  repositories {
     maven {
       url 'https://api.mapbox.com/downloads/v2/releases/maven'
-      authentication { basic(BasicAuthentication) }
-      credentials {
-        username = 'mapbox'
-        password = project.properties['MAPBOX_DOWNLOADS_TOKEN'] ?: ""
+      def token = project.properties['MAPBOX_DOWNLOADS_TOKEN'] ?: System.getenv('RNMAPBOX_MAPS_DOWNLOAD_TOKEN')
+      if (token) {
+        authentication { basic(BasicAuthentication) }
+        credentials {
+          username = 'mapbox'
+          password = token
+        }
       }
     }
   }
 }
 
-// @generated end @rnmapbox/maps-v2-maven
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"

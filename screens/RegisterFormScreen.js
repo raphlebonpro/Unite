@@ -14,6 +14,7 @@ import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useUser } from '../context/UserContext';
+import * as Linking from 'expo-linking';
 
 if (typeof global !== "undefined") global.Buffer = Buffer;
 
@@ -388,6 +389,26 @@ if (pseudoExists) {
              maxFontSizeMultiplier={1.1}
            />
 
+
+{/* Acceptation CGU / Confidentialité */}
+<Text style={styles.legalText}>
+  En vous inscrivant, vous acceptez notre{' '}
+  <Text
+    style={styles.legalLink}
+    onPress={() => Linking.openURL("https://www.uniteapp.fr/politique-de-confidentialité")}
+  >
+    Politique de Confidentialité
+  </Text>{' '}
+  ainsi que nos{' '}
+  <Text
+    style={styles.legalLink}
+    onPress={() => Linking.openURL("https://www.uniteapp.fr/politique-de-confidentialité")}
+  >
+    Conditions Générales d’Utilisation
+  </Text>.
+</Text>
+
+
            {/* CTA */}
            <TouchableOpacity
              onPress={handleSignUp}
@@ -706,6 +727,21 @@ primaryModalBtnText: {
   fontWeight: '600',
   letterSpacing: 0.3,
 },
+legalText: {
+  width: '92%',
+  textAlign: 'center',
+  color: '#aaa',               // plus discret
+  fontSize: hp('1.25%'),       // plus petit
+  lineHeight: hp('1.9%'),
+  marginTop: hp('0.4%'),
+  marginBottom: hp('1%'),
+},
+
+legalLink: {
+  color: '#5A4BFF',            // bleu-violet
+  textDecorationLine: 'underline',
+  fontWeight: '400',
+},
 });
 
 /* ==== ANDROID OVERRIDES UNIQUEMENT ==== */
@@ -787,4 +823,19 @@ signUpButtonText: { fontSize: hp('2.1%'), fontWeight: 'bold' },
     paddingVertical: 22,
     paddingHorizontal: 18,
   },
+legalText: {
+  width: '92%',
+  textAlign: 'center',
+  color: '#aaa',               // plus discret
+  fontSize: hp('1.25%'),       // plus petit
+  lineHeight: hp('1.9%'),
+  marginTop: hp('0.4%'),
+  marginBottom: hp('1%'),
+},
+
+legalLink: {
+  color: '#5A4BFF',            // bleu-violet
+  textDecorationLine: 'underline',
+  fontWeight: '400',
+},
 });

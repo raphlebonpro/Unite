@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  Dimensions, RefreshControl, SafeAreaView, Platform,
+  Dimensions, RefreshControl, Platform,
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import SessionCard from '../components/SessionCard';
@@ -10,7 +10,9 @@ import { useUser } from '../context/UserContext';
 import { AntDesign, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MiniAppBar from '../components/MiniAppBar';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';``
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 const { width } = Dimensions.get('window');
 
@@ -143,14 +145,15 @@ const fetchSessions = useCallback(async () => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
-      <MiniAppBar
-        title="Activités"
-        hasNotifications={false}
-        onProfilePress={() => navigation.navigate('Profile')}
-        onNotificationsPress={() => navigation.navigate('Notifications')}
-        onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
-      />
+<View style={{ flex: 1, backgroundColor: '#fff' }}>
+  <StatusBar style="dark" backgroundColor="#fff" />
+  <MiniAppBar
+    title="Activités"
+    hasNotifications={false}
+    onProfilePress={() => navigation.navigate('Profile')}
+    onNotificationsPress={() => navigation.navigate('Notifications')}
+    onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
+  />
 
       <View style={styles.bg}>
         <LinearGradient
@@ -207,7 +210,7 @@ const fetchSessions = useCallback(async () => {
           }
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

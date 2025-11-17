@@ -1,7 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainTabs from './MainTabs.js';
-import { Platform } from 'react-native';
+import { Platform, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 
@@ -55,18 +55,38 @@ const gradientHeader = (title) => ({
   ),
   headerTitleAlign: 'center',
   headerBackTitleVisible: false,
-  headerTintColor: '#3F4FFF',
+  headerTintColor: '#3F4FFF', // 💙💜 dégradé bleu-violet rétabli
   headerStyle: {
     backgroundColor: '#fff',
     borderBottomColor: '#EEE',
     borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
+
+    // 🌫️ ombre restaurée identique à MiniAppBar
     shadowColor: '#000',
-    shadowOpacity: Platform.OS === 'ios' ? 0.06 : 0,
-    shadowRadius: Platform.OS === 'ios' ? 6 : 0,
-    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 3 } : undefined,
-    elevation: Platform.OS === 'android' ? 3 : 0,
+    shadowOpacity: Platform.OS === 'ios' ? 0.05 : 0.12,
+    shadowRadius: Platform.OS === 'ios' ? 5 : 6,
+    shadowOffset: Platform.OS === 'ios'
+      ? { width: 0, height: 2 }
+      : { width: 0, height: 3 },
+    elevation: Platform.OS === 'android' ? 5 : 0,
+
+    // ✅ hauteur identique à MiniAppBar
+    minHeight: Platform.OS === 'ios' ? 45 : 52,
+  },
+  headerTitleStyle: {
+    fontWeight: 'bold',
+    fontSize: Platform.OS === 'ios' ? 18 : 20,
+    color: '#111',
+    letterSpacing: 0.15,
   },
   headerShadowVisible: false,
+
+  // ✅ supprime le surplus d’espace Android
+  contentStyle: {
+    backgroundColor: '#fff',
+    paddingTop: 0,
+  },
+
 });
 
 export default function StackNavigator() {

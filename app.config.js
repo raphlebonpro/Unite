@@ -10,14 +10,12 @@ export default {
     userInterfaceStyle: "light",
     newArchEnabled: false,
 
-    // 🧩 Empêche toute mise à jour OTA + force le rechargement local du JS
     updates: {
       enabled: false,
       checkAutomatically: "ON_ERROR_RECOVERY",
       fallbackToCacheTimeout: 0,
     },
 
-    // 🚀 Force un runtime unique à chaque version → plus de bundle OTA partagé
     runtimeVersion: "1.0.0",
 
     icon: "./assets/icon1.png",
@@ -28,14 +26,14 @@ export default {
       backgroundColor: "#ffffff",
     },
 
+    scheme: "unite",
+
     ios: {
-      bundleIdentifier: "com.collectif.uniteapp",
-      buildNumber: "84",
+      bundleIdentifier: "com.uniteapp.collectif",
+      buildNumber: "89",
       icon: "./assets/icon1.png",
       supportsTablet: true,
-      config: {
-        googleMapsApiKey: process.env.IOS_GOOGLE_MAPS_SDK_KEY,
-      },
+      merchantIdentifier: "merchant.com.collectif.uniteapp",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription:
@@ -51,8 +49,8 @@ export default {
     },
 
     android: {
-      package: "com.collectif.uniteapp",
-      versionCode: 39,
+      package: "com.uniteapp.collectif",
+      versionCode: 63,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon-foreground1.png",
         backgroundImage: "./assets/adaptive-icon-background1.png",
@@ -60,14 +58,14 @@ export default {
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK",
       ],
       config: {
         googleMaps: {
           apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
         },
       },
-      // 👇 obligatoire pour les push Android via Firebase
       googleServicesFile: "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       useNextNotificationsApi: true,
@@ -81,14 +79,16 @@ export default {
       [
         "@rnmapbox/maps",
         {
-          RNMapboxMapsDownloadToken: process.env.MAPBOX_SECRET_TOKEN,
+          RNMAPBOX_MAPS_DOWNLOAD_TOKEN:
+            process.env.RNMAPBOX_MAPS_DOWNLOAD_TOKEN,
         },
       ],
       [
         "expo-notifications",
         {
-          icon: "./assets/notification-icon.png", // crée un petit pictogramme blanc/gris
-          color: "#FF6C4A", // couleur d'accent pour Android
+          icon: "./assets/notification-icon.png",
+          color: "#FF6C4A",
+          useNextNotificationsApi: true
         },
       ],
     ],
@@ -98,8 +98,8 @@ export default {
         process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-      EXPO_PUBLIC_MAPBOX_TOKEN: process.env.EXPO_PUBLIC_MAPBOX_TOKEN,
+      EXPO_PUBLIC_SUPABASE_ANON_KEY:
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       eas: { projectId: "1fd6a80b-0337-4744-af25-0bcac83e416e" },
     },
   },
