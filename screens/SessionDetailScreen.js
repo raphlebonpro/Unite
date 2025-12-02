@@ -26,6 +26,13 @@ import {
 } from '../helpers/notifications';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import MapboxGL from '../mapboxConfig';
+import { Share } from 'react-native';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { useRef } from 'react';
+
+
 
 const STATIC_MAP_KEY = Constants.expoConfig.extra.GOOGLE_MAPS_API_KEY;
 const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=random&name=U';
@@ -79,10 +86,24 @@ const SessionDetailScreen = () => {
   const [isParticipant, setIsParticipant] = useState(false);
   const [hasGivenSessionFeedback, setHasGivenSessionFeedback] = useState(false);
   const [hasRatedParticipants, setHasRatedParticipants] = useState(false);
-
-
-  // Ajoute un nouvel état
+  const shareCardRef = useRef();
+  const [shareTextVisible, setShareTextVisible] = useState(false);
+  const [shared, setShared] = useState(false);
+// Ajoute un nouvel état
 const [invitation, setInvitation] = useState(null);
+
+useEffect(() => {
+  navigation.setOptions({
+    headerRight: () => (
+      <TouchableOpacity
+        onPress={shareSessionAsImage}
+        style={{ marginRight: 14 }}
+      >
+        <Ionicons name="share-outline" size={24} color="#FF6C4A" />
+      </TouchableOpacity>
+    ),
+  });
+}, [navigation, session]);
 
 useEffect(() => {
   if (user && sessionId) {
@@ -322,7 +343,7 @@ useEffect(() => {
   checkFeedbackStatus();
 }, [user, session]);
 
-  if (loading || !session) {
+  if (loading || !session || !session.id) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size={Platform.OS === 'ios' ? 'large' : 50} color="#e8764d" />
@@ -338,6 +359,54 @@ useEffect(() => {
       `&key=${STATIC_MAP_KEY}`
     );
   };
+
+  const buildShareMessage = () => {
+  return (
+    `Je participe à "${session.title}" via Unite.\n\n` +
+    `Sport : ${session.sport}\n` +
+    `Lieu : ${session.location}\n` +
+    `Date : ${session.date} à ${session.time}\n\n` +
+    `Rejoins-nous → https://www.uniteapp.fr`
+  );
+};
+
+const shareSession = async () => {
+  try {
+    const message =
+      `Rejoins la session sur Unite !\n` +
+      `Télécharge l'app → https://www.uniteapp.fr`;
+
+    await Share.share({ message });
+  } catch (err) {
+    console.log("Erreur partage session :", err);
+  }
+};
+
+const shareSessionAsImage = async () => {
+  if (!shareCardRef.current) {
+  console.warn("Pas encore prêt pour le partage");
+  return;
+}
+  try {
+    await new Promise((r) => setTimeout(r, 250));
+
+    const uri = await captureRef(shareCardRef.current, {
+      format: "png",
+      quality: 1,
+    });
+
+    await Sharing.shareAsync(uri);
+
+    // IMPORTANT : activer l'affichage du message
+    setShared(true);
+
+    // Copier automatiquement le texte
+    Clipboard.setString("Rejoins la session sur Unite !\nTélécharge l'app → https://www.uniteapp.fr");
+
+  } catch (err) {
+    console.log("Erreur capture :", err);
+  }
+};
 
 
 // Fonction pour rejoindre la session
@@ -360,19 +429,24 @@ const handleJoin = async () => {
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle();
+    .single();
 
-  if (recentLeave) {
-    const lastLeave = new Date(recentLeave.created_at);
-    const diffMinutes = (Date.now() - lastLeave.getTime()) / 60000;
-    if (diffMinutes < 30) {
-      setLoadingJoin(false);
-      return Alert.alert(
-        "Rejoins plus tard",
-        "Tu viens de quitter cette session. Tu pourras la rejoindre dans environ 30 minutes."
-      );
-    }
+if (recentLeave) {
+  console.log("⏳ Dernier départ :", recentLeave.created_at);
+
+  const lastLeave = new Date(recentLeave.created_at);
+  const diffMinutes = (Date.now() - lastLeave.getTime()) / 60000;
+
+  console.log("⏳ Minutes écoulées :", diffMinutes);
+
+  if (diffMinutes < 30) {
+    setLoadingJoin(false);
+    return Alert.alert(
+      "Rejoins plus tard",
+      "Tu viens de quitter cette session. Tu pourras la rejoindre dans environ 30 minutes."
+    );
   }
+}
 
   // 3️⃣ Check si déjà participant
   const { data: ex, error: exErr } = await supabase
@@ -408,6 +482,65 @@ const handleJoin = async () => {
       );
     }
   }
+
+// 4.5️⃣ Vérification blocage utilisateur (créateur inclus même si 0 participants)
+try {
+  // Récupère les participants
+  const { data: participantsRows } = await supabase
+    .from('session_participants')
+    .select('user_id')
+    .eq('session_id', session.id);
+
+  let idsToCheck = participantsRows?.map(p => p.user_id) || [];
+
+  // ⚠️ Ajoute TOUJOURS le créateur dans la liste
+  if (session.creator_id && !idsToCheck.includes(session.creator_id)) {
+    idsToCheck.push(session.creator_id);
+  }
+
+  // Si aucun ID → on check quand même le créateur
+  if (idsToCheck.length === 0) {
+    idsToCheck = [session.creator_id];
+  }
+
+  const idsList = idsToCheck.join(',');
+
+  const { data: blockRecords } = await supabase
+    .from('blocked_users')
+    .select('*')
+    .or(
+      `and(blocker_id.in.(${idsList}),blocked_id.eq.${userId}),` +
+      `and(blocked_id.in.(${idsList}),blocker_id.eq.${userId})`
+    );
+
+  if (blockRecords && blockRecords.length > 0) {
+    setLoadingJoin(false);
+    return Alert.alert(
+      "Impossible de rejoindre",
+      "Tu ne peux pas rejoindre cette session car il existe un blocage entre toi et l’organisateur."
+    );
+  }
+} catch (err) {
+  console.log("Erreur blocage:", err);
+}
+
+// Vérifier limite de participants
+if (session.max_participants !== null && session.max_participants > 0) {
+  const { data: currentRows, error: countErr } = await supabase
+    .from('session_participants')
+    .select('id')
+    .eq('session_id', session.id);
+
+  const currentCount = currentRows?.length || 0;
+
+  if (currentCount >= session.max_participants) {
+    setLoadingJoin(false);
+    return Alert.alert(
+      "Session complète",
+      "La capacité maximale est atteinte, tu ne peux plus rejoindre."
+    );
+  }
+}
 
   // 5️⃣ Ajoute comme participant
   const { error: insErr } = await supabase
@@ -613,7 +746,7 @@ if ((user && (session.creator_id === user.id || isParticipant)) && finished && !
 // 2️⃣ Cas : créateur (session pas terminée)
 else if (user && session.creator_id === user.id) {
   actionButtons = (
-    <View style={{ marginHorizontal: 18, marginTop: 4, marginBottom: 44 }}>
+    <View style={{ marginHorizontal: 18, marginTop: 4, marginBottom: 60 }}>
       {/* Bouton Groupe/Messages */}
       <TouchableOpacity
         style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 12 }}
@@ -732,9 +865,217 @@ else if (!isParticipant && user && user.id !== session.creator_id) {
   );
 }
 
+const ShareScreenClone = () => (
+  <ViewShot
+    ref={shareCardRef}
+    options={{ format: "png", quality: 1 }}
+    style={{
+      position: "absolute",
+      top: -3000,
+      left: 0,
+      width: "100%",
+    }}
+  >
+    <View
+      style={{
+        backgroundColor: "#fff",
+        width: wp("100%"),
+        paddingTop: 22,
+      }}
+    >
+      {/* TITRE */}
+      <Text
+        style={{
+          fontSize: 22,
+          fontWeight: "700",
+          textAlign: "center",
+          marginTop: 10,
+          marginBottom: 12,
+          color: "#111",
+        }}
+      >
+        {session.title}
+      </Text>
+
+      {/* LOCATION */}
+      <Text
+        style={{
+          fontSize: 14,
+          color: "#666",
+          textAlign: "center",
+          marginBottom: 16,
+        }}
+      >
+        {session.location}
+      </Text>
+
+      {/* MAP */}
+      {Number.isFinite(Number(session.lat)) &&
+      Number.isFinite(Number(session.lng)) && (
+        <View
+          style={{
+            height: 170,
+            borderRadius: 12,
+            overflow: "hidden",
+            marginHorizontal: 14,
+          }}
+        >
+          <MapboxGL.MapView
+            style={{ flex: 1 }}
+            styleURL="mapbox://styles/mapbox/streets-v12"
+          >
+            <MapboxGL.Camera
+              zoomLevel={15}
+              centerCoordinate={[Number(session.lng), Number(session.lat)]}
+              animationDuration={0}
+            />
+            <MapboxGL.PointAnnotation
+              id="share-map-marker"
+              coordinate={[Number(session.lng), Number(session.lat)]}
+            >
+              <View
+                style={{
+                  backgroundColor: "#FF5E62",
+                  borderRadius: 16,
+                  padding: 6,
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                }}
+              >
+                <Ionicons name="location" size={22} color="#fff" />
+              </View>
+            </MapboxGL.PointAnnotation>
+          </MapboxGL.MapView>
+        </View>
+      )}
+
+      {/* ↓↓↓ ESPACEMENT ENTRE MAP ET DATE/LEVEL */}
+      <View style={{ height: 10 }} />
+
+      {/* DATE + LEVEL */}
+      <View style={styles.row}>
+        <View style={styles.infoBox}>
+          <Ionicons
+            name="calendar-outline"
+            size={16}
+            color="#e17055"
+            style={{ marginRight: 4 }}
+          />
+          <Text style={[styles.infoText, { fontSize: 13 }]}>
+            {formatDateTime(session.date, session.time)}
+          </Text>
+        </View>
+
+        <LinearGradient
+          colors={["#6A11CB", "#2575FC"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.levelBox, { paddingHorizontal: 10, paddingVertical: 6 }]}
+        >
+          <Text style={[styles.levelText, { fontSize: 12 }]}>
+            {session.level}
+          </Text>
+        </LinearGradient>
+      </View>
+
+      {/* ↓↓↓ ESPACEMENT RESSERRÉ avant “Participants” */}
+      <View style={{ height: 8 }} />
+
+      {/* PARTICIPANTS */}
+      <Text
+        style={[
+          styles.sectionTitle,
+          { marginTop: 0, marginBottom: 6 }  // RESSERRÉ
+        ]}
+      >
+        Participants
+      </Text>
+
+      <View style={[styles.avatarsRow, { marginBottom: 8 }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {participants.map((p) => (
+            <View key={p.id} style={{ alignItems: "center", marginRight: 10 }}>
+              <Image source={{ uri: p.avatar }} style={styles.avatar} />
+              <Text
+                style={[styles.avatarName, { fontSize: 11 }]}
+                numberOfLines={1}
+              >
+                {p.username}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* DESCRIPTION */}
+      <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>
+        Description
+      </Text>
+
+      <View
+        style={[
+          styles.descriptionBox,
+          { padding: 10, borderRadius: 8, marginBottom: 16 }
+        ]}
+      >
+        <Text style={[styles.descriptionText, { fontSize: 14, lineHeight: 18 }]}>
+          {session.description || "Aucune description."}
+        </Text>
+      </View>
+
+      {/* CTA */}
+      <View
+        style={{
+          marginBottom: 28,   // ↑ UN PEU PLUS GRAND
+          marginTop: 10,
+          alignItems: "center",
+        }}
+      >
+        <View
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 20,
+            borderRadius: 12,
+            backgroundColor: "#ffffff",
+            borderWidth: 1,
+            borderColor: "#e5e5e5",
+            shadowColor: "#000",
+            shadowOpacity: 0.05,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 },
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 15,
+              textAlign: "center",
+              fontWeight: "700",
+              color: "#FF6C4A",
+            }}
+          >
+            Rejoins la session sur Unite !
+          </Text>
+
+          <Text
+            style={{
+              marginTop: 4,
+              fontSize: 13,
+              textAlign: "center",
+              color: "#444",
+            }}
+          >
+            Télécharge l'app → https://www.uniteapp.fr
+          </Text>
+        </View>
+      </View>
+    </View>
+  </ViewShot>
+);
 
   // ----------- RENDER -----------
   return (
+  <>
+    {session && <ShareScreenClone />}  
 <ScrollView contentContainerStyle={styles.container}>
 {invitation && (
   <View style={styles.inviteBanner}>
@@ -748,24 +1089,31 @@ else if (!isParticipant && user && user.id !== session.creator_id) {
   <View style={{ height: 16 }} />
   <Text style={styles.address}>{session.location}</Text>
   <View style={{ height: 26 }} />
-{session.lat && session.lng && (
-  <View style={{ height: 220, borderRadius: 12, overflow: "hidden", marginHorizontal: 18 }}>
+  
+{Number.isFinite(Number(session.lat)) &&
+ Number.isFinite(Number(session.lng)) && (
+  <View
+    style={{
+      height: 200,        // réduit
+      borderRadius: 12,
+      overflow: "hidden",
+      marginHorizontal: 18,
+    }}
+  >
     <MapboxGL.MapView
       style={{ flex: 1 }}
       styleURL="mapbox://styles/mapbox/streets-v12"
-      zoomEnabled={true}
-      scrollEnabled={true}
-      pitchEnabled={true}
-      rotateEnabled={true}
+      zoomEnabled
+      scrollEnabled
+      pitchEnabled
+      rotateEnabled
     >
-      {/* Caméra centrée sur la session */}
       <MapboxGL.Camera
         zoomLevel={15}
         centerCoordinate={[Number(session.lng), Number(session.lat)]}
         animationDuration={1200}
       />
 
-      {/* Marker de la session */}
       <MapboxGL.PointAnnotation
         id="session-location"
         coordinate={[Number(session.lng), Number(session.lat)]}
@@ -785,7 +1133,8 @@ else if (!isParticipant && user && user.id !== session.creator_id) {
     </MapboxGL.MapView>
   </View>
 )}
-  <View style={{ height: 22 }} />
+
+<View style={{ height: 22 }} />
 
   <View style={styles.row}>
     <View style={styles.infoBox}>
@@ -935,6 +1284,7 @@ await notifyExclusion({
   actionButtons
 )}
 </ScrollView>
+</>
   );
 };
 

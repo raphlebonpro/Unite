@@ -94,15 +94,14 @@ const handleDeleteAccount = () => {
 };
 
 const handleShareApp = async () => {
-  if (Platform.OS === 'android') {
-    // ✅ Copy-to-clipboard pour Android (pas de bug layout)
-    await Clipboard.setString(`Le sport est fait pour être partagé. Rejoins Unite, la nouvelle app qui connecte les sportifs autour de toi. Le collectif t’attend → https://testflight.apple.com/join/aWMTGZnf`);
-    Alert.alert('Copié !', 'Le lien a été copié dans le presse-papier');
+  const shareText =
+    "Le sport est fait pour être partagé. Rejoins Unite, la nouvelle app qui connecte les sportifs autour de toi. Le collectif t’attend → https://www.uniteapp.fr";
+
+  if (Platform.OS === "android") {
+    await Clipboard.setString(shareText);
+    Alert.alert("Copié !", "Le lien a été copié dans le presse-papier");
   } else {
-    // ✅ Share API normal pour iOS
-    await Share.share({
-      message: `Le sport est fait pour être partagé. Rejoins Unite, la nouvelle app qui connecte les sportifs autour de toi. Le collectif t’attend → https://testflight.apple.com/join/aWMTGZnf`
-    });
+    await Share.share({ message: shareText });
   }
 };
 

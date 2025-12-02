@@ -11,6 +11,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
+const premiumDisabled = true;
+
 const { width } = Dimensions.get("window");
 
 export default function UnitePlusCompareScreen() {
@@ -61,6 +63,7 @@ export default function UnitePlusCompareScreen() {
     },
   ];
 
+  if (premiumDisabled) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* ===== HERO ===== */}
@@ -141,6 +144,7 @@ export default function UnitePlusCompareScreen() {
       <View style={{ height: 60 }} />
     </ScrollView>
   );
+}
 }
 
 const styles = StyleSheet.create({
@@ -225,7 +229,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   leaderSection: {
-    marginTop: 60,
+    marginTop: 30,
     marginHorizontal: 28,
     alignItems: "center",
   },
@@ -243,7 +247,7 @@ const styles = StyleSheet.create({
     maxWidth: width * 0.85,
   },
   ctaWrapper: {
-    marginTop: 60,
+    marginTop: 30,
     marginHorizontal: 24,
   },
   ctaButton: {

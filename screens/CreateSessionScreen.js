@@ -255,6 +255,11 @@ const [tempLng, setTempLng] = useState(null);
   // Filles uniquement
   const [currentUser, setCurrentUser] = useState(null);
   const [isGirlsOnly, setIsGirlsOnly] = useState(false);
+
+//Participants max
+const [maxParticipants, setMaxParticipants] = useState(null); 
+const [showMaxModal, setShowMaxModal] = useState(false);
+
   
   //Loader
   const [loadingInit, setLoadingInit] = useState(true);
@@ -401,6 +406,7 @@ if (
       description: comments,
       creator_id: user.id,
       girls_only: isGirlsOnly,
+      max_participants: maxParticipants === null ? null : Number(maxParticipants),
     };
 
     const { data, error } = await supabase
@@ -533,9 +539,12 @@ if (loadingInit) {
   );
 }
 
-  return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+return (
+  <View style={{ flex: 1, backgroundColor: '#fff' }}>
+    <StatusBar translucent={false} backgroundColor="#fff" barStyle="dark-content" />
+
+    {/* MiniAppBar FIXE */}
+    <View style={{ zIndex: 999 }}>
       <MiniAppBar
         title="Création de session"
         hasNotifications={notifUnseen > 0}
@@ -543,15 +552,16 @@ if (loadingInit) {
         onNotificationsPress={() => navigation.navigate('Notifications')}
         onLeaderboardPress={() => navigation.navigate('Leaderboard')}
       />
+    </View>
 
-      {/* Ferme le clavier quand on tape en dehors */}
+    {/* CONTENU STABLE — DOIT TOUJOURS ÊTRE DANS UN View flex:1 */}
+    <View style={{ flex: 1 }}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-
+          <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
 
 {/* Sport */}
 <TouchableOpacity
@@ -982,6 +992,69 @@ if (loadingInit) {
   </View>
 </Modal>
 
+{/* Max Participants */}
+<TouchableOpacity
+  style={styles.input}
+  onPress={() => setShowMaxModal(true)}
+>
+  <Text style={maxParticipants === null ? styles.dropdownText : styles.inputText}>
+    {maxParticipants === null ? "Nombre maximum de participants…" 
+      : maxParticipants === 0 
+      ? "Illimité"
+      : maxParticipants}
+  </Text>
+</TouchableOpacity>
+
+{/* Modal Max Participants */}
+<Modal
+  transparent={true}
+  visible={showMaxModal}
+  animationType="fade"
+  onRequestClose={() => setShowMaxModal(false)}
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContainer}>
+      <Text style={styles.modalTitle}>Nombre maximum</Text>
+
+      <ScrollView style={{ maxHeight: 250, width: '100%' }}>
+        
+        {/* Illimité */}
+        <TouchableOpacity
+          style={styles.dropdownItem}
+          onPress={() => {
+            setMaxParticipants(null);
+            setShowMaxModal(false);
+          }}
+        >
+          <Text style={styles.dropdownItemText}>Illimité</Text>
+        </TouchableOpacity>
+
+        {/* 2 → 21 */}
+        {Array.from({ length: 20 }, (_, i) => i + 2).map((num) => (
+          <TouchableOpacity
+            key={num}
+            style={styles.dropdownItem}
+            onPress={() => {
+              setMaxParticipants(num);
+              setShowMaxModal(false);
+            }}
+          >
+            <Text style={styles.dropdownItemText}>{num}</Text>
+          </TouchableOpacity>
+        ))}
+
+      </ScrollView>
+
+      <TouchableOpacity
+        style={styles.validateButton}
+        onPress={() => setShowMaxModal(false)}
+      >
+        <Text style={styles.validateText}>Fermer</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
             {/* Titre */}
             <TextInput
               style={[styles.input, styles.inputText]}
@@ -1063,6 +1136,7 @@ if (loadingInit) {
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </View>
+    </View> 
   );
 };
 
@@ -1290,6 +1364,59 @@ addressValidateText: {
   marginBottom: 12,
 },
   addressCancelText: { fontWeight: '600', color: '#444' },
+selectorContainer: {
+    backgroundColor: "#F3F3F3",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    marginTop: 18,
+  },
+
+  selectorLabel: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 4,
+    fontWeight: "500",
+  },
+
+  selectorValueWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  selectorValue: {
+    fontSize: 16,
+    color: "#222",
+    fontWeight: "600",
+  },
+
+  /* === MODAL === */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+  },
+
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingVertical: 18,
+    maxHeight: "70%",
+  },
+
+  modalItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+
+  modalItemText: {
+    fontSize: 16,
+    color: "#222",
+  },
 });
 
 export default CreateSessionScreen;

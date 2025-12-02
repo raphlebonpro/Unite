@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Feather, Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -21,6 +22,9 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-nat
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { LinearGradient } from 'expo-linear-gradient';
 import { notifyUser } from '../helpers/notifications';
+
+// === PREMIUM EN VEILLE ===
+const premiumDisabled = true;
 
 const LETTER_COLORS = [
   '#4A90E2', // A-B
@@ -134,6 +138,7 @@ const UserProfileScreen = () => {
   const { userId } = route.params;
 
   const [user, setUser] = useState(null);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   // Compteurs sessions créées / rejointes
   const [createdCount, setCreatedCount] = useState(0);
@@ -211,6 +216,23 @@ const refreshFriendState = useCallback(async () => {
   // ─────────────────────────────────────────────────────
   // HOOKS (toujours avant tout return conditionnel)
   // ─────────────────────────────────────────────────────
+
+useEffect(() => {
+  const checkBlockStatus = async () => {
+    if (!currentUserId || !userId) return;
+
+    const { data } = await supabase
+      .from("blocked_users")
+      .select("id")
+      .eq("blocker_id", currentUserId)
+      .eq("blocked_id", userId)
+      .maybeSingle();
+
+    setIsBlocked(!!data);
+  };
+
+  checkBlockStatus();
+}, [currentUserId, userId]);
 
  useEffect(() => {
   if (!currentUserId) return;
@@ -301,6 +323,97 @@ const fetchAvgRating = useCallback(async () => {
     setNbRatings(0);
   }
 }, [userId]);
+
+const handleUnblockUser = async () => {
+  if (!currentUserId || !userId) return;
+
+  Alert.alert(
+    "Débloquer cet utilisateur",
+    "Il pourra réapparaître dans tes sessions et interactions. Continuer ?",
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Débloquer",
+        style: "default",
+        onPress: async () => {
+          try {
+            const { error } = await supabase
+              .from("blocked_users")
+              .delete()
+              .match({ blocker_id: currentUserId, blocked_id: userId });
+
+            if (error) {
+              Alert.alert("Erreur", "Impossible de débloquer cet utilisateur.");
+              return;
+            }
+
+            setIsBlocked(false);
+            Alert.alert("Utilisateur débloqué", "Cet utilisateur n’est plus bloqué.");
+          } catch (e) {
+            Alert.alert("Erreur", "Une erreur est survenue.");
+          }
+        },
+      },
+    ]
+  );
+};
+
+const handleBlockUser = async () => {
+  if (!currentUserId || !userId) return;
+
+  Alert.alert(
+    "Bloquer cet utilisateur",
+    "Tu ne verras plus ses sessions, messages ou interactions. Es-tu sûr ?",
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Bloquer",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // 1) Ajoute le blocage
+            const { error } = await supabase
+              .from('blocked_users')
+              .insert([{ blocker_id: currentUserId, blocked_id: userId }]);
+
+            if (error) {
+              Alert.alert("Erreur", "Impossible de bloquer cet utilisateur.");
+              return;
+            }
+
+            // 2) Supprime la relation d’amis si existante
+            await supabase
+              .from('friends')
+              .delete()
+              .or(
+                `and(follower_id.eq.${currentUserId},following_id.eq.${userId}),` +
+                `and(follower_id.eq.${userId},following_id.eq.${currentUserId})`
+              );
+
+            // 3) Supprime une demande d’ami si existante
+            await supabase
+              .from('friend_requests')
+              .delete()
+              .or(
+                `and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),` +
+                `and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
+              );
+
+            Alert.alert("Utilisateur bloqué", "Cet utilisateur est désormais bloqué.");
+
+            setIsBlocked(true);
+
+            // Option : retourne en arrière
+            navigation.goBack();
+
+          } catch (e) {
+            Alert.alert("Erreur", "Une erreur est survenue.");
+          }
+        },
+      },
+    ]
+  );
+};
 
   // Vérifie relation & demandes (amis)
   useEffect(() => {
@@ -551,8 +664,8 @@ if (!user) {
     avgRating,
     nbRatings,
   };
-  const unlockedBadges = user?.is_premium ? getUserBadges(stats) : [];
 
+  const unlockedBadges = getUserBadges(stats);
 
   const openFriendsList = () => {
   navigation.navigate('FriendsList', { userId });
@@ -606,7 +719,7 @@ return (
   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: hp('0.3%'), gap: 6 }}>
     {user?.is_verified && <VerifiedBadge />}
 
-    {user?.is_premium && (
+    {!premiumDisabled && user?.is_premium && (
       <LinearGradient
         colors={['#6A11CB', '#2575FC']}
         start={{ x: 0, y: 0 }}
@@ -629,7 +742,7 @@ return (
   </View>
 
 {/* 💬 Phrase de soutien discrète et élégante */}
-{user?.is_premium && (
+{!premiumDisabled && user?.is_premium && (
   <Text
     style={{
       marginTop: hp('0.7%'),
@@ -756,7 +869,7 @@ return (
 )}
 
 {/* =========== BADGES =========== */}
-{user?.is_premium && unlockedBadges.length > 0 && (
+{unlockedBadges.length > 0 && (
   <View style={styles.badgesListContainer}>
     <ScrollView
       horizontal
@@ -817,6 +930,86 @@ return (
               currentUserId={currentUserId}
             />
           )}
+
+{/* Blocage */}
+{userId !== currentUserId && (
+  isBlocked ? (
+    <View style={{ marginTop: 12, alignItems: "center" }}>
+      <View
+        style={{
+          paddingVertical: 10,
+          paddingHorizontal: 18,
+          borderRadius: 12,
+          backgroundColor: "#eee",
+          borderWidth: 1,
+          borderColor: "#ddd",
+          marginBottom: 8,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "600",
+            color: "#777",
+            textAlign: "center",
+          }}
+        >
+          Vous avez bloqué cet utilisateur
+        </Text>
+      </View>
+
+      {/* Bouton débloquer */}
+      <TouchableOpacity
+        onPress={handleUnblockUser}
+        activeOpacity={0.85}
+        style={{
+          paddingVertical: 10,
+          paddingHorizontal: 18,
+          borderRadius: 12,
+          backgroundColor: "#e3f2fd",
+          borderWidth: 1,
+          borderColor: "#bbdefb",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "600",
+            color: "#1565c0",
+            textAlign: "center",
+          }}
+        >
+          Débloquer cet utilisateur
+        </Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <TouchableOpacity
+      onPress={handleBlockUser}
+      activeOpacity={0.85}
+      style={{
+        marginTop: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
+        borderRadius: 12,
+        backgroundColor: "#ffebee",
+        borderWidth: 1,
+        borderColor: "#ffcdd2",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 15,
+          fontWeight: "600",
+          color: "#c62828",
+          textAlign: "center",
+        }}
+      >
+        Bloquer cet utilisateur
+      </Text>
+    </TouchableOpacity>
+  )
+)}
         </View>
       </View>
     </ScrollView>

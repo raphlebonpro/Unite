@@ -4,44 +4,58 @@ import GradientTitle from './GradientTitle';
 import GradientIcon from './GradientIcon';
 import { useNotificationRefresh } from '../context/NotificationContext';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeTop } from './SafeTop';
 
 const TouchableItem = ({ onPress, children, style }) => {
   if (Platform.OS === 'android') {
     return (
-      <Pressable onPress={onPress} android_ripple={{ borderless: true }} style={style} hitSlop={6}>
+      <Pressable
+        onPress={onPress}
+        android_ripple={{ borderless: true }}
+        style={style}
+        hitSlop={6}
+      >
         {children}
       </Pressable>
     );
   }
   return (
-    <TouchableOpacity onPress={onPress} style={style} activeOpacity={0.7} hitSlop={6}>
+    <TouchableOpacity
+      onPress={onPress}
+      style={style}
+      activeOpacity={0.7}
+      hitSlop={6}
+    >
       {children}
     </TouchableOpacity>
   );
 };
 
-const MiniAppBar = ({ title, onNotificationsPress, onLeaderboardPress, showLeaderboard = false }) => {
+const MiniAppBar = ({
+  title,
+  onNotificationsPress,
+  onLeaderboardPress,
+  showLeaderboard = false,
+}) => {
   const navigation = useNavigation();
   const { notifUnseen } = useNotificationRefresh();
-  const safeTop = useSafeTop();
 
-  // topInset 100% stable
-  const topInset = Platform.OS === 'android' ? safeTop : 0;
+  // Hauteurs fixes
+  const BASE_H = Platform.OS === 'ios' ? 45 : 52;
 
-  const BASE_H = Platform.OS === 'ios' ? 45 : 49;
+  // Correction : NE PAS appliquer le safe area ici (SafeTop le fait déjà)
+  const topInset = 0;
 
   const notifLabel =
     notifUnseen > 99 ? '99+' :
-    notifUnseen > 9  ? '9+'  :
+    notifUnseen > 9 ? '9+' :
     String(notifUnseen);
 
   return (
     <View style={{ backgroundColor: '#fff', zIndex: 20 }}>
       <View
         style={{
-          height: BASE_H + topInset,
-          paddingTop: topInset,
+          height: BASE_H,          // Hauteur fixe, stable
+          paddingTop: topInset,    // Ne doit jamais bouger
           backgroundColor: '#fff',
           borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
           borderBottomColor: '#EEE',
@@ -63,30 +77,48 @@ const MiniAppBar = ({ title, onNotificationsPress, onLeaderboardPress, showLeade
             height: BASE_H,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/* Groups */}
-            <TouchableItem
-              onPress={() => navigation.navigate('Groups')}
-              style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}
-            >
-              <GradientIcon name="people-outline" size={26} type="Ionicons" />
-            </TouchableItem>
+          {/* Groups */}
+          <TouchableItem
+            onPress={() => navigation.navigate('Groups')}
+            style={{
+              width: 40,
+              height: 40,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: 8,
+            }}
+          >
+            <GradientIcon name="people-outline" size={26} type="Ionicons" />
+          </TouchableItem>
 
-            {/* Leaderboard */}
-            {showLeaderboard && (
-              <TouchableItem
-                onPress={onLeaderboardPress || (() => navigation.navigate('Leaderboard'))}
-                style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}
-              >
-                <GradientIcon name="trophy" size={22} type="Ionicons" />
-              </TouchableItem>
-            )}
-          </View>
+          {/* Leaderboard */}
+          {showLeaderboard && (
+            <TouchableItem
+              onPress={
+                onLeaderboardPress || (() => navigation.navigate('Leaderboard'))
+              }
+              style={{
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: 6,
+              }}
+            >
+              <GradientIcon name="trophy" size={22} type="Ionicons" />
+            </TouchableItem>
+          )}
 
           {/* Notifications */}
           <TouchableItem
             onPress={onNotificationsPress}
-            style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}
+            style={{
+              width: 40,
+              height: 40,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 8,
+            }}
           >
             <View style={{ position: 'relative' }}>
               <View style={{ borderRadius: 20, overflow: 'hidden' }}>
@@ -126,13 +158,13 @@ const MiniAppBar = ({ title, onNotificationsPress, onLeaderboardPress, showLeade
           </TouchableItem>
         </View>
 
-        {/* Titre centré : fixé à topInset */}
+        {/* Titre centré */}
         <View
           style={{
             position: 'absolute',
             left: 0,
             right: 0,
-            top: topInset,
+            top: 0,            // plus de safe area
             height: BASE_H,
             justifyContent: 'center',
             alignItems: 'center',

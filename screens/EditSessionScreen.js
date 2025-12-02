@@ -135,60 +135,51 @@ const getClampedDefaultHour = () => {
  return futureHour;
 };
 
-
 const EditSessionScreen = () => {
  const navigation = useNavigation();
  const route = useRoute();
  const { sessionId } = route.params || {};
 
-
  // États UI
  const [loading, setLoading] = useState(false);
  const [loadingInit, setLoadingInit] = useState(true);
 
-
  // Champs
  const [selectedSport, setSelectedSport] = useState('');
  const [showOtherSports, setShowOtherSports] = useState(false);
-
 
  const [selectedLevel, setSelectedLevel] = useState('');
 
  const [selectedDate, setSelectedDate] = useState(new Date());
  const [showCalendar, setShowCalendar] = useState(false);
 
-
  const [selectedHour, setSelectedHour] = useState(getClampedDefaultHour());
  const [timePickerVisible, setTimePickerVisible] = useState(false);
 
-
  const [title, setTitle] = useState('');
  const [comments, setComments] = useState('');
-
 
  const [location, setLocation] = useState('');
  const [latitude, setLatitude] = useState(null);
  const [longitude, setLongitude] = useState(null);
 
-
  // Modal Adresse
 const [addressModalVisible, setAddressModalVisible] = useState(false);
-
 
  // Modals
  const [sportPickerVisible, setSportPickerVisible] = useState(false);
  const [levelPickerVisible, setLevelPickerVisible] = useState(false);
 
-
  const insets = useSafeAreaInsets();
  const [kbOpen, setKbOpen] = useState(false);
 
-
  const [tempLocation, setTempLocation] = useState('');
  const [tempLat, setTempLat] = useState(null);
- const [tempLng, setTempLng] = useState(null);
+ const [tempLng, setTempLng] = useState(null); 
 
-
+// Participants max
+const [maxParticipants, setMaxParticipants] = useState(null);
+const [maxPickerVisible, setMaxPickerVisible] = useState(false);
 
 
  useEffect(() => {
@@ -209,17 +200,14 @@ const [addressModalVisible, setAddressModalVisible] = useState(false);
        .eq('id', sessionId)
        .single();
 
-
      if (error || !data) {
        Alert.alert('Erreur', error?.message || "Impossible de charger la session.");
        setLoadingInit(false);
        return;
      }
 
-
      setSelectedSport(data.sport || '');
      setSelectedLevel(data.level || '');
-
 
      setTitle(data.title || '');
      setComments(data.description || '');
@@ -227,6 +215,7 @@ const [addressModalVisible, setAddressModalVisible] = useState(false);
      setLatitude(Number(data.lat));
      setLongitude(Number(data.lng));
 
+     setMaxParticipants(data.max_participants === null ? null : Number(data.max_participants));
 
      // Dates/heures locales et sûres
      const dateOnly = data.date ? new Date(data.date) : new Date();
@@ -328,6 +317,7 @@ const handleEditSession = async () => {
     time: formatTimeHHMM(selectedHour),
     title,
     description: comments,
+    max_participants: maxParticipants === null ? null : Number(maxParticipants),
   };
 
   const { error } = await supabase.from('sessions').update(sessionData).eq('id', sessionId);
@@ -895,6 +885,65 @@ const handleCancelSession = async () => {
              </View>
            </Modal>
 
+           {/* === Max Participants === */}
+<TouchableOpacity
+  style={styles.input}
+  onPress={() => setMaxPickerVisible(true)}
+>
+  <Text style={maxParticipants === null ? styles.dropdownText : styles.inputText}>
+    {maxParticipants === null ? "Nombre maximum de participants…" : maxParticipants}
+  </Text>
+</TouchableOpacity>
+
+{/* === Modal Max Participants === */}
+<Modal
+  transparent={true}
+  visible={maxPickerVisible}
+  animationType="fade"
+  onRequestClose={() => setMaxPickerVisible(false)}
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContainer}>
+      <Text style={styles.modalTitle}>Nombre maximum</Text>
+
+      <ScrollView style={{ maxHeight: 250, width: "100%" }}>
+        
+        {/* Illimité */}
+        <TouchableOpacity
+          style={styles.dropdownItemCentered}
+          onPress={() => {
+            setMaxParticipants(null);
+            setMaxPickerVisible(false);
+          }}
+        >
+          <Text style={styles.dropdownItemTextCentered}>Illimité</Text>
+        </TouchableOpacity>
+
+        {/* 2 → 21 */}
+        {Array.from({ length: 20 }, (_, i) => i + 2).map((num) => (
+          <TouchableOpacity
+            key={num}
+            style={styles.dropdownItemCentered}
+            onPress={() => {
+              setMaxParticipants(num);
+              setMaxPickerVisible(false);
+            }}
+          >
+            <Text style={styles.dropdownItemTextCentered}>{num}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity
+        style={styles.validateButton}
+        onPress={() => setMaxPickerVisible(false)}
+      >
+        <Text style={styles.validateText}>Fermer</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
            {/* Titre */}
            <TextInput
              style={[styles.input, styles.inputText]}
@@ -952,7 +1001,7 @@ const handleCancelSession = async () => {
   style={{
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 40,
+    marginBottom: 20,
   }}
   onPress={handleCancelSession}
   disabled={loading}
@@ -983,7 +1032,7 @@ const styles = StyleSheet.create({
    paddingTop: 12,
    paddingBottom: 10,
    backgroundColor: '#fff',
-   minHeight: hp('100%'),
+   paddingBottom: 30,  // respiration propre
  },
  input: {
    height: 52,

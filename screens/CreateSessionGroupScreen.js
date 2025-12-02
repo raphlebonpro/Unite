@@ -90,6 +90,11 @@ export default function CreateSessionGroupScreen() {
   const [tempLng, setTempLng] = useState(null);
   const [kbOpen, setKbOpen] = useState(false);
 
+  //Participants max
+  const [maxParticipants, setMaxParticipants] = useState(null);
+  const [maxPickerVisible, setMaxPickerVisible] = useState(false);
+
+
   // ---------- Lifecycle ----------
   useEffect(() => {
     const show = Keyboard.addListener("keyboardDidShow", () => setKbOpen(true));
@@ -189,6 +194,7 @@ export default function CreateSessionGroupScreen() {
             creator_id: user.id,
             group_id: groupId,
             level: selectedLevel,
+            max_participants: maxParticipants === null ? null : Number(maxParticipants),
           },
         ])
         .select()
@@ -310,6 +316,66 @@ await notifyGroupSessionCreatedForMembers({
       <TouchableOpacity
         style={styles.validateButton}
         onPress={() => setLevelPickerVisible(false)}
+      >
+        <Text style={styles.validateText}>Fermer</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
+{/* === Max Participants === */}
+<TouchableOpacity
+  style={styles.input}
+  onPress={() => setMaxPickerVisible(true)}
+>
+  <Text style={maxParticipants === null ? styles.dropdownText : styles.inputText}>
+    {maxParticipants === null ? "Nombre maximum de participants…" : maxParticipants}
+  </Text>
+</TouchableOpacity>
+
+{/* === Modal Max Participants === */}
+<Modal
+  transparent={true}
+  visible={maxPickerVisible}
+  animationType="fade"
+  onRequestClose={() => setMaxPickerVisible(false)}
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContainer}>
+      <Text style={styles.modalTitle}>Nombre maximum</Text>
+
+      <ScrollView style={{ maxHeight: 250, width: "100%" }}>
+        
+        {/* Illimité */}
+        <TouchableOpacity
+          style={styles.dropdownItem}
+          onPress={() => {
+            setMaxParticipants(null);
+            setMaxPickerVisible(false);
+          }}
+        >
+          <Text style={styles.dropdownItemText}>Illimité</Text>
+        </TouchableOpacity>
+
+        {/* 2 → 21 */}
+        {Array.from({ length: 20 }, (_, i) => i + 2).map((num) => (
+          <TouchableOpacity
+            key={num}
+            style={styles.dropdownItem}
+            onPress={() => {
+              setMaxParticipants(num);
+              setMaxPickerVisible(false);
+            }}
+          >
+            <Text style={styles.dropdownItemText}>{num}</Text>
+          </TouchableOpacity>
+        ))}
+
+      </ScrollView>
+
+      <TouchableOpacity
+        style={styles.validateButton}
+        onPress={() => setMaxPickerVisible(false)}
       >
         <Text style={styles.validateText}>Fermer</Text>
       </TouchableOpacity>

@@ -430,15 +430,15 @@ const renderItem = ({ item }) => {
 return (
   <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
     {/* HEADER */}
-    <View
-      style={[
-        styles.header,
-        {
-          paddingTop: Platform.OS === 'ios' ? insets.top : 0,
-          height: headerOffset,
-        },
-      ]}
-    >
+<View
+  style={[
+    styles.header,
+    {
+      paddingTop: 0,
+      height: APPBAR_H, // 56
+    },
+  ]}
+>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
         <Ionicons name="chevron-back" size={26} color="#232323" />
       </TouchableOpacity>
@@ -476,8 +476,8 @@ return (
           keyExtractor={(item) => item.id}
           style={styles.messagesList}
           contentContainerStyle={{
-            paddingBottom: hp('8%'),
-            paddingTop: headerOffset - 30,
+  paddingBottom: hp('8%'),
+  paddingTop: Platform.OS === 'ios' ? 12 : headerOffset - 30,
           }}
           onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({ animated: true })
@@ -619,16 +619,14 @@ return (
 }
 
 const styles = StyleSheet.create({
-  header: {
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: wp('3.5%'),   // 13
-    paddingTop: hp('1.4%'),          // 11
-    paddingBottom: hp('1.1%'),       // 9
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F1F2',
-  },
+header: {
+  backgroundColor: '#fff',
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: wp('3.5%'),
+  borderBottomWidth: 1,
+  borderBottomColor: '#F1F1F2',
+},
   headerBack: { 
     padding: wp('0.5%'),             // 2
     marginRight: wp('2%')            // 8

@@ -12,6 +12,8 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
+const premiumDisabled = true;
+
 export default function UnitePlusScreen() {
   const [loading, setLoading] = React.useState(false);
 
@@ -33,6 +35,7 @@ export default function UnitePlusScreen() {
     }
   };
 
+  if (premiumDisabled) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* === HEADER GRADIENT === */}
@@ -83,10 +86,10 @@ export default function UnitePlusScreen() {
         />
       </View>
 
-      {/* === PRIX === */}
       <View style={styles.priceContainer}>
-        <Text style={styles.priceText}>3,99 € / mois</Text>
-        <Text style={styles.priceSubText}>Sans engagement — annule à tout moment</Text>
+        <Text style={styles.priceSubText}>Unite+ est un service proposé exclusivement sur notre site web.</Text>
+          <Text style={styles.priceSubText}>
+          Consulte toutes les informations ou gère ton abonnement depuis notre site officiel.</Text>
       </View>
 
       {/* === CTA === */}
@@ -105,12 +108,14 @@ export default function UnitePlusScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.subscribeText}>Obtenir Unite+</Text>
+            <Text style={styles.subscribeText}>En savoir plus sur Unite+
+</Text>
           )}
         </LinearGradient>
       </TouchableOpacity>
     </ScrollView>
   );
+}
 }
 
 function BenefitCard({ iconSet = "Feather", icon, title, desc }) {
@@ -165,7 +170,7 @@ const styles = StyleSheet.create({
   benefitsContainer: {
     width: "88%",
     marginTop: 10,
-    marginBottom: 40,
+    marginBottom: 10,
   },
   benefitCard: {
     flexDirection: "row",
@@ -210,9 +215,10 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   priceSubText: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#777",
     marginTop: 6,
+    marginHorizontal: 45,
   },
   subscribeBtn: {
     width: "80%",

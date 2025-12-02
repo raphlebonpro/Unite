@@ -5,7 +5,7 @@ export default {
     name: "Unite",
     slug: "Unite",
     owner: "raphlebon",
-    version: "1.0.3",
+    version: "1.0.4",
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: false,
@@ -30,12 +30,13 @@ export default {
 
     ios: {
       bundleIdentifier: "com.uniteapp.collectif",
-      buildNumber: "89",
+      buildNumber: "109",
       icon: "./assets/icon1.png",
-      supportsTablet: true,
-      merchantIdentifier: "merchant.com.collectif.uniteapp",
+      supportsTablet: false,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        UIRequiresFullScreen: true,
+        "UISupportedInterfaceOrientations~ipad": [],
         NSCameraUsageDescription:
           "Nous utilisons l’appareil photo pour prendre votre photo de profil.",
         NSPhotoLibraryUsageDescription:
@@ -50,7 +51,9 @@ export default {
 
     android: {
       package: "com.uniteapp.collectif",
-      versionCode: 63,
+      versionCode: 70,
+      supportsTablet: false,
+      blockedDeviceModels: ["*Tab*", "*Pad*", "*Tablet*"],
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon-foreground1.png",
         backgroundImage: "./assets/adaptive-icon-background1.png",
@@ -94,8 +97,6 @@ export default {
     ],
 
     extra: {
-      EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY:
-        process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
       EXPO_PUBLIC_SUPABASE_ANON_KEY:

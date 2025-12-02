@@ -26,6 +26,9 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from 'expo-web-browser';
 import { useSafeTop } from '../components/SafeTop';
 
+// === PREMIUM EN VEILLE (désactive TOUT l'affichage Unite+) ===
+const premiumDisabled = true;
+
 const LETTER_COLORS = [
   '#4A90E2', // A-B
   '#50E3C2', // C-D
@@ -559,7 +562,7 @@ const stats = {
   reportsCount: user?.reports_count || 0,
 };
 
-  const unlockedBadges = user?.is_premium ? getUserBadges(stats) : [];
+const unlockedBadges = getUserBadges(stats);
 
 const openFriendsList = () => {
   if (!currentUserId) return;
@@ -572,8 +575,7 @@ const openFriendsList = () => {
       <AppBar />
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         
-{/* 🏆 Bloc classement Unite — visible uniquement pour les membres Unite+ */}
-{user?.is_premium && (
+{/* 🏆 Bloc classement Unite */}
   <TouchableOpacity
     activeOpacity={0.85}
     onPress={() => navigation.navigate('LeaderBoard')}
@@ -591,58 +593,60 @@ const openFriendsList = () => {
       </View>
     </LinearGradient>
   </TouchableOpacity>
-)}
 
 {/* 🔥 Bloc dynamique juste sous le classement */}
-{user?.is_premium ? (
-  // --- CAS : UTILISATEUR PREMIUM → Résiliation directe (Framer) ---
-  <TouchableOpacity
-    activeOpacity={0.9}
-    onPress={async () => {
-      const result = await WebBrowser.openBrowserAsync('https://www.uniteapp.fr/uniteplus');
+{!premiumDisabled && (
+  <>
+    {user?.is_premium ? (
+      // --- CAS : UTILISATEUR PREMIUM → Résiliation directe (Framer) ---
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={async () => {
+          const result = await WebBrowser.openBrowserAsync('https://www.uniteapp.fr/uniteplus');
 
-      // Quand l'utilisateur ferme le navigateur
-      if (result.type === "dismiss") {
-        console.log("NAVIGATEUR FERMÉ → refresh user");
-        fetchUserData();
-      }
-    }}
-    style={styles.cancelSubContainer}
-  >
-    <LinearGradient
-      colors={["#6A11CB", "#2575FC"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.cancelSubGradient}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
-        <FontAwesome5 name="ban" size={13} color="#fff" style={{ marginRight: 6 }} />
-        <Text style={styles.cancelSubText}>Résilier l’abonnement Unite+</Text>
-      </View>
-    </LinearGradient>
-  </TouchableOpacity>
-) : (
-  // --- CAS : UTILISATEUR NON-PREMIUM → Page comparaison avant Framer ---
-  <TouchableOpacity
-    activeOpacity={0.9}
-    onPress={() => navigation.navigate("UnitePlusCompare")}
-    style={styles.unitePlusContainer}
-  >
-    <LinearGradient
-      colors={["#6A11CB", "#2575FC"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.unitePlusGradient}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
-        <FontAwesome5 name="bolt" size={15} color="#fff" style={{ marginRight: 8 }} />
-        <Text style={styles.unitePlusTitle}>Passe à Unite+</Text>
-      </View>
-      <Text style={styles.unitePlusSubtitle}>
-        Sessions illimitées, groupes exclusifs et badges premium.
-      </Text>
-    </LinearGradient>
-  </TouchableOpacity>
+          if (result.type === "dismiss") {
+            console.log("NAVIGATEUR FERMÉ → refresh user");
+            fetchUserData();
+          }
+        }}
+        style={styles.cancelSubContainer}
+      >
+        <LinearGradient
+          colors={["#6A11CB", "#2575FC"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.cancelSubGradient}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+            <FontAwesome5 name="ban" size={13} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={styles.cancelSubText}>Résilier l’abonnement Unite+</Text>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    ) : (
+      // --- CAS : UTILISATEUR NON-PREMIUM → Page comparaison avant Framer ---
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => navigation.navigate("UnitePlusCompare")}
+        style={styles.unitePlusContainer}
+      >
+        <LinearGradient
+          colors={["#6A11CB", "#2575FC"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.unitePlusGradient}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+            <FontAwesome5 name="bolt" size={15} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.unitePlusTitle}>Découvrir Unite+</Text>
+          </View>
+          <Text style={styles.unitePlusSubtitle}>
+            En savoir plus sur nos fonctionnalités avancées.
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    )}
+  </>
 )}
 
         <View style={styles.profileCard}>
@@ -671,7 +675,7 @@ const openFriendsList = () => {
         borderRadius: 999,
         paddingHorizontal: 18,  // réduit
         paddingVertical: 7,     // réduit
-        marginBottom: user?.is_premium ? 7 : 0,
+        marginBottom: (!premiumDisabled && user?.is_premium) ? 7 : 0,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -681,7 +685,7 @@ const openFriendsList = () => {
     </LinearGradient>
   )}
 
-  {user?.is_premium && (
+  {!premiumDisabled && user?.is_premium && (
     <LinearGradient
       colors={['#6A11CB', '#2575FC']}
       start={{ x: 0, y: 0 }}
@@ -773,76 +777,35 @@ const openFriendsList = () => {
 
 {/* =========== BADGES =========== */}
 <View style={styles.badgesListContainer}>
-  {user?.is_premium ? (
-    unlockedBadges.length === 0 ? (
-      <Text
-        style={{
-          color: "#bbb",
-          fontStyle: "italic",
-          fontSize: 15,
-          marginVertical: 7,
-          marginBottom: -8,
-          textAlign: "center",
-          width: "100%",
-        }}
-      >
-        Aucun badge débloqué pour l’instant
-      </Text>
-    ) : (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          justifyContent: "center",
-          alignItems: "center",
-          flexGrow: 1,
-          paddingHorizontal: 10,
-        }}
-      >
-        {[...unlockedBadges].reverse().map((badge) => (
-  <BadgeCard badge={badge} key={badge.code} />
-        ))}
-      </ScrollView>
-    )
+  {getUserBadges(stats).length > 0 ? (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{
+        justifyContent: "center",
+        alignItems: "center",
+        flexGrow: 1,
+        paddingHorizontal: 10,
+      }}
+    >
+      {getUserBadges(stats).reverse().map((badge) => (
+        <BadgeCard badge={badge} key={badge.code} />
+      ))}
+    </ScrollView>
   ) : (
-    <>
-      {getUserBadges(stats).length > 0 ? (
-        <Text
-          style={{
-            color: "#666",
-            fontStyle: "italic",
-            fontSize: 14.5,
-            marginVertical: 7,
-            textAlign: "center",
-            width: "100%",
-            opacity: 0.85,
-          }}
-        >
-          Tu as déjà débloqué des badges !{" "}
- <Text
-  style={{ fontWeight: "700", color: "#2575FC" }}
-  onPress={() => navigation.navigate("UnitePlusCompare")}
->
-  Passe à Unite+
-</Text>{" "}
-          pour les afficher sur ton profil !
-        </Text>
-      ) : (
-        <Text
-          style={{
-            color: "#bbb",
-            fontStyle: "italic",
-            fontSize: 15,
-            marginVertical: 7,
-            marginBottom: -8,
-            textAlign: "center",
-            width: "100%",
-          }}
-        >
-          Aucun badge débloqué pour l’instant
-        </Text>
-      )}
-    </>
+    <Text
+      style={{
+        color: "#bbb",
+        fontStyle: "italic",
+        fontSize: 15,
+        marginVertical: 7,
+        marginBottom: -8,
+        textAlign: "center",
+        width: "100%",
+      }}
+    >
+      Aucun badge débloqué pour l’instant
+    </Text>
   )}
 </View>
 {/* =========== FIN BADGES =========== */}

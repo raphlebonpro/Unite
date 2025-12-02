@@ -10,9 +10,7 @@ import { useUser } from '../context/UserContext';
 import { AntDesign, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MiniAppBar from '../components/MiniAppBar';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';``
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const { width } = Dimensions.get('window');
 
@@ -32,7 +30,6 @@ const ActivitiesScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
 
-  // Met à jour l'onglet selon param navigation
   useEffect(() => {
     if (route.params?.tab && ['created', 'joined', 'past'].includes(route.params.tab)) {
       setSelectedTab(route.params.tab);
@@ -41,90 +38,83 @@ const ActivitiesScreen = () => {
     }
   }, [route.params?.tab]);
 
-  // Helper: construit la Date JS complète
   function buildDateTime(session) {
     if (!session.date) return null;
     const dt = new Date(session.date);
     if (session.time && typeof session.time === "string") {
-      let clean = session.time.replace("h", ":"); // ex: "14h30" → "14:30"
+      let clean = session.time.replace("h", ":");
       const [hh, mm] = clean.split(":").map(Number);
       if (!isNaN(hh)) dt.setHours(hh, mm || 0, 0, 0);
     }
     return dt;
   }
 
-const fetchSessions = useCallback(async () => {
-  if (!user || !user.id) return;
-  try {
-    // --- Créées par l'user (non annulées)
-    const { data: created } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('creator_id', user.id)
-      .eq('is_cancelled', false);
-
-    // --- Sessions rejointes
-    const { data: joinedIds } = await supabase
-      .from('session_participants')
-      .select('session_id')
-      .eq('user_id', user.id);
-
-    const sessionIds = joinedIds?.map((s) => s.session_id) || [];
-
-    let joined = [];
-    if (sessionIds.length > 0) {
-      const { data } = await supabase
+  const fetchSessions = useCallback(async () => {
+    if (!user || !user.id) return;
+    try {
+      const { data: created } = await supabase
         .from('sessions')
         .select('*')
-        .in('id', sessionIds)
+        .eq('creator_id', user.id)
         .eq('is_cancelled', false);
-      joined = data;
+
+      const { data: joinedIds } = await supabase
+        .from('session_participants')
+        .select('session_id')
+        .eq('user_id', user.id);
+
+      const sessionIds = joinedIds?.map((s) => s.session_id) || [];
+
+      let joined = [];
+      if (sessionIds.length > 0) {
+        const { data } = await supabase
+          .from('sessions')
+          .select('*')
+          .in('id', sessionIds)
+          .eq('is_cancelled', false);
+        joined = data;
+      }
+
+      const joinedFiltered = (joined || []).filter(s => s.creator_id !== user.id);
+
+      const now = new Date();
+
+      const createdUpcoming = (created || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt >= now;
+      });
+      const createdPast = (created || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt < now;
+      });
+
+      const joinedUpcoming = (joinedFiltered || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt >= now;
+      });
+      const joinedPast = (joinedFiltered || []).filter(s => {
+        const dt = buildDateTime(s);
+        return dt && dt < now;
+      });
+
+      const pastMap = {};
+      [...createdPast, ...joinedPast].forEach(s => { pastMap[s.id] = s; });
+      const allPast = Object.values(pastMap);
+
+      const sortAsc = (list) => list.sort((a, b) => buildDateTime(a) - buildDateTime(b));
+      const sortDesc = (list) => list.sort((a, b) => buildDateTime(b) - buildDateTime(a));
+
+      setSessionsCreated(sortAsc(createdUpcoming));
+      setSessionsJoined(sortAsc(joinedUpcoming));
+      setSessionsPast(sortDesc(allPast));
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
     }
+  }, [user]);
 
-    const joinedFiltered = (joined || []).filter(s => s.creator_id !== user.id);
-
-    // --- Classement
-    const now = new Date();
-
-    const createdUpcoming = (created || []).filter(s => {
-      const dt = buildDateTime(s);
-      return dt && dt >= now;
-    });
-    const createdPast = (created || []).filter(s => {
-      const dt = buildDateTime(s);
-      return dt && dt < now;
-    });
-
-    const joinedUpcoming = (joinedFiltered || []).filter(s => {
-      const dt = buildDateTime(s);
-      return dt && dt >= now;
-    });
-    const joinedPast = (joinedFiltered || []).filter(s => {
-      const dt = buildDateTime(s);
-      return dt && dt < now;
-    });
-
-    // Fusion des passées
-    const pastMap = {};
-    [...createdPast, ...joinedPast].forEach(s => { pastMap[s.id] = s; });
-    const allPast = Object.values(pastMap);
-
-    // Tri
-    const sortAsc = (list) => list.sort((a, b) => buildDateTime(a) - buildDateTime(b));
-    const sortDesc = (list) => list.sort((a, b) => buildDateTime(b) - buildDateTime(a));
-
-    setSessionsCreated(sortAsc(createdUpcoming));
-    setSessionsJoined(sortAsc(joinedUpcoming));
-    setSessionsPast(sortDesc(allPast));
-
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setRefreshing(false);
-  }
-}, [user]);
-
-  // Auto-refresh toutes les 15s
   useFocusEffect(
     useCallback(() => {
       fetchSessions();
@@ -144,186 +134,197 @@ const fetchSessions = useCallback(async () => {
     return sessionsPast;
   };
 
-  return (
-<View style={{ flex: 1, backgroundColor: '#fff' }}>
-  <StatusBar style="dark" backgroundColor="#fff" />
-  <MiniAppBar
-    title="Activités"
-    hasNotifications={false}
-    onProfilePress={() => navigation.navigate('Profile')}
-    onNotificationsPress={() => navigation.navigate('Notifications')}
-    onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
-  />
+return (
+  <View style={{ flex: 1, backgroundColor: '#fff' }}>
 
-      <View style={styles.bg}>
-        <LinearGradient
-          colors={['#f6f6ff', '#ecebfa', '#faf8ff']}
-          start={{ x: 0.1, y: 0.2 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.fancyPhraseWrap}>
-            <Text style={styles.fancyPhrase}>
-              <Text style={{ color: "#5B4EFF", fontWeight: '700' }}>Vos sessions </Text>
-              <Text style={{ color: "#181818", fontWeight: '700' }}>
-                créées, rejointes et passées
-              </Text>
-            </Text>
-          </View>
-        </LinearGradient>
-
-        <View style={styles.tabsRow}>
-          {TABS.map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tabBtn, selectedTab === tab.key && styles.tabBtnActive]}
-              onPress={() => setSelectedTab(tab.key)}
-              activeOpacity={0.88}
-            >
-              <View style={styles.tabIconWrap}>{tab.icon}</View>
-              <Text style={[styles.tabText, selectedTab === tab.key && styles.tabTextActive]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <FlatList
-          data={getSessions()}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <SessionCard
-              session={item}
-              onPress={() => navigation.navigate('SessionDetail', { sessionId: item.id })}
-            />
-          )}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 50 }}
-          showsVerticalScrollIndicator={false}
-          style={{ flex: 1 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#FF6F3C']}
-              tintColor="#FF6F3C"
-            />
-          }
-        />
-      </View>
+    {/* MINI APP BAR FIXE */}
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 999,
+        elevation: 10,
+        backgroundColor: '#fff'
+      }}
+    >
+      <MiniAppBar
+        title="Activités"
+        hasNotifications={false}
+        onProfilePress={() => navigation.navigate('Profile')}
+        onNotificationsPress={() => navigation.navigate('Notifications')}
+        onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
+      />
     </View>
-  );
-};
+
+    {/* CONTENU PRINCIPAL */}
+    <View style={{ flex: 1, paddingTop: 40 }}>
+
+      <FlatList
+        data={getSessions()}
+        keyExtractor={(item) => item.id}
+
+        ListHeaderComponent={
+          <View>
+
+<View
+  style={{
+    width: '94%',              // ← largeur uniforme iOS + Android
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 10,
+    backgroundColor: '#fff',
+    borderRadius: 26,          // ← arrondi identique sur les deux OS
+    paddingVertical: 12,       // ← hauteur réduite = moins grossier
+    paddingHorizontal: 16,
+    
+    // Ombre optimisée cross-platform
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  }}
+>
+  <Text
+    style={{
+      fontSize: 16,
+      fontWeight: '700',
+      textAlign: 'center',
+      color: '#000',
+      lineHeight: 22,
+    }}
+  >
+    <Text style={{ color: "#5B4EFF" }}>Vos sessions </Text>
+    créées, rejointes et{"\n"}
+    <Text style={{ color: "#5B4EFF", fontWeight: '700' }}>passées</Text>
+  </Text>
+</View>
+
+            {/* ONGLETES */}
+            <View style={styles.tabsRow}>
+              {TABS.map(tab => (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={[styles.tabBtn, selectedTab === tab.key && styles.tabBtnActive]}
+                  onPress={() => setSelectedTab(tab.key)}
+                  activeOpacity={0.88}
+                >
+                  <View style={styles.tabIconWrap}>{tab.icon}</View>
+                  <Text
+                    style={[
+                      styles.tabText,
+                      selectedTab === tab.key && styles.tabTextActive
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+          </View>
+        }
+
+        renderItem={({ item }) => (
+          <SessionCard
+            session={item}
+            onPress={() =>
+              navigation.navigate('SessionDetail', { sessionId: item.id })
+            }
+          />
+        )}
+
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingBottom: 80,
+        }}
+
+        showsVerticalScrollIndicator={false}
+
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#FF6F3C']}
+            tintColor="#FF6F3C"
+          />
+        }
+      />
+    </View>
+  </View>
+)};
 
 const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: '#F8F8FD'
-  },
-  headerGradient: {
-    paddingTop: Platform.OS === 'ios' ? hp('3%') : hp('1.5%'),
-    paddingBottom: hp('1.4%'),
-    paddingHorizontal: wp('6.4%'),
-    borderBottomLeftRadius: wp('6%'),
-    borderBottomRightRadius: wp('6%'),
-    elevation: 7,
-    shadowColor: "#d9d8ff",
-    shadowOpacity: 0.12,
-    shadowRadius: 11,
-    shadowOffset: { width: 0, height: 8 },
-    marginBottom: 0,
-  },
-  fancyPhraseWrap: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 0,
-    marginBottom: hp('0.2%'),
-  },
-  fancyPhrase: {
-    fontSize: hp('2%'),
-    fontWeight: '700',
-    letterSpacing: 0.1,
-    textAlign: 'center',
-    backgroundColor: 'rgba(255,255,255,0.63)',
-    paddingHorizontal: wp('2.7%'),
-    paddingVertical: hp('0.4%'),
-    borderRadius: wp('3.7%'),
-    shadowColor: "#6B66CD",
-    shadowOpacity: 0.09,
-    shadowRadius: 8,
-    elevation: 3,
-    overflow: 'hidden'
-  },
+headerCompact: {
+  width: '90%',
+  alignSelf: 'center',
+  marginTop: 14,
+  marginBottom: 14,
+  borderRadius: 20,
+  paddingVertical: 14,
+  paddingHorizontal: 18,
+
+  backgroundColor: 'rgba(255,255,255,0.75)', // effet diffus très léger
+  shadowColor: '#5B4EFF',
+  shadowOpacity: 0.08,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 3,
+},
+headerText: {
+  fontSize: 16,      // plus petit
+  fontWeight: '700',
+  textAlign: 'center',
+  lineHeight: 20,    // réduit pour un rendu compact
+},
   tabsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: "transparent",
-    marginTop: -hp('1.1%'),
-    marginBottom: hp('0.4%'),
-    gap: 0,
-    paddingVertical: hp('0.3%'),
+    marginBottom: 8,
+    marginTop: 4,
   },
   tabBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: wp('0.7%'),
-    paddingVertical: hp('1%'),
-    paddingHorizontal: wp('3.7%'),
-    borderRadius: wp('7%'),
+    marginHorizontal: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
     backgroundColor: "#f2f2f8",
-    opacity: 0.95,
-    minWidth: wp('25%'),
-    justifyContent: "center",
-    shadowColor: "#5B4EFF",
-    shadowOpacity: 0.07,
-    shadowRadius: 3,
-    elevation: 3,
     borderWidth: 1,
     borderColor: "#ece9fd",
   },
   tabBtnActive: {
     backgroundColor: "#5B4EFF",
-    shadowOpacity: 0.16,
-    elevation: 10,
     borderColor: "#5B4EFF",
-    opacity: 1,
   },
   tabIconWrap: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: wp('1.6%'),
+    marginRight: 6,
   },
   tabText: {
-    fontSize: hp('1.9%'),
+    fontSize: 15,
     fontWeight: '600',
     color: "#5B4EFF",
-    letterSpacing: 0.08,
-    marginTop: hp('0.15%'),
   },
   tabTextActive: {
     color: "#fff",
   },
-  flatListContent: {
-    paddingHorizontal: wp('4%'),
-    paddingTop: hp('1.4%'),
-    paddingBottom: hp('6%'),
-  },
-  sessionCard: {
-    // Si tu veux modifier les cartes, adapte ici ou dans le composant
-  },
-  noText: {
-    color: '#bbb',
-    fontSize: hp('1.9%'),
-    fontStyle: 'italic',
-    marginTop: hp('4.2%'),
-    textAlign: 'center'
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  headerBlurWrapper: {
+  marginHorizontal: 16,
+  marginTop: 10,
+  marginBottom: 8,
+  borderRadius: 14,
+  overflow: 'hidden', // essentiel pour que le flou ne dépasse pas
+},
+headerBlur: {
+  width: '100%',
+  borderRadius: 14,
+  overflow: 'hidden',
+},
+
 });
 
 export default ActivitiesScreen;
