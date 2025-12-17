@@ -29,7 +29,7 @@ const MessagesGroupsScreen = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [unreadMap, setUnreadMap] = useState({}); // { [sessionId]: true/false }
+  const [unreadMap, setUnreadMap] = useState({}); // { [sessionId]: number }
 
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -115,7 +115,7 @@ const handleDeleteAllGroups = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('session_participants')
-        .select('session_id, sessions(id, title, sport)')
+        .select('session_id, sessions(id, title, sport, date, time)')
         .eq('user_id', user.id);
 
       if (error) {
@@ -127,11 +127,21 @@ const handleDeleteAllGroups = () => {
 
       const cleanSessions = (data || [])
         .filter(item => item.sessions)
-        .map(item => ({
-          id: item.sessions.id,
-          title: item.sessions.title,
-          sport: item.sessions.sport,
-        }));
+.map(item => {
+  const sessionDate = new Date(
+    `${item.sessions.date}T${item.sessions.time}`
+  );
+  const isPast = sessionDate < new Date();
+
+  return {
+    id: item.sessions.id,
+    title: item.sessions.title,
+    sport: item.sessions.sport,
+    date: item.sessions.date,
+    time: item.sessions.time,
+    status: isPast ? 'terminated' : 'active',
+  };
+});
 
       // calcule les non-lus + trie les sessions + setSessions
       await computeUnreadForSessions(cleanSessions);
@@ -233,7 +243,19 @@ const handleDeleteAllGroups = () => {
     for (const sid of ids) {
       const lastMsg = lastMap[sid] ? new Date(lastMap[sid]).getTime() : 0;
       const lastSeen = seenMap[sid] ? new Date(seenMap[sid]).getTime() : 0;
-      nextUnread[sid] = lastMsg > lastSeen;
+      let q = supabase
+  .from('messages')
+  .select('id', { count: 'exact', head: true })
+  .eq('session_id', sid)
+  .neq('user_id', user.id);
+
+if (seenMap[sid]) {
+  q = q.gt('created_at', seenMap[sid]);
+}
+
+const { count } = await q;
+
+nextUnread[sid] = count || 0;
       sessionDates[sid] = lastMsg;
     }
 
@@ -243,7 +265,19 @@ const handleDeleteAllGroups = () => {
     const sorted = [...list].sort((a, b) => {
       const aTime = sessionDates[a.id] || 0;
       const bTime = sessionDates[b.id] || 0;
-      return bTime - aTime;
+      const sorted = [...list].sort((a, b) => {
+  const aLast = sessionDates[a.id] || 0;
+  const bLast = sessionDates[b.id] || 0;
+
+  if (aLast && bLast) return bLast - aLast;
+  if (aLast) return -1;
+  if (bLast) return 1;
+
+  const aDate = new Date(`${a.date}T${a.time}`).getTime();
+  const bDate = new Date(`${b.date}T${b.time}`).getTime();
+
+  return bDate - aDate;
+});
     });
 
     setSessions(sorted);
@@ -262,9 +296,29 @@ const handleDeleteAllGroups = () => {
     const last = data && data[0]?.created_at ? new Date(data[0].created_at).getTime() : 0;
     const seenStr = await AsyncStorage.getItem(`last_seen_${sessionId}_${user.id}`);
     const lastSeen = seenStr ? new Date(seenStr).getTime() : 0;
-    const hasUnread = last > lastSeen;
+const computeUnreadForSession = async (sessionId) => {
+  const seenStr = await AsyncStorage.getItem(
+    `last_seen_${sessionId}_${user.id}`
+  );
+  const lastSeen = seenStr ? new Date(seenStr).toISOString() : null;
 
-    setUnreadMap(prev => ({ ...prev, [sessionId]: hasUnread }));
+  let query = supabase
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('session_id', sessionId)
+    .neq('user_id', user.id);
+
+  if (lastSeen) {
+    query = query.gt('created_at', lastSeen);
+  }
+
+  const { count } = await query;
+
+  setUnreadMap(prev => ({
+    ...prev,
+    [sessionId]: count || 0,
+  }));
+};
   };
 
 const handleGroupPress = async (sessionId) => {
@@ -459,7 +513,7 @@ return (
                 data={filteredSessions}
                 keyExtractor={(item) => String(item.id)}
                 renderItem={({ item }) => {
-                  const hasUnread = !!unreadMap[item.id];
+                  const unreadCount = unreadMap[item.id] || 0;
                   return (
                     <View style={styles.groupRow}>
                       <TouchableOpacity
@@ -478,21 +532,31 @@ return (
                             <Text style={styles.groupTitle} numberOfLines={1}>
                               {item.title}
                             </Text>
-                            {hasUnread && (
-                              <View style={styles.unreadBadge}>
-                                <Ionicons
-                                  name="mail-unread-outline"
-                                  size={16}
-                                  color="#ff6b6b"
-                                />
-                              </View>
-                            )}
+{unreadCount > 0 && (
+  <View style={styles.unreadBubble}>
+    <Text style={styles.unreadText}>
+      {unreadCount > 9 ? '9+' : unreadCount}
+    </Text>
+  </View>
+)}
                           </View>
                           <Text style={styles.groupSport} numberOfLines={1}>
                             {item.sport}
                           </Text>
                         </View>
                       </TouchableOpacity>
+
+                      <View style={styles.statusRow}>
+    <View
+      style={[
+        styles.statusDot,
+        { backgroundColor: item.status === 'active' ? '#2ECC71' : '#B0B0B0' },
+      ]}
+    />
+    <Text style={styles.statusText}>
+      {item.status === 'active' ? 'En cours' : 'Terminée'}
+    </Text>
+  </View>
 
                       <TouchableOpacity
                         style={styles.deleteButton}
@@ -723,6 +787,37 @@ tabText: {
 tabTextActive: {
   color: '#fff',
   fontWeight: '700',
+},
+unreadBubble: {
+  backgroundColor: '#FF375E',
+  minWidth: 20,
+  height: 20,
+  borderRadius: 10,
+  paddingHorizontal: 6,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginLeft: 8,
+},
+unreadText: {
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: '700',
+},
+statusRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginTop: 4,
+},
+statusDot: {
+  width: 8,
+  height: 8,
+  borderRadius: 4,
+  marginRight: 6,
+},
+statusText: {
+  fontSize: hp('1.5%'),
+  color: '#777',
+  fontWeight: '500',
 },
 });
 

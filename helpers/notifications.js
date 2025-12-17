@@ -475,7 +475,7 @@ export async function notifyFeedbackConfirmation({ userId }) {
   });
 }
 
-export async function notifyNearbyUsersOnSessionCreated({ sessionId, sport, lat, lng, creatorId, radiusKm = 20 }) {
+export async function notifyNearbyUsersOnSessionCreated({ sessionId, sport, lat, lng, creatorId, radiusKm = 25 }) {
   try {
     // 🔑 Récupérer le token de session (auth)
     const { data: { session } } = await supabase.auth.getSession();

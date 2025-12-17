@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo, } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   TextInput,
@@ -71,6 +71,7 @@ function dedupe(preds) {
     return true;
   });
 }
+
 function useDebounced(value, delay) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -82,10 +83,7 @@ function useDebounced(value, delay) {
 
 /**
  * Props :
- * value, onChange, onPick({ description, lat, lng, place_id, structured })
- * placeholder, componentsCountry ('country:fr' par défaut)
- * minLength (2), boxStyle, suggestionContainerStyle
- * locationBias {lat,lng,radiusMeters?}, strictBounds (false)
+ * value, onChange, onPick({ description, lat, lng, place_id })
  */
 export default function PlaceSearchField({
   value,
@@ -108,15 +106,14 @@ export default function PlaceSearchField({
   const inputRef = useRef(null);
   const closeTimer = useRef(null);
 
-  // contrôle d’ouverture liste + valeur “verrouillée”
+  // contrôle d’ouverture
   const [showList, setShowList] = useState(false);
+
   const lastPickedRef = useRef(null);
   const blurTimeoutRef = useRef(null);
 
-  // session token
   const [sessionToken, setSessionToken] = useState(() => uuidv4());
 
-  // debounce
   const query = useDebounced((value || '').trim(), 180);
 
   const compsParam = useMemo(() => (componentsCountry || 'country:fr'), [componentsCountry]);
@@ -132,6 +129,7 @@ export default function PlaceSearchField({
       setPredictions([]);
       return;
     }
+
     setLoading(true);
     try {
       const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
@@ -141,7 +139,7 @@ export default function PlaceSearchField({
       url.searchParams.set('language', 'fr');
       url.searchParams.set('components', compsParam);
 
-      // bias géographique
+      // bias
       const hasLat = Number.isFinite(locationBias?.lat);
       const hasLng = Number.isFinite(locationBias?.lng);
       const hasRadius = Number.isFinite(locationBias?.radiusMeters) && locationBias.radiusMeters > 0;
@@ -206,55 +204,53 @@ export default function PlaceSearchField({
         'geometry/location',
         'formatted_address',
         'name',
-        'types',
-        'address_components',
       ].join(','));
 
       const res = await fetch(url.toString());
       const json = await res.json();
-      if (json.status !== 'OK') {
-        setError(`DETAILS_${json.status}${json.error_message ? `: ${json.error_message}` : ''}`);
-        return null;
-      }
+
+      if (json.status !== 'OK') return null;
+
       const r = json.result;
+
       return {
         description: r.formatted_address || r.name,
-        name: r.name,
         lat: r.geometry?.location?.lat ?? null,
         lng: r.geometry?.location?.lng ?? null,
-        types: r.types || [],
-        address_components: r.address_components || [],
       };
     } catch {
       return null;
     }
   }, [sessionToken]);
 
-const handleSuggestionPress = useCallback(async (item) => {
-  if (closeTimer.current) {
-    clearTimeout(closeTimer.current);
-    closeTimer.current = null;
-  }
+  // ───────── SUGGESTION PRESS (corrigé)
+  const handleSuggestionPress = useCallback(async (item) => {
 
-  const details = await fetchDetails(item.place_id);
-  // … ta logique existante
+    const details = await fetchDetails(item.place_id);
+    const pickedLabel = details?.description || item.description;
 
-  const pickedLabel = details?.description || item.description;
-  onChange?.(pickedLabel);
+    // met à jour l'input
+    onChange?.(pickedLabel);
 
-// ⚡️ Hack : injecte la valeur après le cycle de blur
-setTimeout(() => {
-  onChange?.(pickedLabel);
-}, 0);
+    // envoie les lat/lng au parent (CreateSession)
+    onPick?.({
+      description: pickedLabel,
+      lat: details?.lat ?? null,
+      lng: details?.lng ?? null,
+      place_id: item.place_id,
+    });
 
-  setPredictions([]);
-  setShowList(false);
-  lastPickedRef.current = pickedLabel;
-  setFocused(false);
-  inputRef.current?.blur();
+    // ferme la liste sans blur
+    setPredictions([]);
+    setShowList(false);
 
-  setSessionToken(uuidv4());
-}, [fetchDetails, onPick, onChange]);
+    lastPickedRef.current = pickedLabel;
+
+    // surtout pas de blur (c'était la cause du bug)
+    // inputRef.current?.blur();  <-- supprimé
+
+    setSessionToken(uuidv4());
+  }, [fetchDetails, onPick, onChange]);
 
   // ───────── UI
   return (
@@ -287,27 +283,16 @@ setTimeout(() => {
           }}
           onFocus={() => {
             setFocused(true);
-            if (blurTimeoutRef.current) { clearTimeout(blurTimeoutRef.current); blurTimeoutRef.current = null; }
-            if (value && value === lastPickedRef.current) {
-              setShowList(false);
-            } else {
-              setShowList(true);
-            }
+            setShowList(true);
           }}
-onBlur={() => {
-  setFocused(false);
-  // ferme seulement après un petit délai → laisse le tap arriver
-  closeTimer.current = setTimeout(() => {
-    setShowList(false);
-    closeTimer.current = null;
-  }, 150);
-}}
-          multiline={false}
-          numberOfLines={1}
+          onBlur={() => {
+            setFocused(false);
+            closeTimer.current = setTimeout(() => {
+              setShowList(false);
+              closeTimer.current = null;
+            }, 150);
+          }}
           style={[styles.input, { color: focused ? '#222' : 'transparent' }]}
-          returnKeyType="search"
-          autoCorrect={false}
-          autoCapitalize="none"
         />
 
         {loading && <ActivityIndicator size="small" color="#5B4EFF" />}
@@ -331,7 +316,6 @@ onBlur={() => {
       {showList && (predictions.length > 0 || (error && query.length >= minLength)) && (
         <View
           style={[styles.suggestBox, suggestionContainerStyle]}
-          // si on touche dans la liste, n’exécute pas la fermeture planifiée par onBlur
           onTouchStart={() => {
             if (blurTimeoutRef.current) {
               clearTimeout(blurTimeoutRef.current);
@@ -341,10 +325,7 @@ onBlur={() => {
         >
           {error && <Text style={styles.errorText}>Autocomplete indisponible ({String(error)}).</Text>}
 
-          <ScrollView
-            keyboardShouldPersistTaps="always"
-            nestedScrollEnabled
-          >
+          <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
             {predictions.map((item) => (
               <TouchableOpacity
                 key={item.place_id}

@@ -59,7 +59,7 @@ function formatTime(time) {
   } catch { return time; }
 }
 
-export default function SessionCardHome({ session, onPress }) {
+export default function SessionCardHome({ session, onPress, disabled }) {
   const { icon, color } = sportIcons[session.sport] || sportIcons.Autres;
 
   return (
@@ -91,13 +91,27 @@ export default function SessionCardHome({ session, onPress }) {
       </View>
 
       {/* BOUTON collé en bas */}
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: color }]}
-        activeOpacity={0.93}
-        onPress={onPress}
-      >
-        <Text style={styles.buttonText}>Voir Session</Text>
-      </TouchableOpacity>
+<TouchableOpacity
+  disabled={disabled}
+  style={[
+    styles.button,
+    {
+      backgroundColor: disabled ? '#D0D0D0' : color,
+      opacity: disabled ? 0.7 : 1
+    }
+  ]}
+  activeOpacity={disabled ? 1 : 0.93}
+  onPress={disabled ? null : onPress}
+>
+  <Text
+    style={[
+      styles.buttonText,
+      disabled ? { color: '#555' } : {}
+    ]}
+  >
+    Voir Session
+  </Text>
+</TouchableOpacity>
     </View>
   );
 }

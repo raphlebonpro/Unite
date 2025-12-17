@@ -424,15 +424,15 @@ if (!item.sender_id && item.content) {
 return (
   <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
     {/* HEADER */}
-    <View
-      style={[
-        styles.header,
-        {
-          paddingTop: Platform.OS === 'ios' ? insets.top : 0,
-          height: headerOffset,
-        },
-      ]}
-    >
+<View
+  style={[
+    styles.header,
+    {
+      paddingTop: 0,
+      height: APPBAR_H, // 56 strict
+    },
+  ]}
+>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
         <Ionicons name="chevron-back" size={26} color="#232323" />
       </TouchableOpacity>

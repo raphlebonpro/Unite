@@ -22,6 +22,56 @@ import {
 } from "../helpers/notifications";
 import Toast from "react-native-toast-message";
 
+const getGroupRecurrenceLabel = (sessions) => {
+  if (!sessions || sessions.length < 2) return null;
+
+  const sorted = [...sessions].slice(0, 3);
+
+  const days = sorted.map((s) => {
+    const d = new Date(`${s.date}T${s.time}`);
+    return d.getDay();
+  });
+
+  const times = sorted.map((s) => s.time?.slice(0, 5));
+
+  const sameDay = days.every((d) => d === days[0]);
+  const sameTime = times.every((t) => t === times[0]);
+
+  if (!sameDay || !sameTime) return null;
+
+  const dayName = new Date(`${sorted[0].date}T00:00`).toLocaleDateString(
+    "fr-FR",
+    { weekday: "long" }
+  );
+
+  return `Tous les ${dayName}s à ${times[0]}`;
+};
+
+const getEstimatedRecurrence = (sessions) => {
+  if (sessions.length < 2) return null;
+
+  const [s1, s2] = sessions;
+
+  if (!s1.date || !s2.date || !s1.time || !s2.time) return null;
+
+  const d1 = new Date(`${s1.date}T${s1.time}`);
+  const d2 = new Date(`${s2.date}T${s2.time}`);
+
+  const sameDay =
+    d1.getDay() === d2.getDay(); // jour de la semaine
+  const sameTime =
+    s1.time.slice(0, 5) === s2.time.slice(0, 5);
+
+  if (!sameDay || !sameTime) return null;
+
+  const dayName = d1.toLocaleDateString("fr-FR", {
+    weekday: "long",
+  });
+
+  return `Tous les ${dayName}s à ${s1.time.slice(0, 5)}`;
+};
+
+
 export default function GroupDetailScreen() {
   const nav = useNavigation();
   const route = useRoute();
@@ -34,6 +84,16 @@ export default function GroupDetailScreen() {
   const [isCreator, setIsCreator] = useState(false);
   const [isMember, setIsMember] = useState(false);
   const [groupSessions, setGroupSessions] = useState([]);
+
+    // 🔁 Détection simple de régularité (front only)
+  const isRegularGroup = groupSessions.length >= 2;
+
+  // 🔹 Prochaine session + reste
+  const nextSession = groupSessions[0] || null;
+  const recurrenceLabel = getGroupRecurrenceLabel(groupSessions);
+  const otherSessions = groupSessions.slice(1);
+
+  const estimatedRecurrence = getEstimatedRecurrence(groupSessions);
 
 useEffect(() => {
   // --- Fonction pour charger les sessions actives du groupe ---
@@ -321,7 +381,7 @@ const handleLeave = async () => {
 }
 
  return (
-  <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+  <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
     {/* === COUVERTURE === */}
     <View style={styles.coverContainer}>
       {group.cover_url ? (
@@ -340,6 +400,20 @@ const handleLeave = async () => {
       />
 <View style={styles.coverContent}>
   <Text style={styles.groupName}>{group.name}</Text>
+  {isRegularGroup && (
+  <View style={styles.regularBadge}>
+<Text style={styles.regularBadgeText}>
+  Groupe actif
+</Text>
+    {recurrenceLabel && (
+  <View style={styles.recurrenceBadge}>
+    <Text style={styles.recurrenceText}>
+      {recurrenceLabel}
+    </Text>
+  </View>
+)}
+  </View>
+)}
   <View style={styles.groupMeta}>
     <Text style={styles.metaSubText}>
       Créé le {new Date(group.created_at).toLocaleDateString("fr-FR", {
@@ -374,6 +448,56 @@ const handleLeave = async () => {
         </View>
       </View>
     </View>
+
+    {nextSession && (
+  <View style={styles.nextSessionContainer}>
+    <Text style={styles.sectionTitle}>Prochaine session</Text>
+
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() =>
+        nav.navigate("GroupSessionDetail", {
+          sessionId: nextSession.id,
+          groupName: group.name,
+        })
+      }
+    >
+      <LinearGradient
+        colors={["#FF9D3C", "#FF6C4A"]}
+        style={styles.nextSessionCard}
+      >
+        <Text style={styles.nextSessionTitle}>
+          {nextSession.title}
+        </Text>
+
+        <Text style={styles.nextSessionMeta}>
+          {new Date(nextSession.date).toLocaleDateString("fr-FR", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          })}{" "}
+          • {nextSession.time}
+        </Text>
+
+        <Text style={styles.nextSessionLocation}>
+          📍 {nextSession.location}
+        </Text>
+
+{estimatedRecurrence && (
+  <Text style={styles.recurringHint}>
+    {estimatedRecurrence} (estimé)
+  </Text>
+)}
+      </LinearGradient>
+    </TouchableOpacity>
+  </View>
+)}
+
+{recurrenceLabel && (
+  <Text style={{ marginTop: 6, color: "#666", fontSize: 13 }}>
+    ⏱️ {recurrenceLabel}
+  </Text>
+)}
 
     {/* === DESCRIPTION === */}
     {group.description ? (
@@ -502,12 +626,12 @@ onPress: async () => {
 
 {/* === SESSIONS DU GROUPE === */}
 <View style={styles.sessionsContainer}>
-  <Text style={styles.sectionTitle}>Sessions du groupe</Text>
+  <Text style={styles.sectionTitle}>Rendez-vous du groupe</Text>
 
-{isMember ? (
+{isCreator ? (
   <>
 {groupSessions.length > 0 ? (
-  groupSessions.map((s) => (
+  otherSessions.map((s) => (
     <TouchableOpacity
       key={s.id}
       onPress={() => nav.navigate("GroupSessionDetail", {
@@ -583,7 +707,7 @@ onPress: async () => {
         style={styles.gradientInner}
       >
         <Feather name="plus-circle" size={17} color="#fff" />
-        <Text style={styles.gradientText}>Créer une session de groupe</Text>
+        <Text style={styles.gradientText}>Créer un Rendez-vous du groupe</Text>
       </LinearGradient>
     </TouchableOpacity>
   </>
@@ -712,10 +836,10 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
-  metaContainer: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-  },
+metaContainer: {
+  paddingHorizontal: 18,
+  marginTop: 20,
+},
   metaRow: {
     flexDirection: "row",
     justifyContent: "flex-start",
@@ -739,10 +863,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 13.5,
   },
-  descContainer: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
-  },
+descContainer: {
+  paddingHorizontal: 18,
+  marginTop: 32,
+},
   descText: {
     color: "#333",
     fontSize: 14.5,
@@ -826,10 +950,11 @@ sessionItem: {
   shadowRadius: 3,
   elevation: 1,
 },
-sessionTitle: {
-  fontSize: 15.5,
-  fontWeight: "600",
+sectionTitle: {
+  fontSize: 17,
+  fontWeight: "700",
   color: "#222",
+  marginBottom: 1,
 },
 sessionMeta: {
   fontSize: 13,
@@ -907,5 +1032,71 @@ sessionCompactText: {
   color: "#444",
   marginTop: 6,
   lineHeight: 20,
+},
+regularBadge: {
+  marginTop: 8,
+  alignSelf: "flex-start",
+  backgroundColor: "rgba(0, 200, 83, 0.15)",
+  borderRadius: 12,
+  paddingVertical: 4,
+  paddingHorizontal: 10,
+  borderWidth: 1,
+  borderColor: "rgba(0, 200, 83, 0.4)",
+},
+regularBadgeText: {
+  color: "#00C853",
+  fontSize: 13,
+  fontWeight: "700",
+},
+nextSessionContainer: {
+  marginTop: 22,
+  paddingHorizontal: 16,
+},
+nextSessionCard: {
+  borderRadius: 16,
+  padding: 16,
+},
+nextSessionTitle: {
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#fff",
+},
+nextSessionMeta: {
+  marginTop: 6,
+  fontSize: 14,
+  color: "#fff",
+},
+nextSessionLocation: {
+  marginTop: 4,
+  fontSize: 13,
+  color: "#fff",
+},
+recurringHint: {
+  marginTop: 8,
+  fontSize: 13,
+  color: "#fff",
+  opacity: 0.85,
+},
+recurringHint: {
+  marginTop: 8,
+  fontSize: 13,
+  color: "#fff",
+  opacity: 0.9,
+  fontStyle: "italic",
+},
+recurrenceBadge: {
+  marginTop: 6,
+  alignSelf: "flex-start",
+  backgroundColor: "rgba(91, 78, 255, 0.15)",
+  borderRadius: 12,
+  paddingVertical: 4,
+  paddingHorizontal: 10,
+  borderWidth: 1,
+  borderColor: "rgba(91, 78, 255, 0.4)",
+},
+recurrenceText: {
+  color: "#5B4EFF",
+  fontSize: 13,
+  fontWeight: "700",
 },
 });

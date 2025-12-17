@@ -65,13 +65,6 @@ function getMonthStartDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-function getMedal(rank) {
-  if (rank === 1) return '🥇';
-  if (rank === 2) return '🥈';
-  if (rank === 3) return '🥉';
-  return null;
-}
-
 function getPodiumColor(rank) {
   if (rank === 1) return COLORS.gold;
   if (rank === 2) return COLORS.silver;
@@ -84,9 +77,6 @@ function PodiumUser({ user, userId, rank, count, onPress }) {
     return (
       <View style={[styles.podiumUser, { opacity: 0.5 }]}>
         <View style={[styles.podiumAvatar, rank === 1 && styles.podiumGoldAvatar, { backgroundColor: "#eee", borderColor: getPodiumColor(rank) }]} />
-        <Text style={[styles.medal, { color: getPodiumColor(rank), fontSize: rank === 1 ? 19 : 15 }]}>
-          {getMedal(rank)}
-        </Text>
         <Text style={[styles.podiumName, { fontWeight: '700', fontSize: rank === 1 ? 13 : 11, marginTop: 1 }]}>—</Text>
       </View>
     );
@@ -118,21 +108,28 @@ function PodiumUser({ user, userId, rank, count, onPress }) {
         />
       </View>
 
-      <View style={{ marginTop: 3, alignItems: 'center' }}>
-        {getMedal(rank) && (
-          <View style={styles.podiumMedalBox}>
-            <Text style={[styles.medal, { color: getPodiumColor(rank), fontSize: rank === 1 ? 19 : 15 }]}>
-              {getMedal(rank)}
-            </Text>
-          </View>
-        )}
-        <Text style={[styles.podiumName, { fontWeight: '700', fontSize: rank === 1 ? 13 : 11, marginTop: 1 }]}>
-          {user.prenom || user.username}
-        </Text>
-        <View style={styles.podiumScoreBox}>
-          <Text style={styles.podiumScore}>{count || 0}</Text>
-        </View>
-      </View>
+<View style={{ marginTop: 3, alignItems: 'center' }}>
+
+  {/* Badge de rang PRO */}
+  <View
+    style={[
+      styles.rankBadge,
+      { backgroundColor: getPodiumColor(rank) }
+    ]}
+  >
+    <Text style={styles.rankBadgeText}>{rank}</Text>
+  </View>
+
+  {/* Pseudo (1 ligne max, stable) */}
+  <Text
+    style={styles.podiumName}
+    numberOfLines={1}
+    ellipsizeMode="tail"
+  >
+    {user.username}
+  </Text>
+
+</View>
     </TouchableOpacity>
   );
 }
@@ -148,43 +145,60 @@ const goToProfile = (uid) => {
   navigation.navigate('UserProfile', { userId: uid });
 };
 
-  // Fetch leaderboard
-  const fetchLeaderboard = async () => {
-    setLoading(true);
-    const monthStart = getMonthStartDate();
+const fetchLeaderboard = async () => {
+  setLoading(true);
+  const monthStart = getMonthStartDate();
 
-const { data, error } = await supabase
-  .from('monthly_leaderboard_premium')
-  .select(`
-    count, user_id,
-    users:user_id (username, profile_photo, is_premium)
-  `)
-  .eq('type', selectedTab)
-  .eq('month', monthStart)
-  .eq('users.is_premium', true) // ✅ ici le filtre clé
-  .order('count', { ascending: false })
-  .limit(30);
+  // 1️⃣ TOP 30 – affichage du classement
+  const { data, error } = await supabase
+    .from('monthly_leaderboard')
+    .select(`
+      count,
+      user_id,
+      users:user_id (
+        username,
+        profile_photo
+      )
+    `)
+    .eq('type', selectedTab)
+    .eq('month', monthStart)
+    .order('count', { ascending: false })
+    .limit(30);
 
-    let myData = null;
-    if (userId) {
-const { data: all } = await supabase
-  .from('monthly_leaderboard_premium')
-  .select('user_id, count, users:user_id(is_premium)')
-  .eq('type', selectedTab)
-  .eq('month', monthStart)
-  .eq('users.is_premium', true)
-  .order('count', { ascending: false });
-      if (all && all.length > 0) {
-        const foundIndex = all.findIndex(x => x.user_id === userId);
-if (foundIndex > -1) {
-  myData = { rank: foundIndex + 1, count: all[foundIndex].count };
-}
+  if (error) {
+    console.error('Erreur leaderboard:', error);
+  }
+
+  // 2️⃣ Calcul du rang personnel (tous les utilisateurs)
+  let myData = null;
+
+  if (userId) {
+    const { data: all, error: allError } = await supabase
+      .from('monthly_leaderboard')
+      .select('user_id, count')
+      .eq('type', selectedTab)
+      .eq('month', monthStart)
+      .order('count', { ascending: false });
+
+    if (allError) {
+      console.error('Erreur rang perso:', allError);
+    }
+
+    if (all && all.length > 0) {
+      const foundIndex = all.findIndex(x => x.user_id === userId);
+      if (foundIndex > -1) {
+        myData = {
+          rank: foundIndex + 1,
+          count: all[foundIndex].count,
+        };
       }
     }
-    setLeaderboard(data || []);
-    setMyRank(myData);
-    setLoading(false);
-  };
+  }
+
+  setLeaderboard(data || []);
+  setMyRank(myData);
+  setLoading(false);
+};
 
   useEffect(() => {
     fetchLeaderboard();
@@ -226,9 +240,16 @@ const LeaderboardRow = ({ user, userId, rank, count }) => (
       style={styles.listAvatar}
     />
     <Text style={styles.listName} numberOfLines={1}>{user?.prenom || user?.username || '—'}</Text>
-    <View style={styles.listScoreBox}>
-      <Text style={styles.listScore}>{count}</Text>
-    </View>
+<View style={styles.sessionBadge}>
+  <MaterialCommunityIcons
+    name={selectedTab === 'created' ? 'plus-circle-outline' : 'account-group-outline'}
+    size={14}
+    color={COLORS.accent}
+  />
+  <Text style={styles.sessionBadgeText}>
+    {count}
+  </Text>
+</View>
   </TouchableOpacity>
 );
 
@@ -662,6 +683,57 @@ tabLabel: {
   fontSize: 15,
   fontWeight: '700',
 },
+podiumStat: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#F3F4F6',
+  paddingHorizontal: 8,
+  paddingVertical: 3,
+  borderRadius: 12,
+  marginTop: 4,
+},
+podiumStatText: {
+  fontSize: 12,
+  fontWeight: '600',
+  color: '#333',
+  marginLeft: 4,
+},
+rankBadge: {
+  width: 22,
+  height: 22,
+  borderRadius: 11,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginTop: 4,
+},
+rankBadgeText: {
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: '700',
+},
+podiumName: {
+  maxWidth: 80, // clé de la stabilité
+  textAlign: 'center',
+  fontWeight: '600',
+  fontSize: 12,
+  color: '#222',
+},
+sessionBadge: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#FFF4EB',
+  borderRadius: 16,
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  minWidth: 44,
+  marginRight: wp('3.8%'),
+},
 
+sessionBadgeText: {
+  marginLeft: 4,
+  fontSize: wp('3.6%'),
+  fontWeight: '700',
+  color: COLORS.accent,
+},
 });
-

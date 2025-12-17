@@ -76,7 +76,17 @@ async function scheduleSessionReminder(session) {
 const SessionDetailScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
-  const { sessionId } = route.params;
+  const sessionId = route?.params?.sessionId ?? null;
+
+  if (!sessionId) {
+  return (
+    <View style={{ flex:1, justifyContent:"center", alignItems:"center" }}>
+      <Text style={{ fontSize:16, color:"#333" }}>
+        Session introuvable.  
+      </Text>
+    </View>
+  );
+}
 
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
@@ -865,217 +875,193 @@ else if (!isParticipant && user && user.id !== session.creator_id) {
   );
 }
 
-const ShareScreenClone = () => (
-  <ViewShot
-    ref={shareCardRef}
-    options={{ format: "png", quality: 1 }}
-    style={{
-      position: "absolute",
-      top: -3000,
-      left: 0,
-      width: "100%",
-    }}
-  >
-    <View
+const ShareScreenClone = () => {
+  const staticMapUrl =
+    session?.lat && session?.lng
+      ? `https://maps.googleapis.com/maps/api/staticmap?center=${session.lat},${session.lng}&zoom=15&size=800x400&scale=2&markers=color:red%7C${session.lat},${session.lng}&key=${STATIC_MAP_KEY}`
+      : null;
+
+  return (
+    <ViewShot
+      ref={shareCardRef}
+      options={{ format: "png", quality: 1 }}
       style={{
-        backgroundColor: "#fff",
-        width: wp("100%"),
-        paddingTop: 22,
+        position: "absolute",
+        top: -3000,
+        left: 0,
+        width: "100%",
       }}
     >
-      {/* TITRE */}
-      <Text
+      <View
         style={{
-          fontSize: 22,
-          fontWeight: "700",
-          textAlign: "center",
-          marginTop: 10,
-          marginBottom: 12,
-          color: "#111",
+          backgroundColor: "#fff",
+          width: wp("100%"),
+          paddingTop: 22,
+          paddingBottom: 16,
         }}
       >
-        {session.title}
-      </Text>
-
-      {/* LOCATION */}
-      <Text
-        style={{
-          fontSize: 14,
-          color: "#666",
-          textAlign: "center",
-          marginBottom: 16,
-        }}
-      >
-        {session.location}
-      </Text>
-
-      {/* MAP */}
-      {Number.isFinite(Number(session.lat)) &&
-      Number.isFinite(Number(session.lng)) && (
-        <View
+        {/* TITRE */}
+        <Text
           style={{
-            height: 170,
-            borderRadius: 12,
-            overflow: "hidden",
-            marginHorizontal: 14,
+            fontSize: 22,
+            fontWeight: "700",
+            textAlign: "center",
+            marginTop: 10,
+            marginBottom: 12,
+            color: "#111",
           }}
         >
-          <MapboxGL.MapView
-            style={{ flex: 1 }}
-            styleURL="mapbox://styles/mapbox/streets-v12"
-          >
-            <MapboxGL.Camera
-              zoomLevel={15}
-              centerCoordinate={[Number(session.lng), Number(session.lat)]}
-              animationDuration={0}
-            />
-            <MapboxGL.PointAnnotation
-              id="share-map-marker"
-              coordinate={[Number(session.lng), Number(session.lat)]}
-            >
-              <View
-                style={{
-                  backgroundColor: "#FF5E62",
-                  borderRadius: 16,
-                  padding: 6,
-                  borderWidth: 2,
-                  borderColor: "#fff",
-                }}
-              >
-                <Ionicons name="location" size={22} color="#fff" />
-              </View>
-            </MapboxGL.PointAnnotation>
-          </MapboxGL.MapView>
-        </View>
-      )}
-
-      {/* ↓↓↓ ESPACEMENT ENTRE MAP ET DATE/LEVEL */}
-      <View style={{ height: 10 }} />
-
-      {/* DATE + LEVEL */}
-      <View style={styles.row}>
-        <View style={styles.infoBox}>
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color="#e17055"
-            style={{ marginRight: 4 }}
-          />
-          <Text style={[styles.infoText, { fontSize: 13 }]}>
-            {formatDateTime(session.date, session.time)}
-          </Text>
-        </View>
-
-        <LinearGradient
-          colors={["#6A11CB", "#2575FC"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.levelBox, { paddingHorizontal: 10, paddingVertical: 6 }]}
-        >
-          <Text style={[styles.levelText, { fontSize: 12 }]}>
-            {session.level}
-          </Text>
-        </LinearGradient>
-      </View>
-
-      {/* ↓↓↓ ESPACEMENT RESSERRÉ avant “Participants” */}
-      <View style={{ height: 8 }} />
-
-      {/* PARTICIPANTS */}
-      <Text
-        style={[
-          styles.sectionTitle,
-          { marginTop: 0, marginBottom: 6 }  // RESSERRÉ
-        ]}
-      >
-        Participants
-      </Text>
-
-      <View style={[styles.avatarsRow, { marginBottom: 8 }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {participants.map((p) => (
-            <View key={p.id} style={{ alignItems: "center", marginRight: 10 }}>
-              <Image source={{ uri: p.avatar }} style={styles.avatar} />
-              <Text
-                style={[styles.avatarName, { fontSize: 11 }]}
-                numberOfLines={1}
-              >
-                {p.username}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* DESCRIPTION */}
-      <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>
-        Description
-      </Text>
-
-      <View
-        style={[
-          styles.descriptionBox,
-          { padding: 10, borderRadius: 8, marginBottom: 16 }
-        ]}
-      >
-        <Text style={[styles.descriptionText, { fontSize: 14, lineHeight: 18 }]}>
-          {session.description || "Aucune description."}
+          {session.title}
         </Text>
-      </View>
 
-      {/* CTA */}
-      <View
-        style={{
-          marginBottom: 28,   // ↑ UN PEU PLUS GRAND
-          marginTop: 10,
-          alignItems: "center",
-        }}
-      >
-        <View
+        {/* LOCATION */}
+        <Text
           style={{
-            paddingVertical: 10,
-            paddingHorizontal: 20,
-            borderRadius: 12,
-            backgroundColor: "#ffffff",
-            borderWidth: 1,
-            borderColor: "#e5e5e5",
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 2 },
+            fontSize: 14,
+            color: "#666",
+            textAlign: "center",
+            marginBottom: 16,
           }}
         >
-          <Text
-            style={{
-              fontSize: 15,
-              textAlign: "center",
-              fontWeight: "700",
-              color: "#FF6C4A",
-            }}
-          >
-            Rejoins la session sur Unite !
-          </Text>
+          {session.location}
+        </Text>
 
-          <Text
+        {/* STATIC MAP (remplace Mapbox) */}
+        {staticMapUrl && (
+          <Image
+            source={{ uri: staticMapUrl }}
             style={{
-              marginTop: 4,
-              fontSize: 13,
-              textAlign: "center",
-              color: "#444",
+              width: "100%",
+              height: 170,
+              borderRadius: 12,
+              marginBottom: 16,
             }}
+            resizeMode="cover"
+          />
+        )}
+
+        {/* DATE + LEVEL */}
+        <View style={styles.row}>
+          <View style={styles.infoBox}>
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color="#e17055"
+              style={{ marginRight: 4 }}
+            />
+            <Text style={[styles.infoText, { fontSize: 13 }]}>
+              {formatDateTime(session.date, session.time)}
+            </Text>
+          </View>
+
+          <LinearGradient
+            colors={["#6A11CB", "#2575FC"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.levelBox, { paddingHorizontal: 10, paddingVertical: 6 }]}
           >
-            Télécharge l'app → https://www.uniteapp.fr
+            <Text style={[styles.levelText, { fontSize: 12 }]}>
+              {session.level}
+            </Text>
+          </LinearGradient>
+        </View>
+
+        {/* PARTICIPANTS */}
+        <Text
+          style={[
+            styles.sectionTitle,
+            { marginTop: 12, marginBottom: 6 }
+          ]}
+        >
+          Participants
+        </Text>
+
+        <View style={[styles.avatarsRow, { marginBottom: 8 }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {participants.map((p) => (
+              <View key={p.id} style={{ alignItems: "center", marginRight: 10 }}>
+                <Image source={{ uri: p.avatar }} style={styles.avatar} />
+                <Text
+                  style={[styles.avatarName, { fontSize: 11 }]}
+                  numberOfLines={1}
+                >
+                  {p.username}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* DESCRIPTION */}
+        <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>
+          Description
+        </Text>
+
+        <View
+          style={[
+            styles.descriptionBox,
+            { padding: 10, borderRadius: 8, marginBottom: 16 }
+          ]}
+        >
+          <Text style={[styles.descriptionText, { fontSize: 14, lineHeight: 18 }]}>
+            {session.description || "Aucune description."}
           </Text>
         </View>
+
+        {/* CTA */}
+        <View
+          style={{
+            marginBottom: 28,
+            marginTop: 10,
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 20,
+              borderRadius: 12,
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#e5e5e5",
+              shadowColor: "#000",
+              shadowOpacity: 0.05,
+              shadowRadius: 6,
+              shadowOffset: { width: 0, height: 2 },
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 15,
+                textAlign: "center",
+                fontWeight: "700",
+                color: "#FF6C4A",
+              }}
+            >
+              Rejoins la session sur Unite !
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 4,
+                fontSize: 13,
+                textAlign: "center",
+                color: "#444",
+              }}
+            >
+              Télécharge l'app → https://www.uniteapp.fr
+            </Text>
+          </View>
+        </View>
       </View>
-    </View>
-  </ViewShot>
-);
+    </ViewShot>
+  );
+};
 
   // ----------- RENDER -----------
   return (
   <>
-    {session && <ShareScreenClone />}  
+    {session?.lat && session?.lng && <ShareScreenClone />}
 <ScrollView contentContainerStyle={styles.container}>
 {invitation && (
   <View style={styles.inviteBanner}>
@@ -1090,7 +1076,9 @@ const ShareScreenClone = () => (
   <Text style={styles.address}>{session.location}</Text>
   <View style={{ height: 26 }} />
   
-{Number.isFinite(Number(session.lat)) &&
+{session?.lat &&
+ session?.lng &&
+ Number.isFinite(Number(session.lat)) &&
  Number.isFinite(Number(session.lng)) && (
   <View
     style={{

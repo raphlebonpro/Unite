@@ -5,7 +5,7 @@ export default {
     name: "Unite",
     slug: "Unite",
     owner: "raphlebon",
-    version: "1.0.4",
+    version: "1.1.1",
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: false,
@@ -30,7 +30,7 @@ export default {
 
     ios: {
       bundleIdentifier: "com.uniteapp.collectif",
-      buildNumber: "109",
+      buildNumber: "113",
       icon: "./assets/icon1.png",
       supportsTablet: false,
       infoPlist: {
@@ -51,7 +51,7 @@ export default {
 
     android: {
       package: "com.uniteapp.collectif",
-      versionCode: 70,
+      versionCode: 73,
       supportsTablet: false,
       blockedDeviceModels: ["*Tab*", "*Pad*", "*Tablet*"],
       adaptiveIcon: {

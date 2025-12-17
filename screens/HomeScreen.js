@@ -35,6 +35,8 @@ Constants.manifest?.extra?.GOOGLE_MAPS_API_KEY ??
 '';
 const PARIS_COORDS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longitudeDelta: 0.05 };
 
+const CREATE_BOX_WIDTH = 280; // valeur idéale
+
 const levelOptions = [
 "Pour s'amuser",
 'Débutant',
@@ -155,9 +157,20 @@ const [showCalendar, setShowCalendar] = useState(false);
 const [showMoreSports, setShowMoreSports] = useState(false);
 const [is3D, setIs3D] = useState(false);
 
+const [navigationReady, setNavigationReady] = useState(false);
+
+useEffect(() => {
+  const timer = setTimeout(() => setNavigationReady(true), 1500);
+  return () => clearTimeout(timer);
+}, []);
+
 const mapRef = useRef(null);
 const flatListRef = useRef(null);
 const cameraRef = useRef(null);
+const lastTapRef = useRef(0);
+
+const [pendingMarker, setPendingMarker] = useState(null); // { lat, lng }
+const [pendingAddress, setPendingAddress] = useState(null);
 
 const insets = useSafeAreaInsets();
 
@@ -232,16 +245,24 @@ useEffect(() => {
           setRegion(PARIS_COORDS);
           setMyLocation(PARIS_COORDS);
         } else {
-          let location = await Location.getCurrentPositionAsync({});
-          const initialRegion = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          };
-          setRegion(initialRegion);
-          setMyLocation(initialRegion);
+let location = await Location.getCurrentPositionAsync({});
+const { latitude, longitude } = location.coords;
 
+const initialRegion = {
+  latitude,
+  longitude,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
+
+setRegion(initialRegion);
+setMyLocation(initialRegion);
+
+cameraRef.current?.setCamera({
+  centerCoordinate: [longitude, latitude],
+  zoomLevel: 13,
+  animationDuration: 600,
+});
           await supabase
             .from('users')
             .update({
@@ -339,19 +360,18 @@ const focusOnSession = (session) => {
   const lat = Number(session.lat);
   const lng = Number(session.lng);
 
-  // 👉 Zoom caméra
   cameraRef.current?.setCamera({
     centerCoordinate: [lng, lat],
     zoomLevel: 16,
     animationDuration: 1000,
   });
 
-  // 👉 Scroll FlatList sur la carte correspondante
   const index = filteredSessions.findIndex((s) => s.id === session.id);
   if (index !== -1 && flatListRef.current) {
     flatListRef.current.scrollToIndex({ index, animated: true });
   }
 };
+
 
 const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -539,6 +559,31 @@ function getDirectionCone(lat, lng, heading, distance = 0.0008, spread = 60) {
   ]];
 }
 
+const handleLongPress = async (event) => {
+  const coords = event.geometry?.coordinates;
+  if (!coords) return;
+
+  const [lng, lat] = coords;
+
+  // Place un marqueur temporaire
+  setPendingMarker({ lat, lng });
+  setPendingAddress("Chargement...");
+
+  // Reverse geocoding
+  try {
+    const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+    const res = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}`
+    );
+    const json = await res.json();
+    const address = json.features?.[0]?.place_name ?? null;
+
+    setPendingAddress(address);
+  } catch (e) {
+    setPendingAddress(null);
+  }
+};
+
 const today = new Date().toISOString().split('T')[0];
 
 const isNoFilter =
@@ -566,32 +611,54 @@ if (isNoFilter && region) {
         sessionDateTime,
       };
     })
-    .sort((a, b) => {
-      // 👇 D’abord la session la plus proche dans le temps
-      const dateDiff = a.sessionDateTime - b.sessionDateTime;
-      if (dateDiff !== 0) return dateDiff;
-      // 👇 Puis celle la plus proche géographiquement
-      return a.distance - b.distance;
-    });
-} else {
-  filteredSessions = sessions
-    .filter(session => {
-      if (!isSessionInFuture(session)) return false;
-      if (selectedSport && session.sport !== selectedSport) return false;
-      if (selectedLevel && session.level !== selectedLevel) return false;
-      if (selectedDate && session.date !== selectedDate) return false;
-      if (search && session.location && !session.location.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    })
-    .map(session => {
-      const sessionDateTime = new Date(
-        `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
-      );
-      return { ...session, sessionDateTime };
-    })
-    .sort((a, b) => a.sessionDateTime - b.sessionDateTime);
-}
+.sort((a, b) => {
+  // 🥇 1. D'abord la distance
+  if (a.distance !== b.distance) return a.distance - b.distance;
 
+  // 🥈 2. Puis la date
+  return a.sessionDateTime - b.sessionDateTime;
+});
+} else {
+filteredSessions = sessions
+  .filter(session => {
+    if (!isSessionInFuture(session)) return false;
+
+    if (selectedSport && session.sport !== selectedSport) return false;
+    if (selectedLevel && session.level !== selectedLevel) return false;
+    if (selectedDate && session.date !== selectedDate) return false;
+
+    if (search && session.location && !session.location.toLowerCase().includes(search.toLowerCase()))
+      return false;
+
+    return true;
+  })
+  .map(session => {
+    const sessionDateTime = new Date(
+      `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
+    );
+
+    // 👉 Calcul de la distance même quand les filtres sont actifs
+    const distance = region
+      ? getDistance(
+          { latitude: region.latitude, longitude: region.longitude },
+          { latitude: Number(session.lat), longitude: Number(session.lng) }
+        )
+      : null;
+
+    return {
+      ...session,
+      sessionDateTime,
+      distance,
+    };
+  })
+  .sort((a, b) => {
+    // 👉 1. D'abord les sessions les plus proches géographiquement
+    if (a.distance !== b.distance) return a.distance - b.distance;
+
+    // 👉 2. Si la distance est la même, on trie par date
+    return a.sessionDateTime - b.sessionDateTime;
+  });
+}
 
 useEffect(() => {
   if (route.params?.showCongrats) {
@@ -617,18 +684,22 @@ return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 
 return (
   <View style={{ flex: 1, backgroundColor: "#fff" }}>
     {region ? (
-      <MapboxGL.MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        styleURL="mapbox://styles/mapbox/streets-v12"
-      >
-        <MapboxGL.Camera
-          ref={cameraRef}
-          zoomLevel={15}
-          centerCoordinate={[region.longitude, region.latitude]}
-          pitch={is3D ? 60 : 0}
-          bearing={is3D ? 20 : 0}
-        />
+<MapboxGL.MapView
+  ref={mapRef}
+  style={StyleSheet.absoluteFillObject}
+  styleURL="mapbox://styles/mapbox/streets-v12"
+>
+<MapboxGL.Camera
+  ref={cameraRef}
+  centerCoordinate={
+    region
+      ? [region.longitude, region.latitude]
+      : [2.2137, 46.2276]
+  }
+  zoomLevel={region ? 15 : 4}
+  pitch={is3D ? 60 : 0}
+  bearing={is3D ? 20 : 0}
+/>
 
         {/* Bâtiments en 3D */}
         {is3D && (
@@ -677,6 +748,32 @@ return (
           );
         })}
 
+{/* Marqueur temporaire */}
+{pendingMarker && (
+  <MapboxGL.PointAnnotation
+    id="pending-marker"
+    coordinate={[pendingMarker.lng, pendingMarker.lat]}
+  >
+    <View
+      style={{
+        backgroundColor: "#fff",
+        padding: 6,
+        borderRadius: 30,
+        borderWidth: 2,
+        borderColor: "#5B4EFF", // 🔵 violet-bleu
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <MaterialCommunityIcons
+        name="map-marker"
+        size={28}
+        color="#5B4EFF" // 🔵 violet-bleu
+      />
+    </View>
+  </MapboxGL.PointAnnotation>
+)}
+
         {/* ✅ Point GPS orange dégradé */}
         {myLocation && (
           <>
@@ -695,7 +792,7 @@ return (
                 id="gps-orange-halo-layer"
                 style={{
                   circleRadius: 28,
-                  circleColor: "rgba(255,140,0,0.25)", // orange clair
+                  circleColor: "rgba(91, 78, 255, 0.25)", // bleu-violet doux
                   circleBlur: 12,
                 }}
               />
@@ -754,6 +851,88 @@ return (
         </Text>
       </View>
     )}
+  
+{pendingMarker && (
+  <View
+    style={{
+      position: "absolute",
+      top: "30%",        // centré verticalement (à ajuster selon ce que tu veux)
+      left: "50%",
+      transform: [{ translateX: -CREATE_BOX_WIDTH / 2 }],
+      width: CREATE_BOX_WIDTH,
+      zIndex: 999,
+      alignItems: "center",
+    }}
+  >
+    <View
+      style={{
+        backgroundColor: "#fff",
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 14,
+        width: "100%",
+        shadowColor: "#000",
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 6,
+      }}
+    >
+<TouchableOpacity
+  activeOpacity={0.9}
+  onPress={() => {
+
+    // 🛑 Sécurité : on attend que l'adresse soit prête
+    if (!pendingMarker) return;
+
+    if (!pendingAddress || pendingAddress === "Chargement...") {
+      Alert.alert(
+        "Patiente une seconde",
+        "L’adresse est encore en cours de chargement."
+      );
+      return;
+    }
+
+    navigation.navigate("MainTabs", {
+      screen: "Créer",
+      params: {
+        prefillLat: pendingMarker.lat,
+        prefillLng: pendingMarker.lng,
+        prefillAddress: pendingAddress,
+      },
+    });
+
+    setPendingMarker(null);
+    setPendingAddress(null);
+  }}
+>
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "700",
+            color: "#5B4EFF",
+            textAlign: "center",
+          }}
+        >
+          Créer une session ici
+        </Text>
+
+        {pendingAddress && (
+          <Text
+            style={{
+              marginTop: 4,
+              fontSize: 12,
+              textAlign: "center",
+              color: "#555",
+            }}
+          >
+            {pendingAddress}
+          </Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  </View>
+)}
 
 {/* Toggle 2D/3D */}
 <TouchableOpacity
@@ -1200,12 +1379,16 @@ renderItem={({ item }) => {
     );
   }
   return (
-    <SessionCardHome
-      session={item}
-      onPress={() =>
-        navigation.navigate('SessionDetail', { sessionId: item.id })
-      }
-    />
+<SessionCardHome
+  session={item}
+  disabled={!navigationReady || !item?.id}
+  onPress={() => {
+    if (!navigationReady) return;  // bloque tant que l'app n'est pas prête
+    if (!item?.id) return;         // sécurité totale
+
+    navigation.navigate('SessionDetail', { sessionId: item.id });
+  }}
+/>
   );
 }}
     />
@@ -1248,31 +1431,36 @@ renderItem={({ item }) => {
 
 {/* Ma position */}
 {region && (
-<TouchableOpacity
-  style={styles.myLocationBtn}
-  onPress={async () => {
-    const coords = await getFastLocation();
-    if (!coords) return;
+  <TouchableOpacity
+    style={styles.myLocationBtn}
+onPress={async () => {
+  const coords = await getFastLocation();
+  if (!coords) return;
 
-    const currentCoords = {
-      ...coords,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
-    };
+  const currentCoords = {
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
 
-    setRegion(currentCoords);
-    setMyLocation(coords);
+  setRegion(currentCoords);
+  setMyLocation(currentCoords);
 
-    cameraRef.current?.setCamera({
-      centerCoordinate: [coords.longitude, coords.latitude],
-      zoomLevel: 15,
-      animationDuration: 800,
-    });
-  }}
-  activeOpacity={0.8}
->
-  <MaterialIcons name="my-location" size={wp('6.2%')} color="#3F4FFF" />
-</TouchableOpacity>
+  cameraRef.current?.setCamera({
+    centerCoordinate: [coords.longitude, coords.latitude],
+    zoomLevel: 15,
+    animationDuration: 800,
+  });
+}}
+    activeOpacity={0.8}
+  >
+    <MaterialIcons
+      name="my-location"
+      size={wp("6.2%")}
+      color="#3F4FFF"
+    />
+  </TouchableOpacity>
 )}
   </View>
   );
@@ -1627,8 +1815,6 @@ const styles = StyleSheet.create({
  shadowOffset: { width: 0, height: 6 },
  elevation: 8,
 },
-
-
 calendarBoxHome: {
  width: '92%',
  borderRadius: 12,

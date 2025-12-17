@@ -371,7 +371,7 @@ navigation.replace("GroupDetail", { groupId: data.id });
 
         {/* === Description === */}
         <TextInput
-          placeholder="Description du groupe..."
+          placeholder="Présente ton groupe, club ou association..."
           style={[styles.input, styles.textarea]}
           value={description}
           onChangeText={setDescription}

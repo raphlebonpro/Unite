@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect,useRef } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import { ActivityIndicator } from 'react-native';
 import { GOOGLE_MAPS_API_KEY } from '../components/PlaceSearchField';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { useRoute } from '@react-navigation/native';
 
 // ✅ Import corrigé - suppression de moment
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -205,6 +206,11 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 
 const CreateSessionScreen = () => {
   const navigation = useNavigation();
+const route = useRoute();
+const prefillLat = route.params?.prefillLat;
+const prefillLng = route.params?.prefillLng;
+const prefillAddress = route.params?.prefillAddress;
+
   const { notifUnseen } = useNotificationRefresh();
 
   const [selectedSport, setSelectedSport] = useState('');
@@ -252,17 +258,16 @@ const [tempLocation, setTempLocation] = useState('');
 const [tempLat, setTempLat] = useState(null);
 const [tempLng, setTempLng] = useState(null);
 
-  // Filles uniquement
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isGirlsOnly, setIsGirlsOnly] = useState(false);
+// Filles uniquement
+const [currentUser, setCurrentUser] = useState(null);
+const [isGirlsOnly, setIsGirlsOnly] = useState(false);
 
 //Participants max
 const [maxParticipants, setMaxParticipants] = useState(null); 
 const [showMaxModal, setShowMaxModal] = useState(false);
-
   
-  //Loader
-  const [loadingInit, setLoadingInit] = useState(true);
+//Loader
+const [loadingInit, setLoadingInit] = useState(true);
 
 const insets = useSafeAreaInsets();
 const [kbOpen, setKbOpen] = useState(false);
@@ -316,29 +321,78 @@ useEffect(() => {
     fetchUser();
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      // Reset du formulaire à l'ouverture (local dates, pas d'ISO)
-      setSelectedSport('');
-      setShowOtherSports(false);
-      setSelectedLevel('');
-      setSelectedDate(new Date());
-      setSelectedHour(getClampedDefaultHour());
-      setShowCalendar(false);
-      hideTimePicker();
-      setShowDropdown({ sport: false, level: false, participants: false });
-      setTitle('');
-      setComments('')
-      setAddressModalVisible(false);
-      setTempLocation('');
-      setTempLat(null);
-      setTempLng(null);
-      setIsGirlsOnly(false);
-      setLocation('');
-      setLatitude(null);
-      setLongitude(null);
-    }, [])
-  );
+useEffect(() => {
+  if (!cameFromMapRef.current) return;
+
+  setLatitude(prefillLat);
+  setLongitude(prefillLng);
+
+  if (prefillAddress && prefillAddress !== 'Chargement...') {
+    setLocation(prefillAddress);
+  }
+
+  requestAnimationFrame(() => {
+    navigation.setParams({
+      prefillLat: undefined,
+      prefillLng: undefined,
+      prefillAddress: undefined,
+    });
+  });
+}, []);
+
+useFocusEffect(
+  useCallback(() => {
+
+    // 👉 SI on arrive depuis la map, on NE RESET PAS le lieu
+if (cameFromMapRef.current) {
+  return;
+}
+
+    // 🔁 Reset normal uniquement quand navigation classique
+    setSelectedSport('');
+    setShowOtherSports(false);
+    setSelectedLevel('');
+    setSelectedDate(new Date());
+    setSelectedHour(getClampedDefaultHour());
+    setShowCalendar(false);
+    hideTimePicker();
+    setShowDropdown({ sport: false, level: false, participants: false });
+    setTitle('');
+    setComments('');
+    setAddressModalVisible(false);
+    setTempLocation('');
+    setTempLat(null);
+    setTempLng(null);
+    setIsGirlsOnly(false);
+
+    setLocation('');
+    setLatitude(null);
+    setLongitude(null);
+
+  }, [prefillLat, prefillLng])
+);
+
+const handleResetForm = () => {
+  setSelectedSport('');
+  setShowOtherSports(false);
+  setSelectedLevel('');
+  setSelectedDate(new Date());
+  setSelectedHour(getClampedDefaultHour());
+  setShowCalendar(false);
+  hideTimePicker();
+  setShowDropdown({ sport: false, level: false, participants: false });
+  setTitle('');
+  setComments('');
+  setAddressModalVisible(false);
+  setTempLocation('');
+  setTempLat(null);
+  setTempLng(null);
+  setIsGirlsOnly(false);
+
+  setLocation('');
+  setLatitude(null);
+  setLongitude(null);
+};
 
   function capitalizeFirst(str) {
     if (!str) return '';
@@ -347,6 +401,36 @@ useEffect(() => {
 
   const closeAllDropdowns = () => setShowDropdown({ sport: false, level: false, participants: false });
   const toggleDropdown = (key) => setShowDropdown((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const cameFromMapRef = useRef(false);
+
+useFocusEffect(
+  useCallback(() => {
+    const hasPrefill =
+      Number.isFinite(route.params?.prefillLat) &&
+      Number.isFinite(route.params?.prefillLng);
+
+    cameFromMapRef.current = hasPrefill;
+
+    if (hasPrefill) {
+      setLatitude(route.params.prefillLat);
+      setLongitude(route.params.prefillLng);
+
+      if (route.params?.prefillAddress) {
+        setLocation(route.params.prefillAddress);
+      }
+
+      // 🔥 nettoyage des params pour éviter les effets fantômes
+      requestAnimationFrame(() => {
+        navigation.setParams({
+          prefillLat: undefined,
+          prefillLng: undefined,
+          prefillAddress: undefined,
+        });
+      });
+    }
+  }, [route.params])
+);
 
   const handleCreateSession = async () => {
 if (
@@ -431,13 +515,13 @@ await notifySessionCreated({
 });
 
 // ✅ Notifs pour les utilisateurs proches via Edge Function
- await notifyNearbyUsersOnSessionCreated({
+notifyNearbyUsersOnSessionCreated({
   sessionId,
   sport: selectedSport,
   lat: latitude,
   lng: longitude,
   creatorId: user.id,
- });
+}).catch(() => {});
 
 // ✅ Feedback visuel
 Toast.show({
@@ -697,7 +781,7 @@ return (
    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
    keyboardVerticalOffset={insets.top}
  >
-   <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+   <TouchableWithoutFeedback onPress={() => {}}>
      <View style={[styles.addressModalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
        <View style={[styles.addressModalContainer, { width: '92%', maxHeight: kbOpen ? '65%' : '80%' }]}>
 
@@ -1117,6 +1201,20 @@ return (
                 />
               </View>
             )}
+
+            <TouchableOpacity
+  onPress={handleResetForm}
+  style={{
+    alignSelf: 'flex-end',
+    marginBottom: 10,
+    marginRight: 16,
+  }}
+>
+  <Text style={{ color: '#999', fontSize: 14 }}>
+    Réinitialiser
+  </Text>
+</TouchableOpacity>
+
 
             {/* CTA créer */}
             <TouchableOpacity

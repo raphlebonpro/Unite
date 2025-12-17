@@ -94,7 +94,6 @@ export default function CreateSessionGroupScreen() {
   const [maxParticipants, setMaxParticipants] = useState(null);
   const [maxPickerVisible, setMaxPickerVisible] = useState(false);
 
-
   // ---------- Lifecycle ----------
   useEffect(() => {
     const show = Keyboard.addListener("keyboardDidShow", () => setKbOpen(true));
@@ -272,10 +271,10 @@ await notifyGroupSessionCreatedForMembers({
   showsVerticalScrollIndicator={false}
 >
 
-            {/* === Sport (non modifiable) === */}
-            <View style={[styles.input, { backgroundColor: "#f7f7f7" }]}>
-              <Text style={{ color: "#555", fontWeight: "600", }}>{sport}</Text>
-            </View>
+{/* === Sport (non modifiable) === */}
+<View style={[styles.input, { backgroundColor: "#f7f7f7" }]}>
+<Text style={{ color: "#555", fontWeight: "600", }}>{sport}</Text>
+</View>
 
 {/* === Niveau === */}
 <TouchableOpacity
@@ -383,22 +382,6 @@ await notifyGroupSessionCreatedForMembers({
   </View>
 </Modal>
 
-            {/* === Date === */}
-            <TouchableOpacity
-              style={styles.input}
-              activeOpacity={0.85}
-              onPress={() => setShowCalendar(true)}
-            >
-              <Text style={styles.inputText}>
-                {selectedDate.toLocaleDateString("fr-FR", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </Text>
-            </TouchableOpacity>
-
             {/* === Heure === */}
             <TouchableOpacity style={styles.input} onPress={showTimePicker}>
               <Text style={styles.inputText}>
@@ -463,7 +446,10 @@ await notifyGroupSessionCreatedForMembers({
                 end={{ x: 1, y: 1 }}
                 style={[styles.buttonGradient, { width: "90%" }]}
               >
-                <Text style={styles.buttonText}>Créer la session</Text>
+<Text style={styles.buttonText}>
+  Créer la session
+</Text>
+
               </LinearGradient>
             </TouchableOpacity>
           </ScrollView>
@@ -792,5 +778,60 @@ validateText: {
   color: '#fff',
   fontSize: 16,
   fontWeight: '600',
+},
+sectionBlock: {
+  marginBottom: 18,
+},
+toggleRow: {
+  flexDirection: "row",
+  marginTop: 10,
+  backgroundColor: "#f1f1f1",
+  borderRadius: 14,
+  padding: 4,
+},
+toggleBtn: {
+  flex: 1,
+  paddingVertical: 10,
+  alignItems: "center",
+  borderRadius: 10,
+},
+toggleBtnActive: {
+  backgroundColor: "#fff",
+},
+toggleText: {
+  fontSize: 14,
+  fontWeight: "600",
+  color: "#777",
+},
+toggleTextActive: {
+  color: "#111",
+},
+helperText: {
+  marginTop: 6,
+  fontSize: 12,
+  color: "#666",
+},
+daysRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  marginTop: 10,
+},
+dayBtn: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: "#eee",
+  alignItems: "center",
+  justifyContent: "center",
+},
+dayBtnActive: {
+  backgroundColor: "#5B4EFF",
+},
+dayText: {
+  fontWeight: "600",
+  color: "#666",
+},
+dayTextActive: {
+  color: "#fff",
 },
 });
