@@ -21,21 +21,33 @@ import { getDistance } from 'geolib';
 import { useNotificationRefresh } from '../context/NotificationContext';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapboxGL from '../mapboxConfig';
-import { Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import GradientTitle from '../components/GradientTitle';
 import { Keyboard } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native';
 import SessionGroupCard from '../components/SessionGroupCard';
+import MapViewUnite from '../components/MapViewUnite';
+
+const APPBAR_H = 56;
+const SEARCH_H = 44;
+
+// espace réel, maîtrisé, sans bloc fantôme
+const SEARCH_TOP  = APPBAR_H + 2;
+const FILTERS_TOP = SEARCH_TOP + SEARCH_H + 10;
 
 const GOOGLE_MAPS_API_KEY =
 Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY ??
 Constants.manifest?.extra?.GOOGLE_MAPS_API_KEY ??
 '';
-const PARIS_COORDS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longitudeDelta: 0.05 };
+const PARIS_CENTER = {
+  latitude: 48.8566,
+  longitude: 2.3522,
+};
 
-const CREATE_BOX_WIDTH = 280; // valeur idéale
+const PARIS_REGION = {
+  latitude: 48.8566,
+  longitude: 2.3522,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+}
 
 const levelOptions = [
 "Pour s'amuser",
@@ -43,7 +55,6 @@ const levelOptions = [
 'Intermédiaire',
 'Avancé',
 ];
-
 
 const sportData = [
 { label: 'Football', icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
@@ -132,10 +143,6 @@ const otherSports = [
 
 const { width } = Dimensions.get('window');
 
-const APPBAR_H = 56;
-const SEARCH_H = 44;
-const CHIPS_H  = 40;
-
 const HomeScreen = () => {
 const navigation = useNavigation();
 const route = useRoute();
@@ -154,34 +161,24 @@ const [search, setSearch] = useState('');
 const [suggestions, setSuggestions] = useState([]);
 const [showLevelModal, setShowLevelModal] = useState(false);
 const [showCalendar, setShowCalendar] = useState(false);
-const [showMoreSports, setShowMoreSports] = useState(false);
-const [is3D, setIs3D] = useState(false);
 
 const [navigationReady, setNavigationReady] = useState(false);
+
+const [mapReady, setMapReady] = useState(false);
+
+const [sportPickerVisible, setSportPickerVisible] = useState(false);
+const [showOtherSports, setShowOtherSports] = useState(false);
+
+const [pressedPoint, setPressedPoint] = useState(null);
 
 useEffect(() => {
   const timer = setTimeout(() => setNavigationReady(true), 1500);
   return () => clearTimeout(timer);
 }, []);
 
-const mapRef = useRef(null);
 const flatListRef = useRef(null);
-const cameraRef = useRef(null);
-const lastTapRef = useRef(0);
-
-const [pendingMarker, setPendingMarker] = useState(null); // { lat, lng }
-const [pendingAddress, setPendingAddress] = useState(null);
 
 const insets = useSafeAreaInsets();
-
-// Ces valeurs dépendent de insets -> calculées à l'intérieur du composant
-
-const [appBarH, setAppBarH] = useState(56);
-
-const SEARCH_TOP  = appBarH + 10;
-const CHIPS_TOP   = SEARCH_TOP + SEARCH_H + 15;
-const FILTERS_TOP = CHIPS_TOP + CHIPS_H + 5;
-
 
   // --- FETCH SESSIONS (utilisé partout) ---
 const fetchSessions = useCallback(async () => {
@@ -238,12 +235,12 @@ useEffect(() => {
 
       if (!geolocPref) {
         setRegion(PARIS_COORDS);
-        setMyLocation(PARIS_COORDS);
+        setMyLocation(PARIS_CENTER);
       } else {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           setRegion(PARIS_COORDS);
-          setMyLocation(PARIS_COORDS);
+          setMyLocation(PARIS_CENTER);
         } else {
 let location = await Location.getCurrentPositionAsync({});
 const { latitude, longitude } = location.coords;
@@ -256,12 +253,9 @@ const initialRegion = {
 };
 
 setRegion(initialRegion);
-setMyLocation(initialRegion);
-
-cameraRef.current?.setCamera({
-  centerCoordinate: [longitude, latitude],
-  zoomLevel: 13,
-  animationDuration: 600,
+setMyLocation({
+  latitude,
+  longitude,
 });
           await supabase
             .from('users')
@@ -281,6 +275,30 @@ cameraRef.current?.setCamera({
     }
   })();
 }, [navigation]);
+
+const reverseGeocode = async (latitude, longitude) => {
+  try {
+    if (!GOOGLE_MAPS_API_KEY) return '';
+
+    const url =
+      `https://maps.googleapis.com/maps/api/geocode/json` +
+      `?latlng=${latitude},${longitude}` +
+      `&key=${GOOGLE_MAPS_API_KEY}` +
+      `&language=fr`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.status !== 'OK' || !data.results?.length) {
+      return '';
+    }
+
+    return data.results[0].formatted_address;
+  } catch (e) {
+    console.warn('reverseGeocode error:', e);
+    return '';
+  }
+};
 
 // --- Fetch initial + au focus, puis polling 5s quand visible ---
 useFocusEffect(
@@ -337,62 +355,6 @@ useEffect(() => {
   run();
 }, [search]);
 
-const [heading, setHeading] = useState(0);
-
-useEffect(() => {
-  let subscription;
-  (async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === 'granted') {
-      subscription = await Location.watchHeadingAsync((data) => {
-        setHeading(data.trueHeading); // angle en degrés (0 = Nord)
-      });
-    }
-  })();
-  return () => {
-    if (subscription) subscription.remove();
-  };
-}, []);
-
-const focusOnSession = (session) => {
-  if (!session?.lat || !session?.lng) return;
-
-  const lat = Number(session.lat);
-  const lng = Number(session.lng);
-
-  cameraRef.current?.setCamera({
-    centerCoordinate: [lng, lat],
-    zoomLevel: 16,
-    animationDuration: 1000,
-  });
-
-  const index = filteredSessions.findIndex((s) => s.id === session.id);
-  if (index !== -1 && flatListRef.current) {
-    flatListRef.current.scrollToIndex({ index, animated: true });
-  }
-};
-
-
-const pulseAnim = useRef(new Animated.Value(0)).current;
-
-useEffect(() => {
-  Animated.loop(
-    Animated.sequence([
-      Animated.timing(pulseAnim, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-      Animated.timing(pulseAnim, {
-        toValue: 0,
-        duration: 0,
-        useNativeDriver: true,
-      }),
-    ])
-  ).start();
-}, []);
-
 const handleSuggestionPress = async (placeId, description) => {
   try {
     Keyboard.dismiss();
@@ -414,13 +376,6 @@ const handleSuggestionPress = async (placeId, description) => {
     };
 
     setRegion(newRegion);
-
-    // ✅ Mapbox → on contrôle la caméra
-    cameraRef.current?.setCamera({
-      centerCoordinate: [lng, lat],
-      zoomLevel: 13,
-      animationDuration: 1000,
-    });
 
     setTimeout(() => Keyboard.dismiss(), 150);
   } catch (e) {
@@ -486,12 +441,7 @@ const clearFilters = async () => {
   if (!coords) {
     // fallback Paris si GPS KO
     setRegion(PARIS_COORDS);
-    setMyLocation(PARIS_COORDS);
-    cameraRef.current?.setCamera({
-      centerCoordinate: [PARIS_COORDS.longitude, PARIS_COORDS.latitude],
-      zoomLevel: 13,
-      animationDuration: 800,
-    });
+    setMyLocation(PARIS_CENTER);
     return;
   }
 
@@ -503,13 +453,6 @@ const clearFilters = async () => {
 
   setRegion(currentCoords);
   setMyLocation(currentCoords);
-
-  // 🔥 instantané, fluide
-  cameraRef.current?.setCamera({
-    centerCoordinate: [coords.longitude, coords.latitude],
-    zoomLevel: 15,
-    animationDuration: 800,
-  });
 };
 
 function formatTime(time) {
@@ -528,61 +471,6 @@ function isSessionInFuture(session) {
     return false;
   }
 }
-
-function getDirectionCone(lat, lng, heading, distance = 0.0008, spread = 60) {
-  const toRad = (deg) => (deg * Math.PI) / 180;
-
-  // Angles gauche/droite
-  const left = toRad(heading - spread / 2);
-  const right = toRad(heading + spread / 2);
-
-  // Conversion degrés -> coordonnées (distance en mètres)
-  const latOffset = (d, angle) => (d / 111320) * Math.cos(angle);
-  const lngOffset = (d, angle) =>
-    (d / (111320 * Math.cos(toRad(lat)))) * Math.sin(angle);
-
-  const leftPoint = [
-    lng + lngOffset(distance, left),
-    lat + latOffset(distance, left),
-  ];
-  const rightPoint = [
-    lng + lngOffset(distance, right),
-    lat + latOffset(distance, right),
-  ];
-
-  // Polygon fermé
-  return [[
-    [lng, lat],   // centre
-    leftPoint,    // point gauche
-    rightPoint,   // point droit
-    [lng, lat],   // retour au centre
-  ]];
-}
-
-const handleLongPress = async (event) => {
-  const coords = event.geometry?.coordinates;
-  if (!coords) return;
-
-  const [lng, lat] = coords;
-
-  // Place un marqueur temporaire
-  setPendingMarker({ lat, lng });
-  setPendingAddress("Chargement...");
-
-  // Reverse geocoding
-  try {
-    const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
-    const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}`
-    );
-    const json = await res.json();
-    const address = json.features?.[0]?.place_name ?? null;
-
-    setPendingAddress(address);
-  } catch (e) {
-    setPendingAddress(null);
-  }
-};
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -674,300 +562,77 @@ const d = new Date(dateStr);
 if (isNaN(d)) return 'Date';
 return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
 };
-<TouchableOpacity style={styles.midFilterChip} onPress={() => setShowCalendar(true)}>
-<Text style={styles.midChipText}>
-  {formatDateLabel(selectedDate)}
-</Text>
-<AntDesign name="calendar" size={wp('3.5%')} style={{ marginLeft: wp('1.2%'), color: "#666" }} />
-</TouchableOpacity>
+
+const normalizedSessions = filteredSessions
+  .filter(s => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
+  .map(s => ({
+    id: s.id,
+    lat: Number(s.lat),
+    lng: Number(s.lng),
+    sport: sportIcons[s.sport] ? s.sport : 'Autres',
+  }));
 
 return (
-  <View style={{ flex: 1, backgroundColor: "#fff" }}>
-    {region ? (
-<MapboxGL.MapView
-  ref={mapRef}
-  style={StyleSheet.absoluteFillObject}
-  styleURL="mapbox://styles/mapbox/streets-v12"
->
-<MapboxGL.Camera
-  ref={cameraRef}
-  centerCoordinate={
-    region
-      ? [region.longitude, region.latitude]
-      : [2.2137, 46.2276]
+<View style={{ flex: 1, backgroundColor: "#fff" }}>
+  {/* 🗺️ 1. LA CARTE — TOUJOURS RENDUE */}
+<MapViewUnite
+  region={region || PARIS_REGION}
+  sessions={normalizedSessions.map(s => ({
+    ...s,
+    icon: sportIcons[s.sport]?.icon || sportIcons.Autres.icon,
+  }))}
+  onMapReady={() => setMapReady(true)} // ✅ CRUCIAL
+  onSelectSession={(session) =>
+    navigation.navigate("SessionDetail", { sessionId: session.id })
   }
-  zoomLevel={region ? 15 : 4}
-  pitch={is3D ? 60 : 0}
-  bearing={is3D ? 20 : 0}
+  selectedPoint={pressedPoint}
+onLongPress={async ({ latitude, longitude }) => {
+  setPressedPoint({
+    latitude,
+    longitude,
+    address: 'Chargement de l’adresse…',
+  });
+
+  const address = await reverseGeocode(latitude, longitude);
+
+  setPressedPoint({
+    latitude,
+    longitude,
+    address: address || 'Adresse inconnue',
+  });
+}}
 />
 
-        {/* Bâtiments en 3D */}
-        {is3D && (
-          <MapboxGL.FillExtrusionLayer
-            id="3d-buildings"
-            sourceID="composite"
-            sourceLayerID="building"
-            style={{
-              fillExtrusionColor: "#aaa",
-              fillExtrusionHeight: ["get", "height"],
-              fillExtrusionBase: ["get", "min_height"],
-              fillExtrusionOpacity: 0.6,
-            }}
-          />
-        )}
-
-        {/* Sessions */}
-        {filteredSessions.map((session, idx) => {
-          const lat = Number(session.lat);
-          const lng = Number(session.lng);
-          if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
-
-          const sIcon = sportIcons[session.sport] || sportIcons["Autres"];
-
-          return (
-            <MapboxGL.PointAnnotation
-              key={session.id || idx}
-              id={`session-${session.id || idx}`}
-              coordinate={[lng, lat]}
-              onSelected={() => focusOnSession(session)}
-            >
-              <View
-                style={{
-                  backgroundColor: "#fff",
-                  borderRadius: 30,
-                  padding: 6,
-                  borderWidth: 1.5,
-                  borderColor: "#f2f2f2",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {React.cloneElement(sIcon.icon, { size: 22 })}
-              </View>
-            </MapboxGL.PointAnnotation>
-          );
-        })}
-
-{/* Marqueur temporaire */}
-{pendingMarker && (
-  <MapboxGL.PointAnnotation
-    id="pending-marker"
-    coordinate={[pendingMarker.lng, pendingMarker.lat]}
-  >
+  {/* ⏳ 2. OVERLAY — SEULEMENT SI LA MAP N’EST PAS PRÊTE */}
+  {!mapReady && (
     <View
       style={{
-        backgroundColor: "#fff",
-        padding: 6,
-        borderRadius: 30,
-        borderWidth: 2,
-        borderColor: "#5B4EFF", // 🔵 violet-bleu
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "#F7F8FA",
         alignItems: "center",
         justifyContent: "center",
+        zIndex: 10,
       }}
     >
-      <MaterialCommunityIcons
-        name="map-marker"
-        size={28}
-        color="#5B4EFF" // 🔵 violet-bleu
+      <ActivityIndicator
+        size={Platform.OS === "ios" ? "large" : 50}
+        color="#3F4FFF"
       />
-    </View>
-  </MapboxGL.PointAnnotation>
-)}
-
-        {/* ✅ Point GPS orange dégradé */}
-        {myLocation && (
-          <>
-            {/* Halo diffus orange */}
-            <MapboxGL.ShapeSource
-              id="gps-orange-halo"
-              shape={{
-                type: "Feature",
-                geometry: {
-                  type: "Point",
-                  coordinates: [myLocation.longitude, myLocation.latitude],
-                },
-              }}
-            >
-              <MapboxGL.CircleLayer
-                id="gps-orange-halo-layer"
-                style={{
-                  circleRadius: 28,
-                  circleColor: "rgba(91, 78, 255, 0.25)", // bleu-violet doux
-                  circleBlur: 12,
-                }}
-              />
-            </MapboxGL.ShapeSource>
-
-            {/* Point central orange */}
-            <MapboxGL.ShapeSource
-              id="gps-orange-center"
-              shape={{
-                type: "Feature",
-                geometry: {
-                  type: "Point",
-                  coordinates: [myLocation.longitude, myLocation.latitude],
-                },
-              }}
-            >
-              <MapboxGL.CircleLayer
-                id="gps-orange-center-layer"
-                style={{
-                  circleRadius: 8,
-                  circleColor: '#339CFF',
-                  circleStrokeWidth: 2,
-                  circleStrokeColor: "#fff", // contour blanc
-                }}
-              />
-            </MapboxGL.ShapeSource>
-          </>
-        )}
-      </MapboxGL.MapView>
-    ) : (
-      <View
+      <Text
         style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "#F7F8FA",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1,
+          marginTop: hp("2%"),
+          color: "#999",
+          fontSize: wp("3.8%"),
         }}
       >
-        <ActivityIndicator
-          size={Platform.OS === "ios" ? "large" : 50}
-          color="#3F4FFF"
-        />
-        <Text
-          style={{
-            color: "#999",
-            fontSize: wp("3.8%"),
-            marginTop: hp("2.5%"),
-          }}
-        >
-          Chargement de la carte…
-        </Text>
-      </View>
-    )}
-  
-{pendingMarker && (
-  <View
-    style={{
-      position: "absolute",
-      top: "30%",        // centré verticalement (à ajuster selon ce que tu veux)
-      left: "50%",
-      transform: [{ translateX: -CREATE_BOX_WIDTH / 2 }],
-      width: CREATE_BOX_WIDTH,
-      zIndex: 999,
-      alignItems: "center",
-    }}
-  >
-    <View
-      style={{
-        backgroundColor: "#fff",
-        paddingVertical: 14,
-        paddingHorizontal: 20,
-        borderRadius: 14,
-        width: "100%",
-        shadowColor: "#000",
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 6,
-      }}
-    >
-<TouchableOpacity
-  activeOpacity={0.9}
-  onPress={() => {
-
-    // 🛑 Sécurité : on attend que l'adresse soit prête
-    if (!pendingMarker) return;
-
-    if (!pendingAddress || pendingAddress === "Chargement...") {
-      Alert.alert(
-        "Patiente une seconde",
-        "L’adresse est encore en cours de chargement."
-      );
-      return;
-    }
-
-    navigation.navigate("MainTabs", {
-      screen: "Créer",
-      params: {
-        prefillLat: pendingMarker.lat,
-        prefillLng: pendingMarker.lng,
-        prefillAddress: pendingAddress,
-      },
-    });
-
-    setPendingMarker(null);
-    setPendingAddress(null);
-  }}
->
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: "700",
-            color: "#5B4EFF",
-            textAlign: "center",
-          }}
-        >
-          Créer une session ici
-        </Text>
-
-        {pendingAddress && (
-          <Text
-            style={{
-              marginTop: 4,
-              fontSize: 12,
-              textAlign: "center",
-              color: "#555",
-            }}
-          >
-            {pendingAddress}
-          </Text>
-        )}
-      </TouchableOpacity>
+        Chargement de la carte…
+      </Text>
     </View>
-  </View>
-)}
-
-{/* Toggle 2D/3D */}
-<TouchableOpacity
-  style={{
-    position: "absolute",
-    bottom: hp("34%"), // 👈 plus haut que le bouton ma position
-    right: wp("6%"),
-    backgroundColor: "#fff",
-    borderRadius: wp("6.5%"),
-    padding: wp("3%"),
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 6,
-    zIndex: 200,
-  }}
-  onPress={() => setIs3D(!is3D)}
-  activeOpacity={0.8}
->
-  {is3D ? (
-    <MaterialCommunityIcons
-      name="cube-outline"
-      size={wp("6%")}
-      color="#3F4FFF"
-    />
-  ) : (
-    <MaterialCommunityIcons
-      name="square-outline"
-      size={wp("6%")}
-      color="#3F4FFF"
-    />
   )}
-</TouchableOpacity>
-
 
     {/* AppBar */}
     <View style={{
@@ -1089,93 +754,6 @@ return (
       </View>
     )}
 
-    {/* Chips sports */}
-    <View style={{ position: 'absolute', top: CHIPS_TOP, left: 0, right: 0, zIndex: 998, flexDirection: 'row', paddingHorizontal: wp('2.5%') }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {sportData.map((sport) => (
-          <TouchableOpacity
-            key={sport.label}
-            style={[
-              styles.midChip,
-              selectedSport === sport.label && styles.midChipSelected,
-            ]}
-            onPress={() => setSelectedSport(selectedSport === sport.label ? '' : sport.label)}
-            activeOpacity={0.88}
-          >
-            {React.cloneElement(sport.icon, { size: wp('3.8%') })}
-            <Text style={[
-              styles.midChipText,
-              selectedSport === sport.label && { color: '#fff' }
-            ]}>
-              {sport.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-          style={[styles.midChip, { borderColor: '#DDD', backgroundColor: '#F3F4F8', marginRight: wp('1.5%') }]}
-          onPress={() => setShowMoreSports(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add-circle-outline" size={wp('5%')} color="#1877F2" style={{ marginRight: wp('0.5%') }} />
-          <Text style={[styles.midChipText, { color: "#1877F2" }]}>de sports</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-
-    {/* Modal autres sports */}
-    <Modal
-      visible={showMoreSports}
-      animationType="fade"
-      transparent
-      onRequestClose={() => setShowMoreSports(false)}
-    >
-      <View style={styles.modalBackground}>
-        <TouchableOpacity
-          style={{ flex: 1 }}
-          activeOpacity={1}
-          onPress={() => setShowMoreSports(false)}
-        />
-        <View style={styles.sportsPanel}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Autres sports</Text>
-            <TouchableOpacity onPress={() => setShowMoreSports(false)}>
-              <AntDesign name="closecircleo" size={wp('5.5%')} color="#888" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: hp('55%') }}>
-            {otherSports.map((sport) => {
-              const iconObj = sportIcons[sport] || sportIcons["Autres"];
-              return (
-                <TouchableOpacity
-                  key={sport}
-                  style={[
-                    styles.moreSportsItem,
-                    selectedSport === sport && { backgroundColor: "#e9f0ff" }
-                  ]}
-                  onPress={() => {
-                    setSelectedSport(sport);
-                    setShowMoreSports(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.moreSportIconBox, { backgroundColor: (iconObj.color || "#DDD") + "16" }]}>
-                    {React.cloneElement(iconObj.icon, { size: wp('4.5%') })}
-                  </View>
-                  <Text style={[
-                    styles.moreSportsText,
-                    selectedSport === sport && { color: "#3f4fff", fontWeight: "700" }
-                  ]}>
-                    {sport}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowMoreSports(false)} />
-      </View>
-    </Modal>
-
     {/* Filtres */}
 <View style={{
  position: 'absolute',
@@ -1188,6 +766,28 @@ return (
  alignItems: 'center',
  paddingHorizontal: wp('2.5%'),
 }}>
+<TouchableOpacity
+  style={styles.midFilterChip}
+  onPress={() => setSportPickerVisible(true)}
+>
+  <Text
+    style={[
+      styles.midChipText,
+      selectedSport ? { color: "#3F4FFF" } : {},
+    ]}
+  >
+    {selectedSport || 'Sport'}
+  </Text>
+  <AntDesign
+    name="down"
+    size={wp('3.2%')}
+    style={{
+      marginLeft: wp('1%'),
+      color: selectedSport ? "#3F4FFF" : "#666",
+    }}
+  />
+</TouchableOpacity>
+
       <TouchableOpacity style={styles.midFilterChip} onPress={() => setShowLevelModal(true)}>
         <Text style={[
           styles.midChipText,
@@ -1428,39 +1028,140 @@ renderItem={({ item }) => {
     </LinearGradient>
   </View>
 )}
+<Modal
+  transparent
+  visible={sportPickerVisible}
+  animationType="fade"
+  onRequestClose={() => {
+    setSportPickerVisible(false);
+    setShowOtherSports(false);
+  }}
+>
+  <View style={styles.modalOverlay}>
+    <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
+      <Text style={styles.modalTitle}>
+        {showOtherSports ? 'Autres sports' : 'Choisir un sport'}
+      </Text>
 
-{/* Ma position */}
-{region && (
-  <TouchableOpacity
-    style={styles.myLocationBtn}
-onPress={async () => {
-  const coords = await getFastLocation();
-  if (!coords) return;
+      <ScrollView style={{ width: '100%' }}>
+        {!showOtherSports ? (
+          sportData.map((item) => (
+            <TouchableOpacity
+              key={item.label}
+              style={styles.dropdownItem}
+              onPress={() => {
+                if (item.label === '+ de sports' || item.label === 'Autres') {
+                  setShowOtherSports(true);
+                } else {
+                  setSelectedSport(item.label);
+                  setSportPickerVisible(false);
+                  setShowOtherSports(false);
+                }
+              }}
+            >
+              <View style={{ 
+  flexDirection: 'row', 
+  alignItems: 'center',
+  justifyContent: 'center',
+}}>
+                <View style={{ marginRight: 10 }}>{item.icon}</View>
+                <Text style={styles.dropdownItemText}>{item.label}</Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        ) : (
+          otherSports.map((label) => (
+            <TouchableOpacity
+              key={label}
+              style={styles.dropdownItem}
+              onPress={() => {
+                setSelectedSport(label);
+                setSportPickerVisible(false);
+                setShowOtherSports(false);
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ marginRight: 10 }}>
+                  {sportIcons[label]?.icon}
+                </View>
+                <Text style={styles.dropdownItemText}>{label}</Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
 
-  const currentCoords = {
-    latitude: coords.latitude,
-    longitude: coords.longitude,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  };
+      {showOtherSports ? (
+        <TouchableOpacity
+          style={styles.validateButton}
+          onPress={() => setShowOtherSports(false)}
+        >
+          <Text style={styles.validateText}>Retour</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.validateButton}
+          onPress={() => setSportPickerVisible(false)}
+        >
+          <Text style={styles.validateText}>Fermer</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  </View>
+</Modal>
+{pressedPoint && (
+  <View style={styles.createFromMapCard}>
 
-  setRegion(currentCoords);
-  setMyLocation(currentCoords);
+    {/* HEADER : titre + croix */}
+    <View style={styles.createFromMapHeader}>
+      <Text
+        style={styles.createFromMapTitle}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        Emplacement sélectionné
+      </Text>
 
-  cameraRef.current?.setCamera({
-    centerCoordinate: [coords.longitude, coords.latitude],
-    zoomLevel: 15,
-    animationDuration: 800,
-  });
-}}
-    activeOpacity={0.8}
-  >
-    <MaterialIcons
-      name="my-location"
-      size={wp("6.2%")}
-      color="#3F4FFF"
-    />
-  </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setPressedPoint(null)}
+        hitSlop={10}
+      >
+        <AntDesign name="close" size={18} color="#999" />
+      </TouchableOpacity>
+    </View>
+
+    {/* Adresse */}
+    <Text
+      style={styles.createFromMapAddress}
+      numberOfLines={2}
+    >
+      {pressedPoint.address}
+    </Text>
+
+    {/* Bouton centré */}
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={{ alignSelf: 'center', marginTop: hp('1.4%') }}
+      onPress={() => {
+        navigation.navigate('Créer', {
+          prefillLat: pressedPoint.latitude,
+          prefillLng: pressedPoint.longitude,
+          prefillAddress: pressedPoint.address,
+        });
+        setPressedPoint(null);
+      }}
+    >
+      <LinearGradient
+        colors={['#3F4FFF', '#7A5CFF']}
+        style={styles.createFromMapButton}
+      >
+        <Text style={styles.createFromMapButtonText}>
+          Créer une session
+        </Text>
+      </LinearGradient>
+    </TouchableOpacity>
+
+  </View>
 )}
   </View>
   );
@@ -1907,5 +1608,86 @@ noSessionButtonTextFixed: {
   fontWeight: '700',
   fontSize: wp('3.6%'),
   textAlign: 'center',
+},
+modalContainer: {
+  width: '85%',
+  backgroundColor: '#fff',
+  borderRadius: 20,
+  paddingVertical: hp('2%'),
+  paddingHorizontal: wp('4%'),
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 10,
+},
+
+dropdownItemText: {
+  fontSize: wp('4%'),
+  color: '#222',
+  fontWeight: '500',
+  textAlign: 'center',
+},
+dropdownItem: {
+  width: '100%',
+  paddingVertical: hp('1.6%'),
+  borderBottomWidth: 1,
+  borderBottomColor: '#F0F0F0',
+  alignItems: 'center',
+},
+createFromMapCard: {
+  position: 'absolute',
+  bottom: hp('10%'),
+  left: wp('5%'),
+  right: wp('5%'),
+  backgroundColor: '#fff',
+  borderRadius: 18,
+  paddingVertical: hp('1.6%'),
+  paddingHorizontal: wp('4%'),
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 12,
+  zIndex: 100,
+},
+
+createFromMapHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: hp('0.6%'),
+},
+
+createFromMapTitle: {
+  fontSize: wp('3.8%'),
+  fontWeight: '700',
+  color: '#222',
+  flex: 1,
+  marginRight: wp('2%'),
+  textAlign: 'center',
+},
+
+createFromMapAddress: {
+  fontSize: wp('3.4%'),
+  color: '#666',
+  lineHeight: wp('4.4%'),
+  marginBottom: hp('1.2%'),
+  textAlign: 'center',
+},
+
+createFromMapButton: {
+  borderRadius: 14,
+  paddingVertical: hp('1.2%'),
+  paddingHorizontal: wp('6%'),
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+createFromMapButtonText: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: wp('3.4%'),
 },
 });

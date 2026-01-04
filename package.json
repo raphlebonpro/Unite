@@ -19,7 +19,6 @@
     "@react-navigation/bottom-tabs": "^6.6.1",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.9.25",
-    "@rnmapbox/maps": "^10.1.43",
     "@supabase/supabase-js": "^2.50.1",
     "buffer": "^6.0.3",
     "expo": "~53.0.22",
@@ -60,6 +59,7 @@
     "react-native-gesture-handler": "~2.24.0",
     "react-native-get-random-values": "^1.11.0",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
+    "react-native-maps": "1.20.1",
     "react-native-modal-datetime-picker": "^18.0.0",
     "react-native-modal-dropdown": "^1.0.2",
     "react-native-pager-view": "6.7.1",
@@ -75,7 +75,8 @@
     "react-native-uuid": "^2.0.3",
     "react-native-vector-icons": "^10.2.0",
     "react-native-view-shot": "4.0.3",
-    "react-native-web": "^0.20.0"
+    "react-native-web": "^0.20.0",
+    "react-native-webview": "13.13.5"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

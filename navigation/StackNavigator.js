@@ -2,9 +2,6 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainTabs from './MainTabs.js';
 import { Platform, StatusBar } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-
 
 import EditProfileScreen from '../screens/EditProfileScreen';
 import LocationScreen from '../screens/LocationScreen';

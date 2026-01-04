@@ -64,38 +64,32 @@ export default {
         "POST_NOTIFICATIONS",
         "WAKE_LOCK",
       ],
-      config: {
-        googleMaps: {
-          apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
-        },
-      },
       googleServicesFile: "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       useNextNotificationsApi: true,
+
+      config: {
+    googleMaps: {
+      apiKey: process.env.GOOGLE_MAPS_API_KEY,
     },
+    },
+     },
 
     web: {
       favicon: "./assets/favicon.png",
     },
 
-    plugins: [
-      [
-        "@rnmapbox/maps",
-        {
-          RNMAPBOX_MAPS_DOWNLOAD_TOKEN:
-            process.env.RNMAPBOX_MAPS_DOWNLOAD_TOKEN,
-        },
-      ],
-      [
-        "expo-notifications",
-        {
-          icon: "./assets/notification-icon.png",
-          color: "#FF6C4A",
-          useNextNotificationsApi: true
-        },
-      ],
-    ],
-
+plugins: [
+  [
+    "expo-notifications",
+    {
+      icon: "./assets/notification-icon.png",
+      color: "#FF6C4A",
+      useNextNotificationsApi: true,
+    },
+  ],
+],
+  
     extra: {
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,

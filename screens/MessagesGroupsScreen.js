@@ -242,7 +242,6 @@ const handleDeleteAllGroups = () => {
 
     for (const sid of ids) {
       const lastMsg = lastMap[sid] ? new Date(lastMap[sid]).getTime() : 0;
-      const lastSeen = seenMap[sid] ? new Date(seenMap[sid]).getTime() : 0;
       let q = supabase
   .from('messages')
   .select('id', { count: 'exact', head: true })
@@ -261,11 +260,15 @@ nextUnread[sid] = count || 0;
 
     setUnreadMap(nextUnread);
 
-    // Trie la liste du plus récent au plus ancien (basé sur dernière activité)
-    const sorted = [...list].sort((a, b) => {
-      const aTime = sessionDates[a.id] || 0;
-      const bTime = sessionDates[b.id] || 0;
-      const sorted = [...list].sort((a, b) => {
+    // 🔥 TRI FINAL — SOURCE DE VÉRITÉ
+// EN COURS d'abord → TERMINÉES ensuite
+const sorted = [...list].sort((a, b) => {
+  // 1️⃣ Statut
+  if (a.status !== b.status) {
+    return a.status === 'active' ? -1 : 1;
+  }
+
+  // 2️⃣ Dernière activité message
   const aLast = sessionDates[a.id] || 0;
   const bLast = sessionDates[b.id] || 0;
 
@@ -273,29 +276,18 @@ nextUnread[sid] = count || 0;
   if (aLast) return -1;
   if (bLast) return 1;
 
+  // 3️⃣ Fallback date session
   const aDate = new Date(`${a.date}T${a.time}`).getTime();
   const bDate = new Date(`${b.date}T${b.time}`).getTime();
 
   return bDate - aDate;
 });
-    });
 
     setSessions(sorted);
   };
 
   // Recalcule la pastille pour UNE session (utilisé par le realtime)
-  const computeUnreadForSession = async (sessionId) => {
-    // dernier message
-    const { data } = await supabase
-      .from('messages')
-      .select('created_at')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false })
-      .limit(1);
 
-    const last = data && data[0]?.created_at ? new Date(data[0].created_at).getTime() : 0;
-    const seenStr = await AsyncStorage.getItem(`last_seen_${sessionId}_${user.id}`);
-    const lastSeen = seenStr ? new Date(seenStr).getTime() : 0;
 const computeUnreadForSession = async (sessionId) => {
   const seenStr = await AsyncStorage.getItem(
     `last_seen_${sessionId}_${user.id}`
@@ -319,7 +311,6 @@ const computeUnreadForSession = async (sessionId) => {
     [sessionId]: count || 0,
   }));
 };
-  };
 
 const handleGroupPress = async (sessionId) => {
   // On récupère le dernier message de la session
@@ -539,14 +530,13 @@ return (
     </Text>
   </View>
 )}
-                          </View>
-                          <Text style={styles.groupSport} numberOfLines={1}>
-                            {item.sport}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-
-                      <View style={styles.statusRow}>
+</View>
+<Text style={styles.groupSport} numberOfLines={1}>
+{item.sport}
+</Text>
+</View>
+</TouchableOpacity>
+<View style={styles.statusRow}>
     <View
       style={[
         styles.statusDot,

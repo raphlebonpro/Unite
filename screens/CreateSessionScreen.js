@@ -1202,19 +1202,31 @@ return (
               </View>
             )}
 
-            <TouchableOpacity
-  onPress={handleResetForm}
-  style={{
-    alignSelf: 'flex-end',
-    marginBottom: 10,
-    marginRight: 16,
-  }}
->
-  <Text style={{ color: '#999', fontSize: 14 }}>
-    Réinitialiser
-  </Text>
-</TouchableOpacity>
-
+<View style={{ alignItems: 'center', marginTop: 4, marginBottom: 6 }}>
+  <TouchableOpacity
+    onPress={handleResetForm}
+    activeOpacity={0.85}
+    style={{
+      backgroundColor: '#F2F3F7',
+      borderRadius: 14,
+      paddingHorizontal: 22,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: '#E1E3EA',
+    }}
+  >
+    <Text
+      style={{
+        color: '#6B7280',
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center',
+      }}
+    >
+      Réinitialiser
+    </Text>
+  </TouchableOpacity>
+</View>
 
             {/* CTA créer */}
             <TouchableOpacity

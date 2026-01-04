@@ -1,5 +1,4 @@
 import React from 'react';
-import Constants from 'expo-constants';
 import { UserProvider } from './context/UserContext';
 import { NotificationProvider } from './context/NotificationContext';
 import MainApp from './MainApp';

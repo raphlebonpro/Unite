@@ -25,7 +25,7 @@ import {
   notifyGroupSessionJoinedForMembers,
 } from '../helpers/notifications';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import MapboxGL from '../mapboxConfig';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const STATIC_MAP_KEY = Constants.expoConfig.extra.GOOGLE_MAPS_API_KEY;
 const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=random&name=U';
@@ -710,43 +710,43 @@ else if (!isParticipant && user && user.id !== session.creator_id) {
   <View style={{ height: 16 }} />
   <Text style={styles.address}>{session.location}</Text>
   <View style={{ height: 26 }} />
-{session.lat && session.lng && (
-  <View style={{ height: 220, borderRadius: 12, overflow: "hidden", marginHorizontal: 18 }}>
-    <MapboxGL.MapView
-      style={{ flex: 1 }}
-      styleURL="mapbox://styles/mapbox/streets-v12"
-      zoomEnabled={true}
-      scrollEnabled={true}
-      pitchEnabled={true}
-      rotateEnabled={true}
+{session?.lat &&
+ session?.lng &&
+ Number.isFinite(Number(session.lat)) &&
+ Number.isFinite(Number(session.lng)) && (
+  <View
+    style={{
+      height: 220,
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginHorizontal: 18,
+    }}
+  >
+    <MapView
+      style={StyleSheet.absoluteFill}
+      provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+      initialRegion={{
+        latitude: Number(session.lat),
+        longitude: Number(session.lng),
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }}
+      showsUserLocation
+      showsMyLocationButton
+      loadingEnabled
     >
-      {/* Caméra centrée sur la session */}
-      <MapboxGL.Camera
-        zoomLevel={15}
-        centerCoordinate={[Number(session.lng), Number(session.lat)]}
-        animationDuration={1200}
+      <Marker
+        coordinate={{
+          latitude: Number(session.lat),
+          longitude: Number(session.lng),
+        }}
+        title={session.title}
+        description={session.location}
       />
-
-      {/* Marker de la session */}
-      <MapboxGL.PointAnnotation
-        id="session-location"
-        coordinate={[Number(session.lng), Number(session.lat)]}
-      >
-        <View
-          style={{
-            backgroundColor: "#FF5E62",
-            borderRadius: 16,
-            padding: 6,
-            borderWidth: 2,
-            borderColor: "#fff",
-          }}
-        >
-          <Ionicons name="location" size={22} color="#fff" />
-        </View>
-      </MapboxGL.PointAnnotation>
-    </MapboxGL.MapView>
+    </MapView>
   </View>
 )}
+
   <View style={{ height: 22 }} />
 
 <View style={styles.infoBox}>
