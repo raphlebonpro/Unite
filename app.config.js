@@ -68,11 +68,11 @@ export default {
       softwareKeyboardLayoutMode: "resize",
       useNextNotificationsApi: true,
 
-      config: {
-    googleMaps: {
-      apiKey: process.env.GOOGLE_MAPS_API_KEY,
-    },
-    },
+config: {
+  googleMaps: {
+    apiKey: process.env.ANDROID_GOOGLE_MAPS_API_KEY,
+  },
+},
      },
 
     web: {
