@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -20,7 +21,6 @@ import {
   notifyGroupMemberLeft,
   notifyGroupExclusion,
 } from "../helpers/notifications";
-import Toast from "react-native-toast-message";
 
 const getGroupRecurrenceLabel = (sessions) => {
   if (!sessions || sessions.length < 2) return null;
@@ -106,7 +106,7 @@ useEffect(() => {
 
     const { data, error } = await supabase
       .from("sessions")
-      .select("id, title, date, time, sport, location")
+      .select("id, title, date, time, sport, location, level")
       .eq("group_id", groupId)
       .or(`date.gt.${today},and(date.eq.${today},time.gte.${nowHM})`)
       .order("date", { ascending: true })
@@ -300,15 +300,6 @@ const handleJoin = async () => {
           }
 
           fetchData();
-
-          Toast.show({
-            type: "success",
-            text1: "Bienvenue 👋",
-            text2: `Tu as rejoint le groupe "${group.name}".`,
-            position: "top",
-            topOffset: 48,
-            visibilityTime: 2500,
-          });
         },
       },
     ]
@@ -357,17 +348,8 @@ const handleLeave = async () => {
           }
 
           fetchData();
-
-          Toast.show({
-            type: "info",
-            text1: "Groupe quitté 👋",
-            text2: `Tu as quitté le groupe "${group.name}".`,
-            position: "top",
-            topOffset: 48,
-            visibilityTime: 2500,
-          });
         },
-      },
+      }, 
     ]
   );
 };
@@ -381,7 +363,8 @@ const handleLeave = async () => {
 }
 
  return (
-  <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
+  <View style={{ flex: 1 }}>
+    <ScrollView contentContainerStyle={{ paddingBottom: 180 }}>
     {/* === COUVERTURE === */}
     <View style={styles.coverContainer}>
       {group.cover_url ? (
@@ -449,46 +432,70 @@ const handleLeave = async () => {
       </View>
     </View>
 
-    {nextSession && (
+{nextSession && (
   <View style={styles.nextSessionContainer}>
     <Text style={styles.sectionTitle}>Prochaine session</Text>
 
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() =>
-        nav.navigate("GroupSessionDetail", {
+        nav.navigate("SessionDetail", {
           sessionId: nextSession.id,
           groupName: group.name,
         })
       }
     >
-      <LinearGradient
-        colors={["#FF9D3C", "#FF6C4A"]}
-        style={styles.nextSessionCard}
-      >
-        <Text style={styles.nextSessionTitle}>
+      <View style={styles.nextSessionCardAlt}>
+        {/* HEADER */}
+        <View style={styles.nextSessionHeader}>
+          <Text style={styles.nextSessionDay}>
+            {new Date(nextSession.date).toLocaleDateString("fr-FR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </Text>
+          <Text style={styles.nextSessionHour}>
+            {nextSession.time?.slice(0, 5)}
+          </Text>
+        </View>
+
+        {/* TITLE */}
+        <Text style={styles.nextSessionTitleAlt}>
           {nextSession.title}
         </Text>
 
-        <Text style={styles.nextSessionMeta}>
-          {new Date(nextSession.date).toLocaleDateString("fr-FR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-          })}{" "}
-          • {nextSession.time}
-        </Text>
+        {/* LOCATION */}
+        {nextSession.location && (
+          <View style={styles.nextSessionLocationRow}>
+            <Feather name="map-pin" size={14} color="#666" />
+            <Text style={styles.nextSessionLocationAlt}>
+              {nextSession.location}
+            </Text>
+          </View>
+        )}
 
-        <Text style={styles.nextSessionLocation}>
-          📍 {nextSession.location}
-        </Text>
+        <View style={styles.groupSessionFooter}>
+  {nextSession.sport && (
+    <View style={styles.sportPill}>
+      <Text style={styles.sportPillText}>{nextSession.sport}</Text>
+    </View>
+  )}
 
-{estimatedRecurrence && (
-  <Text style={styles.recurringHint}>
-    {estimatedRecurrence} (estimé)
-  </Text>
-)}
-      </LinearGradient>
+  {nextSession.level && (
+    <View style={styles.levelPill}>
+      <Text style={styles.levelPillText}>{nextSession.level}</Text>
+    </View>
+  )}
+</View>
+
+        {/* RECURRENCE */}
+        {estimatedRecurrence && (
+          <Text style={styles.recurringHintAlt}>
+            ⏱ {estimatedRecurrence}
+          </Text>
+        )}
+      </View>
     </TouchableOpacity>
   </View>
 )}
@@ -592,16 +599,6 @@ onPress: async () => {
         .filter(id => id !== m.id && id !== userId),
     });
 
-    // 5️⃣ Toast feedback
-    Toast.show({
-      type: 'success',
-      text1: 'Membre exclu',
-      text2: `${m.username} a été retiré du groupe.`,
-      position: 'top',
-      topOffset: 48,
-      visibilityTime: 2500,
-    });
-
     // 6️⃣ Refresh à la fin pour être synchro avec la BDD
     fetchData();
   } catch (e) {
@@ -628,98 +625,113 @@ onPress: async () => {
 <View style={styles.sessionsContainer}>
   <Text style={styles.sectionTitle}>Rendez-vous du groupe</Text>
 
-{isCreator ? (
-  <>
-{groupSessions.length > 0 ? (
-  otherSessions.map((s) => (
-    <TouchableOpacity
-      key={s.id}
-      onPress={() => nav.navigate("GroupSessionDetail", {
-  sessionId: s.id,
-  groupName: group.name,
-})}
-      activeOpacity={0.9}
-      style={styles.sessionCard}
-    >
-      <LinearGradient
-        colors={["#FFFFFF", "#FAFAFA"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.sessionCardInner}
-      >
-        <View style={{ flex: 1 }}>
-          {/* Ligne 1 : titre + sport */}
-          <View style={styles.sessionHeaderRow}>
-            <Text style={styles.sessionCardTitle} numberOfLines={1}>
-              {s.title}
-            </Text>
-            {s.sport && (
-              <View style={styles.sportBadge}>
-                <Text style={styles.sportBadgeText}>{s.sport}</Text>
-              </View>
-            )}
-          </View>
+  {/* CAS : une seule session */}
+  {(isCreator || isMember) && groupSessions.length === 1 && (
+    <View style={styles.groupSessionInfoBox}>
+      <Text style={styles.groupSessionInfoTitle}>
+        C’est le début du groupe
+      </Text>
+      <Text style={styles.groupSessionInfoText}>
+        Pour l’instant, un seul rendez-vous est prévu.
+        Les prochains apparaîtront ici dès qu’ils seront créés.
+      </Text>
+    </View>
+  )}
 
-          {/* Ligne 2 : date + heure */}
-          <View style={[styles.sessionInfoRow, { marginTop: 6 }]}>
-            <Feather name="calendar" size={15} color="#FF6C4A" />
-            <Text style={styles.sessionInfoText}>
-              {new Date(s.date).toLocaleDateString("fr-FR", {
-                weekday: "short",
-                day: "2-digit",
-                month: "long",
-              })}{" "}
-              • {s.time || "Heure à venir"}
-            </Text>
-          </View>
-
-          {/* Ligne 3 : lieu */}
-          {s.location && (
-            <View style={[styles.sessionInfoRow, { marginTop: 4 }]}>
-              <Feather name="map-pin" size={15} color="#FF9D3C" />
-              <Text
-                style={[styles.sessionInfoText, { color: "#666" }]}
-                numberOfLines={1}
-              >
-                {s.location}
+  {(isCreator || isMember) ? (
+    <>
+      {groupSessions.length > 1 ? (
+        otherSessions.map((s) => (
+          <TouchableOpacity
+            key={s.id}
+            activeOpacity={0.9}
+            onPress={() =>
+              nav.navigate("SessionDetail", {
+                sessionId: s.id,
+                groupName: group.name,
+              })
+            }
+            style={styles.groupSessionCard}
+          >
+            <View style={styles.groupSessionHeader}>
+              <Text style={styles.groupSessionDay}>
+                {new Date(s.date).toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
+              </Text>
+              <Text style={styles.groupSessionHour}>
+                {s.time?.slice(0, 5)}
               </Text>
             </View>
-          )}
-        </View>
 
-        <Feather name="chevron-right" size={20} color="#999" />
-      </LinearGradient>
-    </TouchableOpacity>
-  ))
-) : (
-  <Text style={styles.emptyText}>Aucune session active pour l’instant</Text>
-)}
+            <Text style={styles.groupSessionTitle} numberOfLines={1}>
+              {s.title}
+            </Text>
 
-    <TouchableOpacity
-      style={{ marginTop: 24 }}
-      onPress={() => nav.navigate("CreateSessionGroup", { groupId })}
-      activeOpacity={0.9}
-    >
-      <LinearGradient
-        colors={["#FF9D3C", "#FF6C4A", "#FF375E"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.gradientInner}
-      >
-        <Feather name="plus-circle" size={17} color="#fff" />
-        <Text style={styles.gradientText}>Créer un Rendez-vous du groupe</Text>
-      </LinearGradient>
-    </TouchableOpacity>
-  </>
-) : (
-  <Text style={[styles.emptyText, { marginTop: 8 }]}>
-    Rejoins le groupe pour voir ou créer ses sessions.
-  </Text>
-)}
+            {s.location && (
+              <View style={styles.groupSessionLocationRow}>
+                <Feather name="map-pin" size={14} color="#666" />
+                <Text style={styles.groupSessionLocation} numberOfLines={1}>
+                  {s.location}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.groupSessionFooter}>
+              {s.sport && (
+                <View style={styles.sportPill}>
+                  <Text style={styles.sportPillText}>{s.sport}</Text>
+                </View>
+              )}
+              {s.level && (
+                <View style={styles.levelPill}>
+                  <Text style={styles.levelPillText}>{s.level}</Text>
+                </View>
+              )}
+              <Feather name="chevron-right" size={18} color="#BBB" />
+            </View>
+          </TouchableOpacity>
+        ))
+      ) : (
+        groupSessions.length === 0 && (
+          <Text style={styles.emptyText}>
+            Aucun rendez-vous prévu pour l’instant.
+          </Text>
+        )
+      )}
+
+      {/* Bouton créer → créateur uniquement */}
+      {isCreator && (
+        <TouchableOpacity
+          style={{ marginTop: 24 }}
+          onPress={() => nav.navigate("CreateSession", { groupId })}
+          activeOpacity={0.9}
+        >
+          <LinearGradient
+            colors={["#FF9D3C", "#FF6C4A", "#FF375E"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientInner}
+          >
+            <Feather name="plus-circle" size={17} color="#fff" />
+            <Text style={styles.gradientText}>
+              Créer un Rendez-vous de groupe
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+    </>
+  ) : (
+    <Text style={[styles.emptyText, { marginTop: 8 }]}>
+      Rejoins le groupe pour voir ou créer ses sessions.
+    </Text>
+  )}
 </View>
-
-    {/* === BOUTONS ACTION === */}
-<View style={styles.actionsContainer}>
+  </ScrollView>
+   {/* === BOUTONS ACTION === */}
+<View style={styles.fixedActionsContainer}>
   {isCreator ? (
     <>
       {/* --- Discussion du groupe --- */}
@@ -741,7 +753,7 @@ onPress: async () => {
 
       {/* --- Modifier le groupe --- */}
       <TouchableOpacity
-        style={[styles.gradientBtn, { marginTop: 22 }]}
+        style={[styles.gradientBtn, { marginTop: 10 }]}
         onPress={() => nav.navigate("EditGroup", { groupId })}
         activeOpacity={0.85}
       >
@@ -810,7 +822,7 @@ onPress: async () => {
     </TouchableOpacity>
   )}
 </View>
-  </ScrollView>
+</View>
  );
  }
 
@@ -907,10 +919,6 @@ descContainer: {
     justifyContent: "center",
     borderRadius: 14,
     paddingVertical: 13,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   gradientText: {
     color: "#fff",
@@ -934,104 +942,17 @@ sessionsContainer: {
   paddingTop: 16,
   paddingBottom: 10,
 },
-sessionItem: {
-  backgroundColor: "#fff",
-  borderRadius: 12,
-  paddingVertical: 12,
-  paddingHorizontal: 14,
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  marginTop: 10,
-  borderWidth: 1,
-  borderColor: "#EAEAEA",
-  shadowColor: "#000",
-  shadowOpacity: 0.05,
-  shadowRadius: 3,
-  elevation: 1,
-},
 sectionTitle: {
   fontSize: 17,
   fontWeight: "700",
   color: "#222",
   marginBottom: 1,
 },
-sessionMeta: {
-  fontSize: 13,
-  color: "#666",
-  marginTop: 2,
-},
 emptyText: {
   color: "#888",
   fontSize: 14,
   marginTop: 8,
   fontStyle: "italic",
-},
-sessionCard: {
-  borderRadius: 16,
-  overflow: "hidden",
-  marginTop: 14,
-  shadowColor: "#000",
-  shadowOpacity: 0.08,
-  shadowRadius: 5,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 2,
-  borderWidth: 1,
-  borderColor: "#E9E9E9",
-},
-sessionCardInner: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  paddingVertical: 14,
-  paddingHorizontal: 16,
-  backgroundColor: "#fff",
-},
-sessionCardTitle: {
-  fontSize: 16.5,
-  fontWeight: "700",
-  color: "#1E1E1E",
-  marginBottom: 8,
-},
-sessionInfoRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 6,
-},
-sessionInfoText: {
-  fontSize: 13.5,
-  color: "#444",
-  fontWeight: "500",
-},
-sessionArrow: {
-  marginLeft: 10,
-},
-sessionTopLine: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-},
-sessionHeaderRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-},
-sportBadge: {
-  backgroundColor: "#FFE9EC",
-  borderRadius: 8,
-  paddingHorizontal: 8,
-  paddingVertical: 3,
-},
-sportBadgeText: {
-  color: "#FF375E",
-  fontSize: 12.5,
-  fontWeight: "600",
-},
-sessionCompactText: {
-  fontSize: 13.5,
-  color: "#444",
-  marginTop: 6,
-  lineHeight: 20,
 },
 regularBadge: {
   marginTop: 8,
@@ -1052,37 +973,11 @@ nextSessionContainer: {
   marginTop: 22,
   paddingHorizontal: 16,
 },
-nextSessionCard: {
-  borderRadius: 16,
-  padding: 16,
-},
-nextSessionTitle: {
-  fontSize: 18,
-  fontWeight: "700",
-  color: "#fff",
-},
-nextSessionMeta: {
-  marginTop: 6,
-  fontSize: 14,
-  color: "#fff",
-},
-nextSessionLocation: {
-  marginTop: 4,
-  fontSize: 13,
-  color: "#fff",
-},
 recurringHint: {
   marginTop: 8,
   fontSize: 13,
   color: "#fff",
   opacity: 0.85,
-},
-recurringHint: {
-  marginTop: 8,
-  fontSize: 13,
-  color: "#fff",
-  opacity: 0.9,
-  fontStyle: "italic",
 },
 recurrenceBadge: {
   marginTop: 6,
@@ -1098,5 +993,146 @@ recurrenceText: {
   color: "#5B4EFF",
   fontSize: 13,
   fontWeight: "700",
+},
+nextSessionCardAlt: {
+  backgroundColor: "#fff",
+  borderRadius: 16,
+  padding: 16,
+  marginTop: 12,
+  borderWidth: 1,
+  borderColor: "#EAEAEA",
+  shadowColor: "#000",
+  shadowOpacity: 0.08,
+  shadowRadius: 5,
+  elevation: 2,
+},
+nextSessionHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "baseline",
+},
+nextSessionDay: {
+  fontSize: 16,
+  fontWeight: "700",
+  color: "#FF375E",
+},
+nextSessionHour: {
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#111",
+},
+nextSessionTitleAlt: {
+  marginTop: 6,
+  fontSize: 17,
+  fontWeight: "800",
+  color: "#111",
+},
+nextSessionLocationRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+  marginTop: 4,
+},
+nextSessionLocationAlt: {
+  fontSize: 13.5,
+  color: "#666",
+  flex: 1,
+},
+recurringHintAlt: {
+  marginTop: 8,
+  fontSize: 12.5,
+  color: "#888",
+  fontStyle: "italic",
+},
+groupSessionCard: {
+  backgroundColor: "#fff",
+  borderRadius: 16,
+  padding: 16,
+  marginTop: 14,
+  borderWidth: 1,
+  borderColor: "#EAEAEA",
+  shadowColor: "#000",
+  shadowOpacity: 0.06,
+  shadowRadius: 4,
+  elevation: 2,
+},
+
+groupSessionHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "baseline",
+},
+
+groupSessionDay: {
+  fontSize: 16,
+  fontWeight: "700",
+  color: "#FF375E",
+},
+
+groupSessionHour: {
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#111",
+},
+
+groupSessionTitle: {
+  marginTop: 6,
+  fontSize: 16.5,
+  fontWeight: "800",
+  color: "#111",
+},
+
+groupSessionLocationRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+  marginTop: 4,
+},
+
+groupSessionLocation: {
+  fontSize: 13.5,
+  color: "#666",
+  flex: 1,
+},
+
+groupSessionFooter: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+  marginTop: 10,
+},
+levelPill: {
+  backgroundColor: "#EEF2FF",
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 999,
+},
+levelPillText: {
+  color: "#4E65FF",
+  fontSize: 12,
+  fontWeight: "700",
+},
+sportPill: {
+  backgroundColor: "#FFE9EC",
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 999,
+},
+sportPillText: {
+  color: "#FF375E",
+  fontSize: 12,
+  fontWeight: "700",
+},
+fixedActionsContainer: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  backgroundColor: "#FFF",
+  paddingHorizontal: 20,
+  paddingTop: 14,
+  paddingBottom: Platform.OS === "ios" ? 44 : 15,
+  borderTopWidth: 1,
+  borderTopColor: "#EEE",
 },
 });

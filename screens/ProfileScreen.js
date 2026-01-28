@@ -191,7 +191,7 @@ const AppBar = () => {
 const safeTop = useSafeTop();
 
 const STATUSBAR_H = Platform.OS === 'android' ? safeTop : 0;  
-const BAR_H = Platform.OS === 'ios' ? 48 : 52;
+const BAR_H = Platform.OS === 'ios' ? 45 : 52;
 
 return (
     <View

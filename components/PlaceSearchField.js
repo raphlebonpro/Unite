@@ -6,7 +6,7 @@ import {
   Text,
   ScrollView,
   ActivityIndicator,
-  StyleSheet,
+  StyleSheet, 
   Platform,
 } from 'react-native';
 import { MaterialCommunityIcons, AntDesign } from '@expo/vector-icons';
@@ -90,7 +90,6 @@ export default function PlaceSearchField({
   onChange,
   onPick,
   placeholder = 'Où voulez-vous bouger ?',
-  componentsCountry = 'country:fr',
   minLength = 2,
   boxStyle,
   suggestionContainerStyle,
@@ -116,8 +115,6 @@ export default function PlaceSearchField({
 
   const query = useDebounced((value || '').trim(), 180);
 
-  const compsParam = useMemo(() => (componentsCountry || 'country:fr'), [componentsCountry]);
-
   // ───────── Autocomplete
   const fetchPredictions = useCallback(async () => {
     setError(null);
@@ -137,7 +134,6 @@ export default function PlaceSearchField({
       url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
       url.searchParams.set('sessiontoken', sessionToken);
       url.searchParams.set('language', 'fr');
-      url.searchParams.set('components', compsParam);
 
       // bias
       const hasLat = Number.isFinite(locationBias?.lat);
@@ -187,70 +183,72 @@ export default function PlaceSearchField({
     } finally {
       setLoading(false);
     }
-  }, [query, compsParam, locationBias, strictBounds, sessionToken, minLength, showList]);
+  }, [query, locationBias, strictBounds, sessionToken, minLength, showList]);
 
   useEffect(() => { fetchPredictions(); }, [fetchPredictions]);
 
   // ───────── Details
-  const fetchDetails = useCallback(async (place_id) => {
-    if (!GOOGLE_MAPS_API_KEY || !place_id) return null;
-    try {
-      const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-      url.searchParams.set('place_id', place_id);
-      url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
-      url.searchParams.set('sessiontoken', sessionToken);
-      url.searchParams.set('language', 'fr');
-      url.searchParams.set('fields', [
-        'geometry/location',
-        'formatted_address',
-        'name',
-      ].join(','));
+const fetchDetails = useCallback(async (place_id) => {
+  if (!GOOGLE_MAPS_API_KEY || !place_id) return null;
 
-      const res = await fetch(url.toString());
-      const json = await res.json();
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+    url.searchParams.set('place_id', place_id);
+    url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+    url.searchParams.set('language', 'fr');
+    url.searchParams.set(
+      'fields',
+      'geometry/location,formatted_address,name,address_components'
+    );
 
-      if (json.status !== 'OK') return null;
+    const res = await fetch(url.toString());
+    const json = await res.json();
 
-      const r = json.result;
+    if (json.status !== 'OK') return null;
 
-      return {
-        description: r.formatted_address || r.name,
-        lat: r.geometry?.location?.lat ?? null,
-        lng: r.geometry?.location?.lng ?? null,
-      };
-    } catch {
-      return null;
-    }
-  }, [sessionToken]);
+    const countryComponent = json.result.address_components?.find(c =>
+      c.types.includes('country')
+    );
+
+    const countryCode = countryComponent?.short_name;
+
+    return {
+      description: json.result.formatted_address || json.result.name,
+      lat: json.result.geometry.location.lat,
+      lng: json.result.geometry.location.lng,
+      countryCode,
+    };
+  } catch {
+    return null;
+  }
+}, []);
 
   // ───────── SUGGESTION PRESS (corrigé)
-  const handleSuggestionPress = useCallback(async (item) => {
+const handleSuggestionPress = useCallback(async (item) => {
+  const details = await fetchDetails(item.place_id);
 
-    const details = await fetchDetails(item.place_id);
-    const pickedLabel = details?.description || item.description;
+  if (!details) {
+    return;
+  }
 
-    // met à jour l'input
-    onChange?.(pickedLabel);
+  const pickedLabel = details.description;
 
-    // envoie les lat/lng au parent (CreateSession)
-    onPick?.({
-      description: pickedLabel,
-      lat: details?.lat ?? null,
-      lng: details?.lng ?? null,
-      place_id: item.place_id,
-    });
+  onChange?.(pickedLabel);
 
-    // ferme la liste sans blur
-    setPredictions([]);
-    setShowList(false);
+  onPick?.({
+    description: pickedLabel,
+    lat: details.lat,
+    lng: details.lng,
+    countryCode: details.countryCode,
+    place_id: item.place_id,
+  });
 
-    lastPickedRef.current = pickedLabel;
+  setPredictions([]);
+  setShowList(false);
+  lastPickedRef.current = pickedLabel;
+  setSessionToken(uuidv4());
+}, [fetchDetails, onPick, onChange]);
 
-    // surtout pas de blur (c'était la cause du bug)
-    // inputRef.current?.blur();  <-- supprimé
-
-    setSessionToken(uuidv4());
-  }, [fetchDetails, onPick, onChange]);
 
   // ───────── UI
   return (

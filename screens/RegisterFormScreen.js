@@ -115,7 +115,7 @@ export default function SignUpScreen({ navigation }) {
  const { refreshUser, bumpAvatarVersion } = useUser();
 
 const handleSignUp = async () => {
-  if (!email || !password || !confirmPassword || !pseudo || !birthdate || !gender || !description) {
+  if (!email || !password || !confirmPassword || !pseudo || !birthdate || !gender) {
     Alert.alert("Erreur", "Veuillez remplir tous les champs.");
     return;
   }

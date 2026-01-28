@@ -10,7 +10,6 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   ScrollView,
-  KeyboardAvoidingView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabaseClient';
@@ -21,7 +20,6 @@ import {
   notifyFeedbackConfirmation, 
   notifyNewsletterSubscribed 
 } from '../helpers/notifications';
-import Toast from 'react-native-toast-message';
 
 export default function FeedbackScreen({ navigation }) {
   const [rating, setRating] = useState(null);
@@ -48,6 +46,15 @@ const handleSubmit = async () => {
     Alert.alert("Merci de remplir au moins un champ !");
     return;
   }
+
+  Alert.alert(
+    "Envoyer ce retour",
+    "Es-tu sûr de vouloir envoyer ce retour ?",
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Envoyer",
+        onPress: async () => {
 
   // 🔑 Récupère bien l'user avant
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -94,17 +101,18 @@ const handleSubmit = async () => {
       console.error("❌ Erreur envoi email Zoho:", e);
     }
 
-    Toast.show({
-      type: 'success',
-      text1: 'Merci 🙌',
-      text2: "Ton retour a bien été envoyé.",
-      position: 'top',
-      topOffset: 50,
-    });
-
     navigation.goBack();
   }
   await notifyFeedbackConfirmation({ userId: user.id });
+  Alert.alert(
+            "Merci 🙌",
+            "Ton retour a bien été envoyé.",
+            [{ text: "OK", onPress: () => navigation.goBack() }]
+          );
+        },
+      },
+    ]
+  );
 };
 
   // Newsletter handler
@@ -113,6 +121,14 @@ const handleNewsletter = async () => {
     Alert.alert('Erreur', "Veuillez saisir une adresse e-mail valide.");
     return;
   }
+  Alert.alert(
+    "S’inscrire à la newsletter",
+    `Souhaites-tu t’inscrire à la newsletter avec cette adresse ?\n\n${newsletterEmail}`,
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "S’inscrire",
+        onPress: async () => {
   setNewsletterLoading(true);
 
   // 🔑 Récupère aussi l'user si dispo
@@ -134,16 +150,16 @@ const handleNewsletter = async () => {
       userId: user?.id,
       email: newsletterEmail,
     });
-
-    Toast.show({
-      type: 'success',
-      text1: 'Inscription réussie 🎉',
-      text2: "Tu es inscrit(e) à la newsletter Unite !",
-      position: 'top',
-      topOffset: 50,
-    });
     setNewsletterEmail('');
-  }
+Alert.alert(
+            "Inscription réussie",
+            "Tu es bien inscrit(e) à la newsletter Unite."
+          );
+        }
+        },
+      },
+    ]
+  );
 };
 
   return (

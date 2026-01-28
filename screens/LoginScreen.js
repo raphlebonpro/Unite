@@ -18,7 +18,6 @@ import { supabase } from '../lib/supabaseClient';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import Toast from 'react-native-toast-message';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const LoginScreen = () => {
@@ -73,16 +72,7 @@ if (userProfile?.first_login) {
     .from('users')
     .update({ first_login: false })
     .eq('id', userId);
-
-  // Affiche le toast
-  Toast.show({
-    type: 'success',
-    text1: 'Bienvenue sur Unite 🎉',
-    text2: 'Tu peux maintenant créer ou rejoindre des sessions sportives !',
-    position: 'top',
-  });
 }
-
   };
 
   return (
@@ -182,7 +172,7 @@ if (userProfile?.first_login) {
               {/* Liens */}
               <Text style={styles.bottomText}>
                 Vous n'avez pas de compte ?{' '}
-                <Text style={styles.link} onPress={() => navigation.navigate('SignUp')}>
+                <Text style={styles.link} onPress={() => navigation.navigate('Register')}>
                   Inscrivez-vous ici
                 </Text>
               </Text>

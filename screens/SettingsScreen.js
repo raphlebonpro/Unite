@@ -82,7 +82,7 @@ const handleDeleteAccount = () => {
             await supabase.auth.signOut();
             navigation.reset({
               index: 0,
-              routes: [{ name: 'SignUp' }],
+              routes: [{ name: 'Login' }],
             });
           } catch (err) {
             Alert.alert('Erreur', err.message || 'Erreur inconnue');

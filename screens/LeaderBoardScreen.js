@@ -6,6 +6,29 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useFocusEffect } from '@react-navigation/native';
 
+const LETTER_COLORS = [
+  '#4A90E2', // A-B
+  '#50E3C2', // C-D
+  '#F5A623', // E-F
+  '#9013FE', // G-H
+  '#D0021B', // I-J
+  '#7ED321', // K-L
+  '#F8E71C', // M-N
+  '#B8E986', // O-P
+  '#417505', // Q-R
+  '#BD10E0', // S-T
+  '#FF3366', // U-V
+  '#00BCD4', // W-X
+  '#FF9800', // Y-Z
+];
+
+function getColorFromUsername(username = '') {
+  if (!username) return '#4A90E2';
+  const firstLetter = username.charAt(0).toUpperCase();
+  const index = (firstLetter.charCodeAt(0) - 65) % LETTER_COLORS.length;
+  return LETTER_COLORS[index];
+}
+
 const TABS = [
   { key: 'created', label: 'Créateurs', title: "Les Constructeurs de Unite" },
   { key: 'joined', label: 'Participants', title: "Les Aventuriers de Unite" }
@@ -59,6 +82,49 @@ function GeneralCollectiveBanner() {
   );
 }
 
+  const Avatar = ({ photo, username, size = 48, style }) => {
+  if (photo) {
+    return (
+      <Image
+        source={{ uri: photo }}
+        style={[
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+          },
+          style,
+        ]}
+      />
+    );
+  }
+
+  return (
+    <View
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: getColorFromUsername(username),
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        style,
+      ]}
+    >
+      <Text
+        style={{
+          color: '#fff',
+          fontWeight: '700',
+          fontSize: size * 0.45,
+        }}
+      >
+        {username?.charAt(0)?.toUpperCase() || 'U'}
+      </Text>
+    </View>
+  );
+};
 
 function getMonthStartDate() {
   const now = new Date();
@@ -102,11 +168,12 @@ function PodiumUser({ user, userId, rank, count, onPress }) {
           height: rank === 1 ? 66 : 48,
         }
       ]}>
-        <Image
-          source={user.profile_photo ? { uri: user.profile_photo } : require('../assets/logo.jpg')}
-          style={{ width: '100%', height: '100%', borderRadius: 100 }}
-        />
-      </View>
+<Avatar
+  photo={user.profile_photo}
+  username={user.username}
+  size={rank === 1 ? 66 : 48}
+/>
+</View>
 
 <View style={{ marginTop: 3, alignItems: 'center' }}>
 
@@ -235,10 +302,12 @@ const LeaderboardRow = ({ user, userId, rank, count }) => (
     <View style={styles.rankBox}>
       <Text style={[styles.rankNum, rank < 3 && { color: getPodiumColor(rank + 1) }]}>{rank + 1}</Text>
     </View>
-    <Image
-      source={user?.profile_photo ? { uri: user.profile_photo } : require('../assets/logo.jpg')}
-      style={styles.listAvatar}
-    />
+<Avatar
+  photo={user?.profile_photo}
+  username={user?.username || user?.prenom}
+  size={36}
+  style={styles.listAvatar}
+/>
     <Text style={styles.listName} numberOfLines={1}>{user?.prenom || user?.username || '—'}</Text>
 <View style={styles.sessionBadge}>
   <MaterialCommunityIcons
@@ -575,7 +644,6 @@ const styles = StyleSheet.create({
     width: wp('9.2%'),
     height: wp('9.2%'),
     borderRadius: wp('4.7%'),
-    backgroundColor: "#eee",
     marginRight: wp('3.4%'),
     borderWidth: 1,
     borderColor: "#fff"

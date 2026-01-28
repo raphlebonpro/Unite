@@ -19,9 +19,9 @@ import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import MiniAppBar from '../components/MiniAppBar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MessagesGroupsScreen = () => {
   const navigation = useNavigation();
@@ -29,11 +29,9 @@ const MessagesGroupsScreen = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [unreadMap, setUnreadMap] = useState({}); // { [sessionId]: number }
 
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const [layoutKey, setLayoutKey] = useState(0); // forces a tiny re-layout after refresh
 
   const [activeTab, setActiveTab] = useState('sessions');
 
@@ -43,7 +41,6 @@ const MessagesGroupsScreen = () => {
 const onRefresh = async () => {
   setRefreshing(true);
   await fetchSessions();           // re-fetch list
-  setLayoutKey(k => k + 1);        // nudge layout (fixes occasional Android status area paint)
   setRefreshing(false);
 };
 
@@ -66,7 +63,6 @@ const handleDeleteAllGroups = () => {
             Alert.alert('Erreur', 'Impossible de supprimer tous les groupes.');
           } else {
             setSessions([]);
-            setUnreadMap({});
           }
         },
       },
@@ -83,55 +79,69 @@ const handleDeleteAllGroups = () => {
 
   useEffect(() => {
     if (!user?.id) return;
-    fetchSessions();
     fetchGroups();
   }, [user?.id]);
 
-  // Abonnement realtime: dès qu’un message arrive, on met à jour la pastille du groupe concerné
-  useEffect(() => {
-    if (!sessions.length || !user?.id) return;
+const fetchSessions = async () => {
+  try {
+    setLoading(true);
 
-    const channel = supabase
-      .channel('public:messages_unread_badges')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        async (payload) => {
-          const sid = payload?.new?.session_id;
-          if (!sid) return;
-          // Recalcule uniquement pour ce groupe
-          await computeUnreadForSession(sid);
-        }
-      )
-      .subscribe();
+    // 1️⃣ sessions de l’utilisateur
+    const { data: sessionsData, error } = await supabase
+      .from('session_participants')
+      .select('session_id, sessions(id, title, sport, date, time)')
+      .eq('user_id', user.id);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [sessions, user?.id]);
+    if (error) throw error;
 
-  const fetchSessions = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('session_participants')
-        .select('session_id, sessions(id, title, sport, date, time)')
-        .eq('user_id', user.id);
+// ✅ 1️⃣ Récupère TOUS les derniers messages (1 requête)
+const { data: lastMessages } = await supabase
+  .from('messages')
+  .select('session_id, created_at, sender_id')
+  .order('created_at', { ascending: false });
 
-      if (error) {
-        setSessions([]);
-        setUnreadMap({});
-        setLoading(false);
-        return;
-      }
+// Map : session_id → dernier message
+const lastMessageMap = {};
+lastMessages?.forEach(msg => {
+  if (!lastMessageMap[msg.session_id]) {
+    lastMessageMap[msg.session_id] = msg;
+  }
+});
 
-      const cleanSessions = (data || [])
-        .filter(item => item.sessions)
+    const now = new Date();
+
+    // ✅ 2️⃣ Récupère tous les last_seen en une fois
+const keys = (sessionsData || [])
+  .filter(item => item.sessions)
+  .map(item => `last_seen_${item.sessions.id}`);
+
+const seenPairs = await AsyncStorage.multiGet(keys);
+
+// Map : session_id → lastSeen
+const lastSeenMap = {};
+seenPairs.forEach(([key, value]) => {
+  if (value) {
+    const sessionId = key.replace('last_seen_', '');
+    lastSeenMap[sessionId] = value;
+  }
+});
+
+const cleanSessions = (sessionsData || [])
+    .filter(item => item.sessions)
 .map(item => {
-  const sessionDate = new Date(
+  const startDate = new Date(
     `${item.sessions.date}T${item.sessions.time}`
   );
-  const isPast = sessionDate < new Date();
+
+  const isPast = startDate < now;
+
+  const lastMsg = lastMessageMap[item.sessions.id];
+  const lastSeen = lastSeenMap[item.sessions.id];
+
+  const hasUnread =
+    lastMsg &&
+    lastMsg.sender_id !== user.id &&
+    (!lastSeen || new Date(lastMsg.created_at) > new Date(lastSeen));
 
   return {
     id: item.sessions.id,
@@ -139,17 +149,39 @@ const handleDeleteAllGroups = () => {
     sport: item.sessions.sport,
     date: item.sessions.date,
     time: item.sessions.time,
+    startDate,
     status: isPast ? 'terminated' : 'active',
+    hasUnread,
   };
 });
 
-      // calcule les non-lus + trie les sessions + setSessions
-      await computeUnreadForSessions(cleanSessions);
-      setLoading(false);
-    } catch (e) {
-      setLoading(false);
+    // 3️⃣ TRI
+    cleanSessions.sort((a, b) => {
+      if (a.status !== b.status) {
+        return a.status === 'active' ? -1 : 1;
+      }
+      if (a.status === 'active') {
+        return a.startDate - b.startDate;
+      }
+      return b.startDate - a.startDate;
+    });
+
+    setSessions(cleanSessions);
+
+    setLoading(false);
+  } catch (e) {
+    console.error(e);
+    setLoading(false);
+  }
+};
+
+useFocusEffect(
+  useCallback(() => {
+    if (user?.id) {
+      fetchSessions();
     }
-  };
+  }, [user?.id])
+);
 
   const fetchGroups = async () => {
   try {
@@ -176,15 +208,15 @@ const handleDeleteAllGroups = () => {
     }
 
     // Nettoyage des données
-    const cleanGroups = (data || [])
-      .filter(item => item.groups)
-      .map(item => ({
-        id: item.groups.id,
-        name: item.groups.name,
-        sport: item.groups.sport,
-        city: item.groups.city,
-        cover_url: item.groups.cover_url,
-      }));
+const cleanGroups = (data || [])
+  .filter(item => item.groups)
+  .map(item => ({
+    id: item.groups.id,
+    name: item.groups.name,
+    sport: item.groups.sport,
+    city: item.groups.city,
+    cover_url: item.groups.cover_url,
+  }));
 
     setGroups(cleanGroups);
     setLoadingGroups(false);
@@ -194,145 +226,15 @@ const handleDeleteAllGroups = () => {
   }
 };
 
-  // Récupère le dernier message pour CHAQUE session et compare à last_seen
-  const computeUnreadForSessions = async (list) => {
-    if (!list || !list.length) {
-      setUnreadMap({});
-      return;
-    }
-    const ids = list.map(s => s.id);
-
-    // Tente un agrégat en un seul appel
-    const { data: lastList, error: aggErr } = await supabase
-      .from('messages')
-      .select('session_id, last_message_at:max(created_at)')
-      .in('session_id', ids);
-
-    let lastMap = {};
-    if (!aggErr && Array.isArray(lastList)) {
-      lastList.forEach(r => {
-        if (r.session_id) lastMap[r.session_id] = r.last_message_at;
-      });
-    } else {
-      // fallback: un appel par session (plus verbeux, mais fiable)
-      const perSession = await Promise.all(ids.map(async (sid) => {
-        const { data } = await supabase
-          .from('messages')
-          .select('created_at')
-          .eq('session_id', sid)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        return { sid, last: data && data[0]?.created_at ? data[0].created_at : null };
-      }));
-      perSession.forEach(({ sid, last }) => { lastMap[sid] = last; });
-    }
-
-    // Récupère les last_seen depuis AsyncStorage
-    const keys = ids.map(sid => `last_seen_${sid}_${user.id}`);
-    const seenPairs = await AsyncStorage.multiGet(keys);
-    const seenMap = {};
-    for (const [k, v] of seenPairs) {
-      // k = last_seen_{sid}_{uid}
-      const sid = k.split('_')[2];
-      seenMap[sid] = v || null;
-    }
-
-    const nextUnread = {};
-    const sessionDates = {};
-
-    for (const sid of ids) {
-      const lastMsg = lastMap[sid] ? new Date(lastMap[sid]).getTime() : 0;
-      let q = supabase
-  .from('messages')
-  .select('id', { count: 'exact', head: true })
-  .eq('session_id', sid)
-  .neq('user_id', user.id);
-
-if (seenMap[sid]) {
-  q = q.gt('created_at', seenMap[sid]);
-}
-
-const { count } = await q;
-
-nextUnread[sid] = count || 0;
-      sessionDates[sid] = lastMsg;
-    }
-
-    setUnreadMap(nextUnread);
-
-    // 🔥 TRI FINAL — SOURCE DE VÉRITÉ
-// EN COURS d'abord → TERMINÉES ensuite
-const sorted = [...list].sort((a, b) => {
-  // 1️⃣ Statut
-  if (a.status !== b.status) {
-    return a.status === 'active' ? -1 : 1;
-  }
-
-  // 2️⃣ Dernière activité message
-  const aLast = sessionDates[a.id] || 0;
-  const bLast = sessionDates[b.id] || 0;
-
-  if (aLast && bLast) return bLast - aLast;
-  if (aLast) return -1;
-  if (bLast) return 1;
-
-  // 3️⃣ Fallback date session
-  const aDate = new Date(`${a.date}T${a.time}`).getTime();
-  const bDate = new Date(`${b.date}T${b.time}`).getTime();
-
-  return bDate - aDate;
-});
-
-    setSessions(sorted);
-  };
-
-  // Recalcule la pastille pour UNE session (utilisé par le realtime)
-
-const computeUnreadForSession = async (sessionId) => {
-  const seenStr = await AsyncStorage.getItem(
-    `last_seen_${sessionId}_${user.id}`
-  );
-  const lastSeen = seenStr ? new Date(seenStr).toISOString() : null;
-
-  let query = supabase
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('session_id', sessionId)
-    .neq('user_id', user.id);
-
-  if (lastSeen) {
-    query = query.gt('created_at', lastSeen);
-  }
-
-  const { count } = await query;
-
-  setUnreadMap(prev => ({
-    ...prev,
-    [sessionId]: count || 0,
-  }));
-};
-
 const handleGroupPress = async (sessionId) => {
-  // On récupère le dernier message de la session
-  const { data } = await supabase
-    .from('messages')
-    .select('created_at')
-    .eq('session_id', sessionId)
-    .order('created_at', { ascending: false })
-    .limit(1);
+  const now = new Date().toISOString();
 
-  if (data && data.length > 0) {
-    const lastMsg = data[0];
-    await AsyncStorage.setItem(
-      `last_seen_${sessionId}_${user.id}`,
-      lastMsg.created_at
-    );
-  }
+  // ✅ on enregistre la lecture
+  await AsyncStorage.setItem(
+    `last_seen_${sessionId}`,
+    now
+  );
 
-  // Optimiste: enlever la pastille
-  setUnreadMap(prev => ({ ...prev, [sessionId]: false }));
-
-  // Navigation
   navigation.navigate('SessionMessages', { sessionId });
 };
 
@@ -364,11 +266,6 @@ const handleGroupPress = async (sessionId) => {
     } else {
       // retire du state + pastille
       setSessions(prev => prev.filter(s => s.id !== sessionId));
-      setUnreadMap(prev => {
-        const copy = { ...prev };
-        delete copy[sessionId];
-        return copy;
-      });
     }
     setLoading(false);
   };
@@ -500,11 +397,10 @@ return (
               />
             ) : (
               <FlatList
-                key={layoutKey}
                 data={filteredSessions}
                 keyExtractor={(item) => String(item.id)}
                 renderItem={({ item }) => {
-                  const unreadCount = unreadMap[item.id] || 0;
+                  const hasUnread = item.hasUnread;
                   return (
                     <View style={styles.groupRow}>
                       <TouchableOpacity
@@ -523,11 +419,9 @@ return (
                             <Text style={styles.groupTitle} numberOfLines={1}>
                               {item.title}
                             </Text>
-{unreadCount > 0 && (
+{hasUnread && (
   <View style={styles.unreadBubble}>
-    <Text style={styles.unreadText}>
-      {unreadCount > 9 ? '9+' : unreadCount}
-    </Text>
+    <Text style={styles.unreadText}>●</Text>
   </View>
 )}
 </View>
@@ -780,9 +674,9 @@ tabTextActive: {
 },
 unreadBubble: {
   backgroundColor: '#FF375E',
-  minWidth: 20,
-  height: 20,
-  borderRadius: 10,
+  minWidth: 23,
+  height: 23,
+  borderRadius: 100,
   paddingHorizontal: 6,
   alignItems: 'center',
   justifyContent: 'center',

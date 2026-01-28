@@ -277,7 +277,7 @@ export async function notifyNewMessage({ recipientId, senderId, senderName, sess
   await notifyUser({
     user_id: recipientId,
     title: 'Nouveau message',
-    body: `${senderName} a écrit dans "${sessionTitle}".\n👉 Clique pour ouvrir la conversation.`,
+    body: `${senderName} a écrit dans "${sessionTitle}".`,
     type: 'new_message',
     session_id: sessionId,
     sender_id: senderId,

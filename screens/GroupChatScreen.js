@@ -26,6 +26,8 @@ import { Buffer } from 'buffer';
 import { notifyGroupNewMessage } from '../helpers/notifications';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from '@react-navigation/native';
+import { useChatActivity } from '../context/ChatActivityContext';
 
 const BUBBLE_MY = '#1877F2';
 const BUBBLE_OTHER = '#fff';
@@ -96,7 +98,14 @@ const flatListRef = useRef();
 const [showImageModal, setShowImageModal] = useState(false);
 const [modalImageUrl, setModalImageUrl] = useState('');
 
+const lastMessageAtRef = useRef(null);
+
+const hasAutoScrolledRef = useRef(false);
+
+const { setActiveGroupChatId } = useChatActivity();
+
 const insets = useSafeAreaInsets();
+
 const APPBAR_H = 56;
 
 // Maintenant tu peux calculer
@@ -120,6 +129,16 @@ useEffect(() => {
   fetchGroup();
 }, [groupId]);
 
+useFocusEffect(
+  React.useCallback(() => {
+    setActiveGroupChatId(groupId);
+
+    return () => {
+      setActiveGroupChatId(null);
+    };
+  }, [groupId])
+);
+
 const fetchMessages = async () => {
   const { data, error } = await supabase
     .from('messages')
@@ -128,43 +147,28 @@ const fetchMessages = async () => {
       users:users!messages_sender_id_fkey(id, username, profile_photo)
     `)
     .eq('group_id', groupId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
 
-  if (error) {
-    Alert.alert("Erreur", "Impossible de récupérer les messages : " + error.message);
-    return;
-  }
+  if (error) return;
+
   setMessages(data || []);
 
-  // ✅ Enregistre le vrai dernier message comme "vu"
-  if (data && data.length > 0 && user) {
-    const lastMsg = data[data.length - 1];
-await AsyncStorage.setItem(
-  `last_seen_group_${groupId}_${user.id}`,
-  lastMsg.created_at
-);
+  if (!hasAutoScrolledRef.current) {
+  requestAnimationFrame(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    hasAutoScrolledRef.current = true;
+  });
+}
+
+  if (data && data.length > 0) {
+    lastMessageAtRef.current = data[data.length - 1].created_at;
+
+    await AsyncStorage.setItem(
+      `last_seen_group_${groupId}_${user.id}`,
+      lastMessageAtRef.current
+    );
   }
 };
-
-useEffect(() => {
-  fetchMessages();
-  const channel = supabase
-    .channel('public:messages')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'messages', filter: `group_id=eq.${groupId}` },
-      payload => {
-        if (payload.eventType === 'INSERT') {
-          fetchMessages();
-        }
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [groupId]);
 
 useEffect(() => {
   if (!messages.length || !user || !groupId) return;
@@ -172,18 +176,92 @@ useEffect(() => {
   if (lastMessage.sender_id !== user.id) {
     AsyncStorage.getItem(`last_seen_group_${groupId}_${user.id}`).then(lastSeen => {
       if (!lastSeen || new Date(lastMessage.created_at) > new Date(lastSeen)) {
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Nouveau message dans un groupe',
-            body: lastMessage.content || 'Tu as reçu un nouveau message',
-            data: { groupId },
-          },
-          trigger: null,
-        });
       }
     });
   }
 }, [messages]);
+
+useEffect(() => {
+  let isActive = true;
+
+  const channel = supabase
+    .channel(`group-messages-${groupId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `group_id=eq.${groupId}`,
+      },
+      async (payload) => {
+        if (!isActive) return;
+
+        // 🔥 Ignore tes propres messages (optimistic déjà affiché)
+        if (payload.new.sender_id === user.id) return;
+
+        const { data } = await supabase
+          .from('messages')
+          .select(`
+            *,
+            users:users!messages_sender_id_fkey(id, username, profile_photo)
+          `)
+          .eq('id', payload.new.id)
+          .single();
+
+        if (!data) return;
+
+        setMessages(prev => {
+          if (prev.some(m => m.id === data.id)) return prev;
+          return [data, ...prev];
+        });
+
+        requestAnimationFrame(() => {
+        });
+      }
+    )
+    .subscribe();
+
+  return () => {
+    isActive = false;
+    supabase.removeChannel(channel);
+  };
+}, [groupId, user.id]);
+
+useEffect(() => {
+  fetchMessages();
+}, [groupId]);
+
+useEffect(() => {
+  const interval = setInterval(async () => {
+    if (!groupId) return;
+
+    const { data, error } = await supabase
+      .from('messages')
+      .select(`
+        *,
+        users:users!messages_sender_id_fkey(id, username, profile_photo)
+      `)
+      .eq('group_id', groupId)
+      .gt(
+        'created_at',
+        lastMessageAtRef.current || '1970-01-01'
+      )
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) return;
+
+    setMessages(prev => {
+      const existingIds = new Set(prev.map(m => m.id));
+      const newOnes = data.filter(m => !existingIds.has(m.id));
+      return [...newOnes, ...prev];
+    });
+
+    lastMessageAtRef.current = data[data.length - 1].created_at;
+  }, 2500);
+
+  return () => clearInterval(interval);
+}, [groupId]);
 
 // --------- FONCTION ENVOI MESSAGE TEXTE ---------
 const sendMessage = async () => {
@@ -210,16 +288,42 @@ const sendMessage = async () => {
 
   setInput('');
 
+  const tempId = `tmp-${Date.now()}`;
+
+const optimisticMessage = {
+  id: tempId,
+  group_id: groupId,
+  sender_id: user.id,
+  content: trimmed,
+  created_at: new Date().toISOString(),
+  users: {
+    id: user.id,
+    username: user.username,
+    profile_photo: user.profile_photo,
+  },
+};
+
+setMessages(prev => [optimisticMessage, ...prev]);
+setInput('');
+
   try {
     // 💾 Insertion du message
-    const { error: msgErr } = await supabase.from('messages').insert([
-      {
-        group_id: groupId,
-        sender_id: user.id,
-        content: trimmed,
-      }
-    ]);
-    if (msgErr) throw msgErr;
+const { data: inserted, error: msgErr } = await supabase
+  .from('messages')
+  .insert({
+    group_id: groupId,
+    sender_id: user.id,
+    content: trimmed,
+  })
+  .select(`
+    *,
+    users:users!messages_sender_id_fkey(id, username, profile_photo)
+  `)
+  .single();
+
+  setMessages(prev =>
+  prev.map(m => (m.id === tempId ? inserted : m))
+);
 
     // 🔔 Notification push aux autres membres du groupe
     await notifyGroupNewMessage({
@@ -229,12 +333,6 @@ const sendMessage = async () => {
       groupName: group?.name || 'Groupe',
     });
 
-    // 🔄 Rafraîchissement
-    await fetchMessages();
-
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
   } catch (err) {
     Alert.alert("Erreur", "Erreur lors de l'envoi du message : " + (err.message || err));
   }
@@ -306,12 +404,6 @@ const sendImageMessage = async () => {
       groupName: group?.name || 'Groupe',
     });
 
-    // 🔄 Rafraîchissement
-    await fetchMessages();
-
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
   } catch (err) {
     Alert.alert("Erreur", "Erreur lors de l'envoi de l'image : " + (err.message || err));
   }
@@ -359,7 +451,7 @@ if (!item.sender_id && item.content) {
           {!isMe &&
             <Text style={styles.pseudo}>{item.users?.username || "Utilisateur"}</Text>
           }
-          <View style={isMe ? styles.myBubble : styles.otherBubble}>
+          <View style={styles.imageBubble}>
             <TouchableOpacity
               activeOpacity={0.93}
               onPress={() => {
@@ -393,6 +485,7 @@ if (!item.sender_id && item.content) {
       </View>
     );
   }
+
   return (
     <View style={styles.rowLeft}>
       <TouchableOpacity
@@ -469,24 +562,21 @@ return (
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"
-        keyboardVerticalOffset={headerOffset}
+        keyboardVerticalOffset={APPBAR_H}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          style={styles.messagesList}
-          contentContainerStyle={{
-            paddingBottom: hp('8%'),
-            paddingTop: headerOffset - 30,
-          }}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: true })
-          }
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        />
+<FlatList
+  ref={flatListRef}
+  inverted
+  data={messages}
+  renderItem={renderItem}
+  keyExtractor={(item) => String(item.id)}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
+  contentContainerStyle={{
+  paddingBottom: hp('2%'),
+  paddingTop: Platform.OS === 'ios' ? 12 : headerOffset - 30,
+  }}
+/>
 
         {/* Input fixé */}
         <View style={styles.inputBarContainer}>
@@ -532,21 +622,18 @@ return (
   behavior={Platform.OS === "android" ? "height" : "padding"}
   keyboardVerticalOffset={Platform.OS === "ios" ? headerOffset : 30}
 >
-  <FlatList
-    ref={flatListRef}
-    data={messages}
-    renderItem={renderItem}
-    keyExtractor={(item) => item.id}
-    style={styles.messagesList}
-    contentContainerStyle={{
-      paddingBottom: hp('10%'),
-      paddingTop: headerOffset - 30,
-    }}
-    onContentSizeChange={() =>
-      flatListRef.current?.scrollToEnd({ animated: true })
-    }
-    showsVerticalScrollIndicator={false}
-    keyboardShouldPersistTaps="handled"
+<FlatList
+  ref={flatListRef}
+  inverted
+  data={messages}
+  renderItem={renderItem}
+  keyExtractor={(item) => String(item.id)}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
+  contentContainerStyle={{
+  paddingBottom: hp('2,5%'),
+  paddingTop: headerOffset - 30,
+  }}
   />
 
   {/* Barre input fixée */}
@@ -802,5 +889,10 @@ headerAvatarImg: {
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  imageBubble: {
+  borderRadius: wp('4.8%'),
+  backgroundColor: 'transparent',
+  padding: 0,
+  overflow: 'hidden',
+}
 });
-

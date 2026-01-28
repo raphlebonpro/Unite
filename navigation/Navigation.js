@@ -13,6 +13,7 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import MainTabs from './MainTabs';
 import StackNavigator from './StackNavigator';
 import UniteWelcomeScreen from '../screens/UniteWelcomeScreen';
+import { navigationRef } from './navigationRef';
 
 const Stack = createNativeStackNavigator();
 
@@ -59,7 +60,7 @@ export default function Navigation() {
   if (splashWait) return null;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       {session ? (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {/* Accès quand l’utilisateur est connecté */}
@@ -71,7 +72,6 @@ export default function Navigation() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {/* Accès quand l’utilisateur n’est PAS connecté */}
           <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="SignUp" component={SignUpScreen} />
           <Stack.Screen name="Register" component={RegisterFormScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         </Stack.Navigator>

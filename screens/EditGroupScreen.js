@@ -29,6 +29,7 @@ import {
   notifyGroupDeleted
 } from "../helpers/notifications";
 import { FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 export default function EditGroupScreen({ route, navigation }) {
   const { groupId } = route.params;
@@ -48,51 +49,21 @@ export default function EditGroupScreen({ route, navigation }) {
   const [cover, setCover] = useState(null);
   const [sportPickerVisible, setSportPickerVisible] = useState(false);
 const [tempLocation, setTempLocation] = useState("");
-const [tempLat, setTempLat] = useState(null);
+const [tempLat, setTempLat] = useState(null); 
 const [tempLng, setTempLng] = useState(null);
 
 const sportData = [
-  { label: 'Football', icon: <FontAwesome5 name="futbol" size={17} color="#3888FF" /> },
-  { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={17} color="#FFA726" /> },
-  { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={17} color="#2ECC71" /> },
-  { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
-  { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={17} color="#3CD6E6" /> },
-  { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={17} color="#1469B9" /> },
-  { label: 'Musculation', icon: <MaterialCommunityIcons name="dumbbell" size={20} color="#7367F0" /> },
-  { label: 'Autres', icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" /> },
-  { label: '+ de sports', icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" /> },
-];
-
-const otherSports = [
-  'Yoga',
-  'Padel',
-  'Handball',
-  'Rugby',
-  'Volleyball',
-  'Badminton',
-  'Triathlon',
-  'Randonnée/Trail',
-  'VTT',
-  'Marche',
-  'Kayak',
-  'Ski',
-  'Snow',
-  'Skate',
-  'Surf',
-  'Escalade',
-  'Parapente',
-  'CrossFit',
-  'Callisthénie',
-  'Golf',
-  'Arts Martiaux',
-  'Boxe',
-  'Football américain',
-  'Baseball',
-  'Tennis de table',
-  'Danse',
-  'Pilate',
-  'Échecs',
-  'Pétanque',
+  { label: 'Football', icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
+  { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={hp('2.1%')} color="#FFA726" /> },
+  { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#2ECC71" /> },
+  { label: 'Padel', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#FFD600" /> },
+  { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" /> },
+  { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={hp('2.1%')} color="#3CD6E6" /> },
+  { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={hp('2.1%')} color="#1469B9" /> },
+  { label: 'Musculation', icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.4%')} color="#7367F0" /> },
+  { label: 'Fitness', icon: <MaterialCommunityIcons name="weight-lifter" size={hp('2.3%')} color="#7C4DFF" /> },
+  { label: 'Randonnée/Trail', icon: <MaterialCommunityIcons name="hiking" size={hp('2.1%')} color="#43A047" /> },
+  { label: '+ de sports', icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 ];
 
 const sportIcons = {
@@ -103,38 +74,68 @@ const sportIcons = {
   Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
   Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
   Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
-  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={20} color="#A259F7" />, color: '#A259F7' },
+  Fitness: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#7C4DFF" />, color: '#7C4DFF' },
+  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />,color: '#999',},
+
+  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={18} color="#A259F7" />, color: '#A259F7' },
+  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
+  Pilates: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+
   Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
-  Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
-  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
-  Rugby: { icon: <MaterialCommunityIcons name="rugby" size={18} color="#8E44AD" />, color: '#8E44AD' },
-  Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
-  Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
-  Triathlon: { icon: <MaterialCommunityIcons name="medal" size={18} color="#FF9800" />, color: '#FF9800' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
+
   'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  'Ski de randonnée': { icon: <MaterialCommunityIcons name="ski-cross-country" size={18} color="#4FC3F7" />, color: '#4FC3F7' },
+  'Ski/Snow': { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
+
   VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
   Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
   Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
-  Ski: { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
-  Snow: { icon: <MaterialCommunityIcons name="snowboard" size={18} color="#5f95de" />, color: '#5f95de' },
+
+  Surf: { icon: <MaterialCommunityIcons name="surfing" size={18} color="#26C6DA" />, color: '#26C6DA' },
+  Kitesurf: { icon: <MaterialCommunityIcons name="kitesurfing" size={18} color="#29B6F6" />, color: '#29B6F6' },
+  Windsurf: { icon: <MaterialCommunityIcons name="windsock" size={18} color="#42A5F5" />, color: '#42A5F5' },
+  'Stand Up Paddle': { icon: <MaterialCommunityIcons name="wave" size={18} color="#26A69A" />, color: '#26A69A' },
+
   Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
-  Surf: { icon: <MaterialCommunityIcons name="wave" size={18} color="#26C6DA" />, color: '#26C6DA' },
-  Escalade: { icon: <MaterialCommunityIcons name="hiking" size={18} color="#689F38" />, color: '#689F38' },
-  Parapente: { icon: <MaterialCommunityIcons name="parachute" size={18} color="#1976D2" />, color: '#1976D2' },
-  CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
+  Roller: { icon: <MaterialCommunityIcons name="roller-skate" size={18} color="#FF8A65" />, color: '#FF8A65' },
+
+  Escalade: { icon: <MaterialCommunityIcons name="terrain" size={18} color="#689F38" />, color: '#689F38' },
+  Parapente: { icon: <MaterialCommunityIcons name="paragliding" size={18} color="#1976D2" />, color: '#1976D2' },
+
+  CrossFit: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#536DFE" />, color: '#536DFE' },
   Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
-  Golf: { icon: <MaterialCommunityIcons name="golf" size={18} color="#43A047" />, color: '#43A047' },
+
   'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
-  Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#C62828" />, color: '#C62828' },
-  'Football américain': { icon: <MaterialCommunityIcons name="football" size={18} color="#FF7043" />, color: '#FF7043' },
-  Baseball: { icon: <MaterialCommunityIcons name="baseball" size={18} color="#FFD600" />, color: '#FFD600' },
-  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
-  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
-  Pilate: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+
   Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
-  Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={18} color="#757575" />, color: '#757575' },
+
   '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
+
+const otherSports = [
+  'CrossFit',
+  'Yoga',
+  'Pilates',
+  'Danse',
+  'Marche',
+  'VTT',
+  'Kayak',
+  'Surf',
+  'Kitesurf',
+  'Stand Up Paddle',
+  'Ski/Snow',
+  'Ski de randonnée',
+  'Skate',
+  'Roller',
+  'Escalade',
+  'Parapente',
+  'Callisthénie',
+  'Arts Martiaux',
+  'Tennis de table',
+  'Échecs',
+  'Autres'
+];
 
   // Charger les données du groupe existant
   useEffect(() => {
@@ -262,11 +263,17 @@ userId: user.id,
 };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-      >
+<SafeAreaView style={{ flex: 1 }}>
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+  >
+    <ScrollView
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
         {/* === Image de couverture === */}
         <TouchableOpacity onPress={pickImage} activeOpacity={0.85} style={styles.coverPicker}>
           {cover?.uri ? (
@@ -365,81 +372,64 @@ userId: user.id,
   </TouchableOpacity>
 </View>
 
-{/* === Modal de sélection de ville === */}
+{/* === Modal Choix de ville === */}
 <Modal
-  transparent
-  animationType="fade"
   visible={addressModalVisible}
+  animationType="slide"
+  transparent
   onRequestClose={() => setAddressModalVisible(false)}
-  presentationStyle="overFullScreen"
-  statusBarTranslucent
 >
-  <KeyboardAvoidingView
-    style={{ flex: 1 }}
-    behavior={Platform.OS === "ios" ? "padding" : "height"}
-    keyboardVerticalOffset={insets.top}
-  >
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={[styles.addressModalOverlay, { justifyContent: "center", alignItems: "center" }]}>
-        <View style={[styles.addressModalContainer, { width: "92%", maxHeight: "80%" }]}>
-          {/* Header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 12,
-              paddingHorizontal: 12,
-              marginTop: 8,
-            }}
-          >
-            <TouchableOpacity onPress={() => setAddressModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-            <Text style={[styles.addressModalTitle, { marginRight: 10, marginTop: 6 }]}>
-              Choisir une ville
-            </Text>
-            <TouchableOpacity
-              style={styles.addressValidateBtn}
-              activeOpacity={0.9}
-              onPress={() => {
-                if (tempLat && tempLng) {
-                  setLocation(tempLocation.trim());
-                  setLatitude(tempLat);
-                  setLongitude(tempLng);
-                  setAddressModalVisible(false);
-                } else {
-                  Alert.alert("Ville introuvable", "Choisis une suggestion valide.");
-                }
-              }}
-            >
-              <Text style={styles.addressValidateText}>Valider</Text>
-            </TouchableOpacity>
-          </View>
+  <View style={styles.addressOverlay}>
 
-          {/* Champ de recherche */}
-          <PlaceCitySearchField
-            autoFocus
-            value={tempLocation}
-            onChange={(txt) => {
-              setTempLocation(txt);
-              setTempLat(null);
-              setTempLng(null);
-            }}
-            onPick={({ description, lat, lng }) => {
-              setTempLocation(description);
-              setTempLat(lat);
-              setTempLng(lng);
-            }}
-            placeholder="Ex : Lyon, Bordeaux, 16e arrondissement"
-            boxStyle={styles.addressPickerBox}
-            suggestionContainerStyle={[styles.addressSuggestBox, { maxHeight: 360 }]}
-            keyboardShouldPersistTaps="handled"
-          />
-        </View>
+    <SafeAreaView style={styles.addressFullscreenContainer}>
+
+      {/* HEADER */}
+      <View style={styles.addressHeader}>
+        <TouchableOpacity onPress={() => setAddressModalVisible(false)}>
+          <Ionicons name="close" size={26} color="#444" />
+        </TouchableOpacity>
+
+        <Text style={styles.addressTitle}>Choisir un lieu</Text>
+
+<TouchableOpacity
+  disabled={!tempLocation.trim()}
+  onPress={() => {
+    setLocation(tempLocation.trim());
+    setAddressModalVisible(false);
+  }}
+  style={[
+    styles.addressValidateBtn,
+    { opacity: tempLocation.trim() ? 1 : 0.4 },
+  ]}
+>
+  <Text style={styles.addressValidateText}>Valider</Text>
+</TouchableOpacity>
+</View>
+
+      {/* SEARCH + LIST */}
+      <View style={{ flex: 1 }}>
+        <PlaceCitySearchField
+          autoFocus
+          value={tempLocation}
+          onChange={(txt) => {
+            setTempLocation(txt);
+            setTempLat(null);
+            setTempLng(null);
+          }}
+          onPick={({ description, lat, lng }) => {
+            setTempLocation(description);
+            setTempLat(lat);
+            setTempLng(lng);
+          }}
+          placeholder="Ex : Parc Monceau, Paris"
+          boxStyle={styles.addressSearchBox}
+          suggestionContainerStyle={styles.addressSuggestions}
+          keyboardShouldPersistTaps="handled"
+        />
       </View>
-    </TouchableWithoutFeedback>
-  </KeyboardAvoidingView>
+
+    </SafeAreaView>
+  </View>
 </Modal>
 
         {/* === Description === */}
@@ -455,7 +445,7 @@ userId: user.id,
 <TouchableOpacity
   onPress={handleSave}
   disabled={saving}
-  activeOpacity={0.9}
+  activeOpacity={0.9} 
   style={{ alignSelf: "center", marginTop: 16, marginBottom: 12 }}
 >
   <LinearGradient
@@ -505,8 +495,9 @@ userId: user.id,
 >
   <Text style={styles.buttonDangerText}>Supprimer le groupe</Text>
 </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+ </ScrollView>
+  </KeyboardAvoidingView>
+</SafeAreaView>
   );
 }
 
@@ -585,52 +576,48 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   validateText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-
-  // — Modal d’adresse (ville) : même langage visuel
-  addressModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  addressModalContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  addressModalTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#333",
-  },
-  addressValidateBtn: {
-    backgroundColor: "#3A6BFF",
-    paddingHorizontal: 25,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  addressValidateText: { color: "#fff", fontWeight: "700" },
-
-  // — PlaceCitySearchField containers (cohérents avec l’app)
-  addressPickerBox: {
-    borderWidth: 1,
-    borderColor: "#E7E7ED",
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  addressSuggestBox: {
-    marginTop: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#EEE",
-    backgroundColor: "#fff",
-    overflow: "hidden",
-  },
+addressOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.35)',
+},
+addressFullscreenContainer: {
+  flex: 1,
+  backgroundColor: '#fff',
+  paddingTop: 8,
+},
+addressHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  paddingBottom: 10,
+  borderBottomWidth: 1,
+  borderBottomColor: '#eee',
+},
+addressTitle: {
+  fontSize: 17,
+  fontWeight: '600',
+  color: '#111',
+},
+addressValidateBtn: {
+  backgroundColor: '#5B5FFF',
+  paddingHorizontal: 18,
+  paddingVertical: 8,
+  borderRadius: 8,
+},
+addressValidateText: {
+  color: '#fff',
+  fontWeight: '600',
+},
+addressSearchBox: {
+  marginTop: 12,
+  marginHorizontal: 16,
+},
+addressSuggestions: {
+  flex: 1,
+  marginTop: 8,
+  paddingHorizontal: 16,
+},
 buttonDanger: {
   backgroundColor: '#E53935',
   borderRadius: 12,

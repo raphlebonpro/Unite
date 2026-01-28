@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,9 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
-import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
-import Toast from 'react-native-toast-message';
 import {
   notifyYouJoinedSession,
   notifyParticipantJoinedCreator,
@@ -31,9 +29,100 @@ import * as Sharing from 'expo-sharing';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useRef } from 'react';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { FontAwesome5, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const sportIcons = {
+  Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
+  Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
+  Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
+  Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
+  Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
+  Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
+  Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
+  Fitness: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#7C4DFF" />, color: '#7C4DFF' },
+  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />,color: '#999',},
+
+  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={18} color="#A259F7" />, color: '#A259F7' },
+  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
+  Pilates: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+
+  Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
+
+  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  'Ski de randonnée': { icon: <MaterialCommunityIcons name="ski-cross-country" size={18} color="#4FC3F7" />, color: '#4FC3F7' },
+  'Ski/Snow': { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
+
+  VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
+  Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
+  Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
+
+  Surf: { icon: <MaterialCommunityIcons name="surfing" size={18} color="#26C6DA" />, color: '#26C6DA' },
+  Kitesurf: { icon: <MaterialCommunityIcons name="kitesurfing" size={18} color="#29B6F6" />, color: '#29B6F6' },
+  Windsurf: { icon: <MaterialCommunityIcons name="windsock" size={18} color="#42A5F5" />, color: '#42A5F5' },
+  'Stand Up Paddle': { icon: <MaterialCommunityIcons name="wave" size={18} color="#26A69A" />, color: '#26A69A' },
+
+  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
+  Roller: { icon: <MaterialCommunityIcons name="roller-skate" size={18} color="#FF8A65" />, color: '#FF8A65' },
+
+  Escalade: { icon: <MaterialCommunityIcons name="terrain" size={18} color="#689F38" />, color: '#689F38' },
+  Parapente: { icon: <MaterialCommunityIcons name="paragliding" size={18} color="#1976D2" />, color: '#1976D2' },
+
+  CrossFit: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#536DFE" />, color: '#536DFE' },
+  Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
+
+  'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
+
+  Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
+};
 
 const STATIC_MAP_KEY = Constants.expoConfig.extra.GOOGLE_MAPS_API_KEY;
-const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=random&name=U';
+
+const LETTER_COLORS = [
+  '#4A90E2','#50E3C2','#F5A623','#9013FE','#D0021B',
+  '#7ED321','#F8E71C','#B8E986','#417505','#BD10E0',
+  '#FF3366','#00BCD4','#FF9800',
+];
+
+function getColorFromUsername(username = '') {
+  if (!username) return '#4A90E2';
+  const firstLetter = username.charAt(0).toUpperCase();
+  const index = (firstLetter.charCodeAt(0) - 65) % LETTER_COLORS.length;
+  return LETTER_COLORS[index];
+}
+
+const UserAvatar = ({ avatar, username, size = 44 }) => {
+  if (avatar) {
+    return (
+      <Image
+        source={{ uri: avatar }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        }}
+      />
+    );
+  }
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: getColorFromUsername(username),
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <Text style={{ color: '#fff', fontWeight: '700', fontSize: size * 0.45 }}>
+        {username?.charAt(0)?.toUpperCase() || 'U'}
+      </Text>
+    </View>
+  );
+};
 
 function formatDateTime(date, time) {
   if (!date) return '';
@@ -44,10 +133,28 @@ function formatDateTime(date, time) {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
-    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function getSportMeta(sport) {
+  if (!sport) return sportIcons.Autres;
+
+  const normalized = sport
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const foundKey = Object.keys(sportIcons).find(key => {
+    const keyNorm = key
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, '');
+    return keyNorm === normalized;
+  });
+
+  return sportIcons[foundKey] || sportIcons.Autres;
 }
 
 function isSessionFinished(session) {
@@ -99,6 +206,14 @@ const SessionDetailScreen = () => {
   const [shared, setShared] = useState(false);
 // Ajoute un nouvel état
 const [invitation, setInvitation] = useState(null);
+
+const sportMeta = useMemo(() => {
+  return getSportMeta(session?.sport);
+}, [session?.sport]);
+
+const sportColor = sportMeta.color;
+
+const insets = useSafeAreaInsets();
 
 useEffect(() => {
   navigation.setOptions({
@@ -222,6 +337,16 @@ const fetchSession = async () => {
   setLoading(false);
 };
 
+const mapRegion = useMemo(() => {
+  if (!session?.lat || !session?.lng) return null;
+  return {
+    latitude: Number(session.lat),
+    longitude: Number(session.lng),
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  };
+}, [session?.lat, session?.lng]);
+
   // Vérification kickée
   useEffect(() => {
     const checkKicked = async () => {
@@ -243,81 +368,76 @@ const fetchSession = async () => {
       setCheckingKick(false);
     };
     checkKicked();
-  }, [session?.id]);
+  }, [session?.id, user?.id]);
 
   // 🔄 Recharge session + participants à chaque retour sur l'écran
 useFocusEffect(
   useCallback(() => {
-    const load = async () => {
-      await fetchSession();        // 🔹 attend la session
-      await fetchParticipants();   // 🔹 ensuite charge les participants
-    };
-    load();
-  }, [sessionId, user])
+fetchSession();
+  }, [sessionId])
 );
 
 useEffect(() => {
-  if (session?.id) fetchParticipants();
+  if (session?.id) {
+    fetchParticipants();
+  }
 }, [session?.id]);
 
   // Fetch participants
-  const fetchParticipants = async () => {
-    if (!session) return;
-    setParticipantsLoading(true);
+const fetchParticipants = async () => {
+  if (!session?.id) return;
 
-    const { data: participantRows } = await supabase
+  setParticipantsLoading(true);
+
+  try {
+    const { data, error } = await supabase
       .from('session_participants')
-      .select('user_id')
+      .select(`
+        user:users!session_participants_user_id_fkey (
+          id,
+          username,
+          profile_photo
+        )
+      `)
       .eq('session_id', session.id);
 
-    const userIds = (participantRows || []).map(p => p.user_id);
+    if (error) throw error;
 
-    let usersRows = [];
-    if (userIds.length > 0) {
-      const { data: uRows } = await supabase
-        .from('users')
-        .select('id, username, profile_photo')
-        .in('id', userIds);
-      usersRows = uRows || [];
-    }
+    let list = (data || [])
+      .map(row => row.user)
+      .filter(Boolean)
+      .map(u => ({
+        id: u.id,
+        username: u.username || 'Utilisateur',
+        avatar: u.profile_photo || null,
+      }));
 
-    let creator = null;
-    if (session.creator_id && !userIds.includes(session.creator_id)) {
-      const { data: creatorRow } = await supabase
+    // Ajout du créateur s’il n’est pas déjà dedans
+    if (session.creator_id && !list.some(p => p.id === session.creator_id)) {
+      const { data: creator } = await supabase
         .from('users')
         .select('id, username, profile_photo')
         .eq('id', session.creator_id)
         .single();
-      creator = creatorRow;
-    }
 
-    let participantsList = usersRows.map(u => ({
-      id: u.id,
-      username: u.username || 'Utilisateur',
-      avatar: u.profile_photo || DEFAULT_AVATAR,
-    }));
-
-    if (creator) {
-      participantsList = [
-        {
+      if (creator) {
+        list.unshift({
           id: creator.id,
           username: creator.username || 'Créateur',
-          avatar: creator.profile_photo || DEFAULT_AVATAR,
-        },
-        ...participantsList,
-      ];
+          avatar: creator.profile_photo || null,
+        });
+      }
     }
 
-    setParticipants(participantsList);
-
-    if (user && (userIds.includes(user.id) || user.id === session.creator_id)) {
-      setIsParticipant(true);
-    } else {
-      setIsParticipant(false);
-    }
-
+    setParticipants(list);
+    setIsParticipant(user && list.some(p => p.id === user.id));
+  } catch (e) {
+    console.error('fetchParticipants error:', e);
+  } finally {
     setParticipantsLoading(false);
-  };
+  }
+};
+
 
 useEffect(() => {
   const checkFeedbackStatus = async () => {
@@ -358,6 +478,13 @@ useEffect(() => {
       </View>
     );
   }
+
+  // ===== LOGIQUE GROUPE (DÉRIVÉE) =====
+const isGroupSession = !!session?.group_id;
+
+const isGroupMember =
+  isGroupSession &&
+  (session.creator_id === user?.id || isParticipant);
 
   const getStaticMapUrl = () => {
     if (!session.lat || !session.lng) return null;
@@ -416,9 +543,55 @@ const shareSessionAsImage = async () => {
   }
 };
 
+const confirmJoin = () => {
+  Alert.alert(
+    "Rejoindre la session ?",
+    "Tu vas être ajouté à la session et visible par les autres participants.",
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Rejoindre",
+        onPress: handleJoin,
+      },
+    ],
+    { cancelable: true }
+  );
+};
+
+function formatDate(date) {
+  if (!date) return '';
+  return new Date(date).toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+function formatTime(time) {
+  if (!time) return '';
+  return time.slice(0, 5); // HH:mm
+}
+
+function getDateBadge(date) {
+  const d = new Date(date);
+  const today = new Date();
+  const diff = Math.floor((d - today) / 86400000);
+
+  if (diff === 0) return "Aujourd’hui";
+  if (diff === 1) return "Demain";
+  return null;
+}
 
 // Fonction pour rejoindre la session
 const handleJoin = async () => {
+  // 🚫 Session réservée au groupe
+if (isGroupSession && !isGroupMember && !invitation) {
+  setLoadingJoin(false);
+  return Alert.alert(
+    "Session réservée au groupe",
+    "Tu dois être membre du groupe pour rejoindre cette session."
+  );
+}
   setLoadingJoin(true);
 
   // 1️⃣ Auth check
@@ -557,16 +730,6 @@ if (session.max_participants !== null && session.max_participants > 0) {
   setLoadingJoin(false);
   if (insErr) return Alert.alert('Erreur', insErr.message);
 
-  // 6️⃣ Toast visuel
-  Toast.show({
-    type: 'success',
-    text1: 'Session rejointe !',
-    text2: `Tu as bien rejoint la session "${session.title}".`,
-    position: 'top',
-    topOffset: 48,
-    visibilityTime: 2600,
-  });
-
   // 7️⃣ Infos user pour notif
   const { data: userProfile } = await supabase
     .from('users')
@@ -589,6 +752,16 @@ if (session.max_participants !== null && session.max_participants > 0) {
     });
   }
 
+  if (session.group_id && userId !== session.creator_id) {
+  await notifyGroupSessionJoinedForMembers({
+    groupId: session.group_id,
+    joinerName: pseudoAffiche,
+    sessionTitle: session.title,
+    sessionId: session.id,
+    joinerId: userId,
+  });
+}
+
   // notif au participant lui-même
   await notifyYouJoinedSession({
     userId,
@@ -607,7 +780,7 @@ if (session.max_participants !== null && session.max_participants > 0) {
 
   await scheduleSessionReminder(session);
   fetchParticipants();
-  navigation.navigate('MainTabs', { screen: 'Activités', params: { tab: 'joined' } });
+  navigation.navigate('MainTabs', { screen: 'Sessions', params: { tab: 'joined' } });
 };
 
 const handleLeave = async () => {
@@ -673,16 +846,7 @@ const handleLeave = async () => {
             });
           }
 
-          Toast.show({
-            type: 'success',
-            text1: 'Session quittée',
-            text2: `Tu as quitté la session "${session.title}".`,
-            position: 'top',
-            topOffset: 48,
-            visibilityTime: 2600,
-          });
-
-          navigation.navigate('MainTabs', { screen: 'Activités' });
+          navigation.navigate('MainTabs', { screen: 'Sessions' });
         },
       },
     ]
@@ -705,7 +869,7 @@ if ((user && (session.creator_id === user.id || isParticipant)) && finished && !
           padding: 14,
           marginHorizontal: 18,
           marginTop: 10,
-          marginBottom: 44,
+          marginBottom: Platform.OS === 'android' ? 16 : 44,
           borderWidth: 1,
           borderColor: '#d0e1ff'
         }}
@@ -733,7 +897,7 @@ if ((user && (session.creator_id === user.id || isParticipant)) && finished && !
           overflow: 'hidden',
           marginHorizontal: 18,
           marginTop: 4,
-          marginBottom: 44,
+          marginBottom: Platform.OS === 'android' ? 16 : 44,
         }}
         onPress={() => navigation.navigate('SessionFeedback', { sessionId: session.id })}
         activeOpacity={0.92}
@@ -754,7 +918,7 @@ if ((user && (session.creator_id === user.id || isParticipant)) && finished && !
 // 2️⃣ Cas : créateur (session pas terminée)
 else if (user && session.creator_id === user.id) {
   actionButtons = (
-    <View style={{ marginHorizontal: 18, marginTop: 4, marginBottom: 60 }}>
+    <View style={{ marginHorizontal: 18, marginTop: 4,marginBottom: Platform.OS === 'android' ? 20 : 60 }}>
       {/* Bouton Groupe/Messages */}
       <TouchableOpacity
         style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 12 }}
@@ -793,7 +957,13 @@ else if (user && session.creator_id === user.id) {
 // 3️⃣ Cas : participant (session pas terminée)
 else if (isParticipant) {
   actionButtons = (
-    <View style={{ marginHorizontal: 18, marginTop: 4, marginBottom: 44 }}>
+    <View
+  style={{
+    marginHorizontal: 18,
+    marginTop: 4,
+    marginBottom: Platform.OS === 'android' ? 10 : 44,
+  }}
+>
       {/* Bouton Groupe/Messages */}
       <TouchableOpacity
         style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 12 }}
@@ -832,7 +1002,7 @@ else if (invitation && !isParticipant && user && user.id !== session.creator_id)
   actionButtons = (
     <TouchableOpacity
       style={{ borderRadius: 16, overflow: 'hidden', marginHorizontal: 18, marginTop: 4, marginBottom: 44 }}
-      onPress={handleJoin}
+      onPress={confirmJoin}
       activeOpacity={0.92}
       disabled={loadingJoin}
     >
@@ -850,12 +1020,51 @@ else if (invitation && !isParticipant && user && user.id !== session.creator_id)
   );
 }
 
-// 5️⃣ Cas : utilisateur lambda (pas créateur, pas participant, pas invité)
-else if (!isParticipant && user && user.id !== session.creator_id) {
+// 0️⃣ Cas : session de groupe / utilisateur non membre / non invité
+if (isGroupSession && !isGroupMember && !invitation && user) {
   actionButtons = (
     <TouchableOpacity
-      style={{ borderRadius: 16, overflow: 'hidden', marginHorizontal: 18, marginTop: 4, marginBottom: 44 }}
-      onPress={handleJoin}
+      style={{
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginHorizontal: 18,
+        marginTop: 4,
+        marginBottom: Platform.OS === 'android' ? 16 : 44,
+      }}
+      onPress={() =>
+        navigation.navigate('GroupDetail', {
+          groupId: session.group_id,
+          fromSessionId: session.id, // utile plus tard
+        })
+      }
+      activeOpacity={0.92}
+    >
+      <LinearGradient
+        colors={['#3F4FFF', '#7A5CFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.joinButton}
+      >
+        <Text style={styles.joinButtonText}>
+          Voir le groupe
+        </Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
+// 5️⃣ Cas : utilisateur lambda (pas créateur, pas participant, pas invité)
+else if (
+  !isParticipant &&
+  user &&
+  user.id !== session.creator_id &&
+  (!isGroupSession || isGroupMember || invitation)
+) {
+  actionButtons = (
+    <TouchableOpacity
+      style={{ borderRadius: 16, overflow: 'hidden', marginHorizontal: 18, marginTop: 4, marginBottom: Platform.OS === 'android' ? 16 : 44
+ }}
+      onPress={confirmJoin}
       activeOpacity={0.92}
       disabled={loadingJoin}
     >
@@ -930,7 +1139,7 @@ const ShareScreenClone = () => {
             source={{ uri: staticMapUrl }}
             style={{
               width: "100%",
-              height: 170,
+              height: 150,
               borderRadius: 12,
               marginBottom: 16,
             }}
@@ -978,7 +1187,28 @@ const ShareScreenClone = () => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {participants.map((p) => (
               <View key={p.id} style={{ alignItems: "center", marginRight: 10 }}>
-                <Image source={{ uri: p.avatar }} style={styles.avatar} />
+                {p.avatar ? (
+  <UserAvatar
+  avatar={p.avatar}
+  username={p.username}
+  size={44}
+/>
+) : (
+  <View
+    style={[
+      styles.avatar,
+      {
+        backgroundColor: getColorFromUsername(p.username),
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+    ]}
+  >
+    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+      {p.username?.charAt(0)?.toUpperCase() || 'U'}
+    </Text>
+  </View>
+)}
                 <Text
                   style={[styles.avatarName, { fontSize: 11 }]}
                   numberOfLines={1}
@@ -1060,7 +1290,24 @@ const ShareScreenClone = () => {
   return (
   <>
     {session?.lat && session?.lng && <ShareScreenClone />}
+
 <ScrollView contentContainerStyle={styles.container}>
+{isGroupSession && !isGroupMember && !invitation && (
+  <View style={{ 
+    marginHorizontal: 18,
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: '#fff3f2',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF375E',
+  }}>
+    <Text style={{ color: '#d92e3f', fontWeight: '600' }}>
+      ⚠️ Cette session est réservée aux membres du groupe.
+    </Text>
+  </View>
+)}
+
 {invitation && (
   <View style={styles.inviteBanner}>
     <Text style={styles.inviteText}>
@@ -1069,10 +1316,13 @@ const ShareScreenClone = () => {
     </Text>
   </View>
 )}
-  <Text style={styles.title}>{session.title}</Text>
-  <View style={{ height: 16 }} />
+<View style={styles.headerTextContainer}>
+<Text style={styles.title}>{session.title}</Text>
+  <View style={{ height: 12 }} />
   <Text style={styles.address}>{session.location}</Text>
-  <View style={{ height: 26 }} />
+</View>
+
+<View style={{ height: 26 }} />
   
 {session?.lat &&
  session?.lng &&
@@ -1080,10 +1330,10 @@ const ShareScreenClone = () => {
  Number.isFinite(Number(session.lng)) && (
   <View
     style={{
-      height: 200,
+      height: 150,
       borderRadius: 12,
       overflow: "hidden",
-      marginHorizontal: 18,
+      marginHorizontal: 10,
     }}
   >
 {session?.lat &&
@@ -1092,21 +1342,17 @@ const ShareScreenClone = () => {
  Number.isFinite(Number(session.lng)) && (
   <View
     style={{
-      height: 200,
+      height: 150,
       borderRadius: 12,
       overflow: 'hidden',
-      marginHorizontal: 18,
+      marginHorizontal: 10,
     }}
   >
+    {mapRegion && (
     <MapView
       style={StyleSheet.absoluteFill}
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-      initialRegion={{
-        latitude: Number(session.lat),
-        longitude: Number(session.lng),
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }}
+      initialRegion={mapRegion}
       showsUserLocation
       showsMyLocationButton
       loadingEnabled
@@ -1118,6 +1364,7 @@ const ShareScreenClone = () => {
         }}
       />
     </MapView>
+    )}
   </View>
 )}
   </View>
@@ -1125,22 +1372,50 @@ const ShareScreenClone = () => {
 
 <View style={{ height: 22 }} />
 
-  <View style={styles.row}>
-    <View style={styles.infoBox}>
-      <Ionicons name="calendar-outline" size={18} color="#e17055" style={{ marginRight: 6 }} />
-      <Text style={styles.infoText}>
-        {formatDateTime(session.date, session.time)}
-      </Text>
-    </View>
-    <LinearGradient
-colors={['#6A11CB', '#2575FC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.levelBox}
-    >
-      <Text style={styles.levelText}>{session.level}</Text>
-    </LinearGradient>
+{/* ===== INFOS SESSION ===== */}
+<View style={styles.sessionInfoContainer}>
+
+  {/* Ligne 1 : Sport + Niveau */}
+<View style={styles.infoRow}>
+  {/* SPORT */}
+<View style={styles.infoChip}>
+  {sportMeta.icon}
+  <Text style={[styles.infoChipText, { color: sportMeta.color }]}>
+    {session.sport}
+  </Text>
+</View>
+
+  {/* NIVEAU */}
+  <View style={styles.infoChip}>
+    <Ionicons name="stats-chart-outline" size={16} color={sportColor} />
+<Text style={[styles.infoChipText, { color: sportColor }]}>
+  {session.level}
+</Text>
   </View>
+</View>
+
+  {/* Ligne 2 : Heure + Date */}
+<View style={styles.infoRow}>
+  <View style={[styles.infoChip, { flex: 0.7 }]}>
+    <Ionicons name="time-outline" size={16} color={sportColor} />
+<Text style={[styles.infoChipText, { color: sportColor }]}>
+  {formatTime(session.time)}
+</Text>
+  </View>
+
+  {/* DATE → PLUS LARGE */}
+  <View style={[styles.infoChip, { flex: 1.3 }]}>
+    <Ionicons name="calendar-outline" size={16} color={sportColor} />
+    <Text
+     style={[styles.infoChipText, { color: sportColor }]}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+    >
+      {formatDate(session.date)}
+    </Text>
+  </View>
+</View>
+</View>
 
   {/* Participants */}
   <Text style={styles.sectionTitle}>Participants</Text>
@@ -1155,7 +1430,24 @@ colors={['#6A11CB', '#2575FC']}
               navigation.navigate('UserProfile', { userId: p.id })
             }
           >
-            <Image source={{ uri: p.avatar }} style={styles.avatar} />
+            {p.avatar ? (
+  <Image source={{ uri: p.avatar }} style={styles.avatar} />
+) : (
+  <View
+    style={[
+      styles.avatar,
+      {
+        backgroundColor: getColorFromUsername(p.username),
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+    ]}
+  >
+    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+      {p.username?.charAt(0)?.toUpperCase() || 'U'}
+    </Text>
+  </View>
+)}
             <Text style={styles.avatarName} numberOfLines={1}>
               {p.username}
             </Text>
@@ -1203,17 +1495,6 @@ await notifyExclusion({
   otherParticipantIds: participants.map(x => x.id).filter(id => id !== p.id && id !== session.creator_id),
 });
 
-
-              // 4. Feedback visuel
-              Toast.show({
-                type: 'success',
-                text1: 'Participant exclu',
-                text2: `${p.username} a été exclu de la session.`,
-                position: 'top',
-                topOffset: 48,
-                visibilityTime: 2600,
-              });
-
               fetchParticipants();
             } catch (e) {
               Alert.alert('Erreur', e.message);
@@ -1258,6 +1539,7 @@ await notifyExclusion({
     <Text style={styles.descriptionText}>{session.description || "Aucune description."}</Text>
   </View>
 
+</ScrollView>
 {/* BLOC KICK / ANNULATION */}
 {checkingKick || participantsLoading ? (
   <View style={{ height: 60, justifyContent: 'center', alignItems: 'center' }}>
@@ -1272,7 +1554,6 @@ await notifyExclusion({
 ) : (
   actionButtons
 )}
-</ScrollView>
 </>
   );
 };
@@ -1281,11 +1562,11 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff',
   },
-  container: {
-    padding: 0,
-    backgroundColor: '#fff',
-    paddingBottom: hp('1.3%'),
-  },
+container: {
+  padding: 0,
+  backgroundColor: '#fff',
+  paddingBottom: Platform.OS === 'android' ? 0 : hp('1.3%'),
+},
   appBar: {
     height: hp('6.5%'),
     flexDirection: 'row',
@@ -1321,7 +1602,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   address: {
-    fontSize: wp('4.1%'),
+    fontSize: wp('4.2%'),
     color: '#666',
     textAlign: 'center',
     marginBottom: 0,
@@ -1371,7 +1652,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.13,
     shadowRadius: 4,
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
+    marginTop: -6,
   },
   levelText: {
     fontWeight: '700',
@@ -1470,11 +1752,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 0,
     marginBottom: 0,
-    shadowColor: "#ff4343",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 4,
   },
   leaveButtonText: {
     color: '#fff',
@@ -1499,7 +1776,6 @@ inviteButtonText: {
   fontSize: wp('3.6%'),
   letterSpacing: 0.2,
 },
-
 inviteBanner: {
   marginHorizontal: 18,
   marginBottom: 12,
@@ -1513,6 +1789,59 @@ inviteText: {
   color: '#333',
   fontSize: 14,
   fontWeight: '500',
+},
+headerTextContainer: {
+  paddingHorizontal: 20, // 👈 spacing horizontal cohérent avec le reste
+},
+sessionInfoContainer: {
+  marginHorizontal: 18,
+  marginBottom: 18,
+  backgroundColor: '#fff',
+  borderRadius: 16,
+  padding: 14,
+  borderWidth: 1,
+  borderColor: '#eee',
+},
+
+infoRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  marginBottom: 10,
+  gap: 10,
+},
+
+infoChip: {
+  flex: 1,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#FFF4EE',
+  paddingVertical: 10,
+  paddingHorizontal: 12,
+  borderRadius: 12,
+  gap: 6,
+},
+
+infoChipText: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#222',
+  flexShrink: 1,
+  textAlign: 'center',
+},
+
+levelChip: {
+  flex: 1,
+  paddingVertical: 10,
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+levelChipText: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: 14,
 },
 
 });

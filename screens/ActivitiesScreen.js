@@ -1,18 +1,17 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  Dimensions, RefreshControl, Platform,
+  Dimensions, RefreshControl, Platform, Alert
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import SessionCard from '../components/SessionCard';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useUser } from '../context/UserContext';
 import { AntDesign, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import MiniAppBar from '../components/MiniAppBar';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const { width } = Dimensions.get('window');
+const MINI_APP_BAR_HEIGHT = Platform.OS === 'android' ? 55 : 40;
 
 const TABS = [
   { key: 'created', label: 'Créées', icon: <AntDesign name="pluscircleo" size={16} color="#FF914D" /> },
@@ -115,13 +114,20 @@ const ActivitiesScreen = () => {
     }
   }, [user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchSessions();
-      const interval = setInterval(() => fetchSessions(), 15000);
-      return () => clearInterval(interval);
-    }, [fetchSessions])
-  );
+useFocusEffect(
+  useCallback(() => {
+    fetchSessions();
+
+    if (route.params?.showCreatedAlert) {
+      Alert.alert(
+        'Session créée !',
+        'Ta session a bien été enregistrée.'
+      );
+
+      navigation.setParams({ showCreatedAlert: false });
+    }
+  }, [fetchSessions, route.params?.showCreatedAlert])
+);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -145,12 +151,11 @@ return (
         left: 0,
         right: 0,
         zIndex: 999,
-        elevation: 10,
         backgroundColor: '#fff'
       }}
     >
       <MiniAppBar
-        title="Activités"
+        title="Sessions"
         hasNotifications={false}
         onProfilePress={() => navigation.navigate('Profile')}
         onNotificationsPress={() => navigation.navigate('Notifications')}
@@ -159,11 +164,11 @@ return (
     </View>
 
     {/* CONTENU PRINCIPAL */}
-    <View style={{ flex: 1, paddingTop: 40 }}>
+    <View style={{ flex: 1, paddingTop: MINI_APP_BAR_HEIGHT }}>
 
       <FlatList
         data={getSessions()}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
 
         ListHeaderComponent={
           <View>
@@ -178,13 +183,14 @@ return (
     borderRadius: 26,          // ← arrondi identique sur les deux OS
     paddingVertical: 12,       // ← hauteur réduite = moins grossier
     paddingHorizontal: 16,
+    elevation: 2,
     
     // Ombre optimisée cross-platform
     shadowColor: '#000',
     shadowOpacity: 0.07,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    elevation: 1,
   }}
 >
   <Text

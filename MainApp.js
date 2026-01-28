@@ -2,26 +2,17 @@ import React, { useEffect, useRef } from 'react';
 import { SafeAreaView, StyleSheet, Platform, Alert } from 'react-native';
 import Navigation from './navigation/Navigation';
 import { Provider as PaperProvider } from 'react-native-paper';
-import Toast from 'react-native-toast-message';
 import * as Notifications from 'expo-notifications';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as NavigationBar from 'expo-navigation-bar';
-import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { supabase } from './lib/supabaseClient';
 import { useUser } from './context/UserContext';
 import { useColorScheme } from 'react-native';
 import SafeTop from './components/SafeTop';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
-// 🔔 Handler global des notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+import { navigate } from './navigation/navigationRef';
+import { useChatActivity } from './context/ChatActivityContext';
 
 // ✅ Enregistrement du token push
 async function registerForPushNotificationsAsync(userId) {
@@ -82,9 +73,9 @@ async function registerForPushNotificationsAsync(userId) {
 
 export default function MainApp() {
   const { user } = useUser();
-  const notificationListener = useRef();
   const responseListener = useRef();
   const colorScheme = useColorScheme();
+  const { activeSessionChatId, activeGroupChatId } = useChatActivity();
 
   // 🔒 Orientation portrait
   useEffect(() => {
@@ -110,37 +101,89 @@ export default function MainApp() {
   }, [user]);
 
   // 🎧 Réception & réponse aux notifs
-  useEffect(() => {
-    notificationListener.current = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        Toast.show({
-          type: 'success',
-          text1: notification.request.content.title,
-          text2: notification.request.content.body,
-          position: 'top',
-          visibilityTime: 3000,
+
+useEffect(() => {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const data = notification?.request?.content?.data;
+
+      // 🚫 Pas de notif si on est DÉJÀ dans le chat session
+      if (
+        data?.type === 'new_message' &&
+        data?.session_id &&
+        data.session_id === activeSessionChatId
+      ) {
+        return {
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        };
+      }
+
+      // 🚫 Pas de notif si on est DÉJÀ dans le chat groupe
+      if (
+        data?.type === 'group_new_message' &&
+        data?.group_id &&
+        data.group_id === activeGroupChatId
+      ) {
+        return {
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        };
+      }
+
+      // ✅ Sinon notif normale
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      };
+    },
+  });
+}, [activeSessionChatId, activeGroupChatId]);
+
+useEffect(() => {
+  responseListener.current =
+    Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (!data?.type) return;
+
+      // 💬 Message de session
+      if (data.type === 'new_message' && data.session_id) {
+        navigate('SessionMessages', {
+          sessionId: data.session_id,
+          fromNotification: true,
+        });
+        return;
+      }
+
+      // 💬 Message de groupe
+      if (data.type === 'group_new_message' && data.group_id) {
+        navigate('GroupChat', {
+          groupId: data.group_id,
+          fromNotification: true,
+        });
+        return;
+      }
+
+      // 🔁 fallback session
+      if (data.session_id) {
+        navigate('SessionDetail', {
+          sessionId: data.session_id,
+          fromNotification: true,
         });
       }
-    );
+    });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        console.log('➡️ Réponse à la notif :', response);
-      }
-    );
-
-    return () => {
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
-    };
-  }, []);
+  return () => responseListener.current?.remove();
+}, []);
 
 return (
     <SafeAreaProvider>
       <SafeTop>
         <PaperProvider>
           <Navigation />
-          <Toast />
         </PaperProvider>
       </SafeTop>
     </SafeAreaProvider>

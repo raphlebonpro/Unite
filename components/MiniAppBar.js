@@ -32,6 +32,7 @@ const TouchableItem = ({ onPress, children, style }) => {
 
 const MiniAppBar = ({
   title,
+  centerComponent,
   onNotificationsPress,
   onLeaderboardPress,
   showLeaderboard = false,
@@ -158,23 +159,30 @@ const MiniAppBar = ({
           </TouchableItem>
         </View>
 
-        {/* Titre centré */}
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: 0,            // plus de safe area
-            height: BASE_H,
-            justifyContent: 'center',
-            alignItems: 'center',
-            pointerEvents: 'none',
-          }}
-        >
-          <GradientTitle style={{ fontWeight: 'bold', fontSize: 19 }} numberOfLines={1}>
-            {title}
-          </GradientTitle>
-        </View>
+{/* Centre : titre OU composant custom */}
+<View
+  style={{
+    position: 'absolute',
+    left: 56,        // espace icônes gauche
+    right: 56,       // espace icônes droite
+    top: 0,
+    height: BASE_H,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'none',
+  }}
+>
+  {centerComponent ? (
+    centerComponent
+  ) : (
+    <GradientTitle
+      style={{ fontWeight: 'bold', fontSize: 19 }}
+      numberOfLines={1}
+    >
+      {title}
+    </GradientTitle>
+  )}
+</View>
       </View>
     </View>
   );

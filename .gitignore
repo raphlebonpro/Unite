@@ -101,4 +101,7 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Android - fichiers sensibles
+android/app/debug.keystore
+
 # @end expo-cli

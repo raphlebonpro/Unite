@@ -5,7 +5,7 @@ export default {
     name: "Unite",
     slug: "Unite",
     owner: "raphlebon",
-    version: "1.1.1",
+    version: "1.1.6",
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: false,
@@ -30,7 +30,7 @@ export default {
 
     ios: {
       bundleIdentifier: "com.uniteapp.collectif",
-      buildNumber: "113",
+      buildNumber: "115",
       icon: "./assets/icon1.png",
       supportsTablet: false,
       infoPlist: {
@@ -51,7 +51,7 @@ export default {
 
     android: {
       package: "com.uniteapp.collectif",
-      versionCode: 73,
+      versionCode: 78,
       supportsTablet: false,
       blockedDeviceModels: ["*Tab*", "*Pad*", "*Tablet*"],
       adaptiveIcon: {
@@ -91,6 +91,7 @@ plugins: [
 ],
   
     extra: {
+      ANDROID_GOOGLE_MAPS_API_KEY: process.env.ANDROID_GOOGLE_MAPS_API_KEY,
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
       EXPO_PUBLIC_SUPABASE_ANON_KEY:

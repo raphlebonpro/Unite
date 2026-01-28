@@ -43,37 +43,41 @@ const sportIcons = {
   Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
   Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
   Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
-  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={20} color="#A259F7" />, color: '#A259F7' },
+  Fitness: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#7C4DFF" />, color: '#7C4DFF' },
+  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />,color: '#999',},
+
+  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={18} color="#A259F7" />, color: '#A259F7' },
+  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
+  Pilates: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+
   Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
-  Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
-  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
-  Rugby: { icon: <MaterialCommunityIcons name="rugby" size={18} color="#8E44AD" />, color: '#8E44AD' },
-  Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
-  Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
-  Triathlon: { icon: <MaterialCommunityIcons name="medal" size={18} color="#FF9800" />, color: '#FF9800' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
+
   'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  'Ski de randonnée': { icon: <MaterialCommunityIcons name="ski-cross-country" size={18} color="#4FC3F7" />, color: '#4FC3F7' },
+  'Ski/Snow': { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
+
   VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
   Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
   Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
-  Ski: { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
-  Snow: { icon: <MaterialCommunityIcons name="snowboard" size={18} color="#5f95de" />, color: '#5f95de' },
-  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
+
   Surf: { icon: <MaterialCommunityIcons name="wave" size={18} color="#26C6DA" />, color: '#26C6DA' },
+  Kitesurf: { icon: <MaterialCommunityIcons name="kitesurfing" size={18} color="#29B6F6" />, color: '#29B6F6' },
+  Windsurf: { icon: <MaterialCommunityIcons name="wind" size={18} color="#42A5F5" />, color: '#42A5F5' },
+  SUP: { icon: <MaterialCommunityIcons name="surfing" size={18} color="#26A69A" />, color: '#26A69A' },
+
+  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
+  Roller: { icon: <MaterialCommunityIcons name="roller-skate" size={18} color="#FF8A65" />, color: '#FF8A65' },
+
   Escalade: { icon: <MaterialCommunityIcons name="hiking" size={18} color="#689F38" />, color: '#689F38' },
   Parapente: { icon: <MaterialCommunityIcons name="parachute" size={18} color="#1976D2" />, color: '#1976D2' },
+
   CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
   Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
-  Golf: { icon: <MaterialCommunityIcons name="golf" size={18} color="#43A047" />, color: '#43A047' },
+
   'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
-  Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#C62828" />, color: '#C62828' },
-  'Football américain': { icon: <MaterialCommunityIcons name="football" size={18} color="#FF7043" />, color: '#FF7043' },
-  Baseball: { icon: <MaterialCommunityIcons name="baseball" size={18} color="#FFD600" />, color: '#FFD600' },
-  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
-  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
-  Pilate: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+
   Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
-  Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={18} color="#757575" />, color: '#757575' },
-  '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
 
 const SPORTS_OPTIONS = Object.keys(sportIcons).filter(s => s !== '+ de sports');
@@ -148,7 +152,11 @@ const EditProfileScreen = ({ navigation }) => {
       setBirthdate(data.birthdate || '');
       setGender(data.gender || '');
       setBio(data.bio || '');
-      setFavoriteSports(Array.isArray(data.favorite_sports) ? data.favorite_sports : []);
+      const allowedSports = SPORTS_OPTIONS;
+const cleanedFavorites = Array.isArray(data.favorite_sports)
+  ? data.favorite_sports.filter(sport => allowedSports.includes(sport))
+  : [];
+setFavoriteSports(cleanedFavorites.slice(0, 3));
     };
     fetchUser();
   }, []);
@@ -294,121 +302,135 @@ const handleSave = async () => {
   navigation.goBack();
 };
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafe' }}>
+return (
+  <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafe' }}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="always"
+    >
+
+      {/* AVATAR */}
+      <View style={styles.avatarWrap}>
+        <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8}>
+          <Image
+            source={
+              avatar
+                ? { uri: avatar }
+                : require('../assets/avatar-default.png')
+            }
+            style={styles.avatar}
+          />
+          <View style={styles.avatarCamera}>
+            <Feather name="camera" size={16} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* ========================= */}
+      {/* INPUTS UNIQUEMENT */}
+      {/* ========================= */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <View style={styles.avatarWrap}>
-            <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8}>
-              <Image
-                source={
-                  avatar
-                    ? { uri: avatar }
-                    : require('../assets/avatar-placeholder.png')
-                }
-                style={styles.avatar}
-              />
-              <View style={styles.avatarCamera}>
-                <Feather name="camera" size={16} color="#fff" />
-              </View>
-            </TouchableOpacity>
+
+        <Text style={styles.label}>Pseudo</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Votre pseudo"
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          placeholderTextColor="#aaa"
+        />
+
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={[styles.input, { color: '#bbb' }]}
+          placeholder="Votre email"
+          value={email}
+          editable={false}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholderTextColor="#aaa"
+        />
+
+        <Text style={styles.label}>Âge</Text>
+        <View style={styles.ageChipWrap}>
+          <View style={styles.ageChip}>
+            <Text style={styles.ageChipText}>
+              {birthdate ? `${getAgeFromBirthdate(birthdate)} ans` : 'Non renseigné'}
+            </Text>
           </View>
+        </View>
 
-          <View style={{ marginTop: 16 }}>
-            <Text style={styles.label}>Pseudo</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Votre pseudo"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              placeholderTextColor="#aaa"
-            />
+        <Text style={styles.label}>Genre</Text>
+        <View style={styles.rowWrap}>
+          <Chip label={gender} selected disabled />
+        </View>
 
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={[styles.input, { color: '#bbb' }]}
-              placeholder="Votre email"
-              value={email}
-              editable={false}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholderTextColor="#aaa"
-            />
-
-            <Text style={styles.label}>Âge</Text>
-            <View style={styles.ageChipWrap}>
-              <View style={styles.ageChip}>
-                <Text style={styles.ageChipText}>
-                  {birthdate ? `${getAgeFromBirthdate(birthdate)} ans` : 'Non renseigné'}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.label}>Genre</Text>
-            <View style={styles.rowWrap}>
-              <Chip
-                label={gender}
-                selected
-                disabled
-              />
-            </View>
-
-            <Text style={styles.label}>Sports favoris</Text>
-            <View style={styles.rowWrap}>
-              {SPORTS_OPTIONS.map((sport) => (
-                <Chip
-                  key={sport}
-                  label={sport}
-                  selected={favoriteSports.includes(sport)}
-                  onPress={() => toggleSport(sport)}
-                  gradient
-                  disabled={ !favoriteSports.includes(sport) && favoriteSports.length >= 3 }
-                />
-              ))}
-            </View>
-
-            <Text style={styles.label}>Bio</Text>
-            <TextInput
-              style={[styles.input, { height: 86, textAlignVertical: 'top', paddingTop: 14 }]}
-              placeholder="Parle un peu de toi !"
-              value={bio}
-              onChangeText={setBio}
-              multiline
-              maxLength={160}
-              placeholderTextColor="#aaa"
-            />
-            <Text style={styles.charCount}>{bio.length}/160</Text>
-          </View>
-
-<View style={styles.buttonContainer}>
-  <LinearGradient
-    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 0 }}
-    style={styles.buttonGradient}
-  >
-    <TouchableOpacity
-      style={styles.buttonTouchable}
-      onPress={handleSave}
-      activeOpacity={0.85}
-      disabled={saving}
-    >
-      <Text style={styles.buttonText}>
-        {saving ? "Enregistrement..." : "Valider profil"}
-      </Text>
-    </TouchableOpacity>
-  </LinearGradient>
-</View>
-
-<View style={{ height: 10 }} />
-        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+
+      {/* ========================= */}
+      {/* SPORTS FAVORIS (HORS KAV) */}
+      {/* ========================= */}
+      <Text style={styles.label}>Sports favoris</Text>
+      <View style={styles.rowWrap}>
+        {SPORTS_OPTIONS.map((sport) => (
+          <Chip
+            key={sport}
+            label={sport}
+            selected={favoriteSports.includes(sport)}
+            onPress={() => toggleSport(sport)}
+            gradient
+          />
+        ))}
+      </View>
+
+      {/* ========================= */}
+      {/* BIO */}
+      {/* ========================= */}
+      <Text style={styles.label}>Bio</Text>
+      <TextInput
+        style={[
+          styles.input,
+          { height: 86, textAlignVertical: 'top', paddingTop: 14 }
+        ]}
+        placeholder="Parle un peu de toi !"
+        value={bio}
+        onChangeText={setBio}
+        multiline
+        maxLength={160}
+        placeholderTextColor="#aaa"
+      />
+      <Text style={styles.charCount}>{bio.length}/160</Text>
+
+      {/* ========================= */}
+      {/* BOUTON SAVE */}
+      {/* ========================= */}
+      <View style={styles.buttonContainer}>
+        <LinearGradient
+          colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.buttonGradient}
+        >
+          <TouchableOpacity
+            style={styles.buttonTouchable}
+            onPress={handleSave}
+            activeOpacity={0.85}
+            disabled={saving}
+          >
+            <Text style={styles.buttonText}>
+              {saving ? "Enregistrement..." : "Valider profil"}
+            </Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
+
+      <View style={{ height: 20 }} />
+    </ScrollView>
+  </SafeAreaView>
+);
 };
 
 const styles = StyleSheet.create({

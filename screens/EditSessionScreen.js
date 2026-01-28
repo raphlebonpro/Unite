@@ -31,69 +31,94 @@ import {
   notifySessionDeletedCreator,
   notifySessionDeletedParticipants
 } from '../helpers/notifications';
-import Toast from 'react-native-toast-message';
-
-
 
 const FONT = Platform.select({ ios: 'System', android: 'Roboto' });
 
 /* ---------- Données sport (identiques à Création) ---------- */
 const sportData = [
- { label: 'Football', icon: <FontAwesome5 name="futbol" size={17} color="#3888FF" /> },
- { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={17} color="#FFA726" /> },
- { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={17} color="#2ECC71" /> },
- { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
- { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={17} color="#3CD6E6" /> },
- { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={17} color="#1469B9" /> },
- { label: 'Musculation', icon: <MaterialCommunityIcons name="dumbbell" size={20} color="#7367F0" /> },
- { label: 'Autres', icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" /> },
- { label: '+ de sports', icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" /> },
+  { label: 'Football', icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
+  { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={hp('2.1%')} color="#FFA726" /> },
+  { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#2ECC71" /> },
+  { label: 'Padel', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#FFD600" /> },
+  { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" /> },
+  { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={hp('2.1%')} color="#3CD6E6" /> },
+  { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={hp('2.1%')} color="#1469B9" /> },
+  { label: 'Musculation', icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.4%')} color="#7367F0" /> },
+  { label: 'Fitness', icon: <MaterialCommunityIcons name="weight-lifter" size={hp('2.3%')} color="#7C4DFF" /> },
+  { label: 'Randonnée/Trail', icon: <MaterialCommunityIcons name="hiking" size={hp('2.1%')} color="#43A047" /> },
+  { label: '+ de sports', icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 ];
-
-
-const otherSports = [
- 'Yoga','Padel','Handball','Tennis de table','Volleyball','Badminton','Ski','Snow','Skate','Surf','Escalade',
- 'Parapente','CrossFit','Callisthénie','Golf','Arts Martiaux','Boxe','Football américain','Baseball','Danse',
- 'Pilate','Échecs','Pétanque','Randonnée/Trail','VTT'
-];
-
 
 const sportIcons = {
- Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
- Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
- Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
- Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
- Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
- Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
- Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
- Yoga: { icon: <MaterialCommunityIcons name="yoga" size={20} color="#A259F7" />, color: '#A259F7' },
- Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
- Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
- Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
- 'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
- Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
- Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
- Ski: { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
- Snow: { icon: <MaterialCommunityIcons name="snowboard" size={18} color="#5f95de" />, color: '#5f95de' },
- Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
- Surf: { icon: <MaterialCommunityIcons name="wave" size={18} color="#26C6DA" />, color: '#26C6DA' },
- Escalade: { icon: <MaterialCommunityIcons name="hiking" size={18} color="#689F38" />, color: '#689F38' },
- Parapente: { icon: <MaterialCommunityIcons name="parachute" size={18} color="#1976D2" />, color: '#1976D2' },
- CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
- Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
- Golf: { icon: <MaterialCommunityIcons name="golf" size={18} color="#43A047" />, color: '#43A047' },
- 'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
- Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#C62828" />, color: '#C62828' },
- 'Football américain': { icon: <MaterialCommunityIcons name="football" size={18} color="#FF7043" />, color: '#FF7043' },
- Baseball: { icon: <MaterialCommunityIcons name="baseball" size={18} color="#FFD600" />, color: '#FFD600' },
- Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
- Pilate: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
- Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
- Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={18} color="#757575" />, color: '#757575' },
- 'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
- VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
- '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
+  Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
+  Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
+  Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
+  Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
+  Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
+  Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
+  Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
+  Fitness: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#7C4DFF" />, color: '#7C4DFF' },
+  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />,color: '#999',},
+
+  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={18} color="#A259F7" />, color: '#A259F7' },
+  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
+  Pilates: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+
+  Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
+
+  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  'Ski de randonnée': { icon: <MaterialCommunityIcons name="ski-cross-country" size={18} color="#4FC3F7" />, color: '#4FC3F7' },
+  'Ski/Snow': { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
+
+  VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
+  Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
+  Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
+
+  Surf: { icon: <MaterialCommunityIcons name="surfing" size={18} color="#26C6DA" />, color: '#26C6DA' },
+  Kitesurf: { icon: <MaterialCommunityIcons name="kitesurfing" size={18} color="#29B6F6" />, color: '#29B6F6' },
+  Windsurf: { icon: <MaterialCommunityIcons name="windsock" size={18} color="#42A5F5" />, color: '#42A5F5' },
+  'Stand Up Paddle': { icon: <MaterialCommunityIcons name="wave" size={18} color="#26A69A" />, color: '#26A69A' },
+
+  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
+  Roller: { icon: <MaterialCommunityIcons name="roller-skate" size={18} color="#FF8A65" />, color: '#FF8A65' },
+
+  Escalade: { icon: <MaterialCommunityIcons name="terrain" size={18} color="#689F38" />, color: '#689F38' },
+  Parapente: { icon: <MaterialCommunityIcons name="paragliding" size={18} color="#1976D2" />, color: '#1976D2' },
+
+  CrossFit: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#536DFE" />, color: '#536DFE' },
+  Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
+
+  'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
+
+  Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
+
+  '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
+
+const otherSports = [
+  'CrossFit',
+  'Yoga',
+  'Pilates',
+  'Danse',
+  'Marche',
+  'VTT',
+  'Kayak',
+  'Surf',
+  'Kitesurf',
+  'Stand Up Paddle',
+  'Ski/Snow',
+  'Ski de randonnée',
+  'Skate',
+  'Roller',
+  'Escalade',
+  'Parapente',
+  'Callisthénie',
+  'Arts Martiaux',
+  'Tennis de table',
+  'Échecs',
+  'Autres'
+];
 
 const levels = ["Pour s'amuser", 'Débutant', 'Intermédiaire', 'Avancé'];
 
@@ -358,21 +383,11 @@ const handleEditSession = async () => {
 
   setLoading(false);
 
-  // ✅ Feedback visuel
-  Toast.show({
-    type: 'success',
-    text1: 'Session modifiée ✅',
-    text2: `Ta session "${title}" a bien été mise à jour.`,
-    position: 'top',
-    topOffset: 48,
-    visibilityTime: 2800,
-  });
-
 Alert.alert('Session modifiée !', 'Les participants ont été notifiés.', [
   { 
     text: 'OK', 
     onPress: () => navigation.navigate('MainTabs', { 
-      screen: 'Activités', 
+      screen: 'Sessions', 
       params: { tab: 'created' } 
     }) 
   },
@@ -437,16 +452,6 @@ const handleCancelSession = async () => {
 
           setLoading(false);
 
-          // ✅ Feedback visuel
-          Toast.show({
-            type: 'success',
-            text1: 'Session supprimée ❌',
-            text2: `Ta session "${sessionInfo?.title || title}" a bien été annulée.`,
-            position: 'top',
-            topOffset: 48,
-            visibilityTime: 2800,
-          });
-
           Alert.alert('Session supprimée', 'Tous les participants ont été notifiés.', [
             { text: 'OK', onPress: () => navigation.navigate('MainTabs') },
           ]);
@@ -470,25 +475,51 @@ const handleCancelSession = async () => {
 
 
  return (
-   <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-     <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+  <View style={{ flex: 1, backgroundColor: '#fff' }}>
+  <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
+<SafeAreaView style={{ flex: 1 }}>
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+  >
+    <ScrollView
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
 
-           {/* Sport (style Création avec modal) */}
-           <TouchableOpacity style={[styles.input, { marginTop: 10 }]} onPress={() => setSportPickerVisible(true)}>
-             {selectedSport ? (
-               <View style={{ flexDirection:'row', alignItems:'center' }}>
-                 <View style={{ marginRight: 10 }}>{sportIcons[selectedSport]?.icon || null}</View>
-                 <Text style={styles.inputText}>{selectedSport}</Text>
-               </View>
-             ) : (
-               <Text style={styles.dropdownText}>Sport...</Text>
-             )}
-           </TouchableOpacity>
+{/* Sport */}
+<TouchableOpacity
+  style={[
+    styles.input,
+    { marginTop: 10, flexDirection: 'row', alignItems: 'center' }
+  ]}
+  onPress={() => setSportPickerVisible(true)}
+>
 
+  {/* Icône par défaut UNIQUEMENT si aucun sport sélectionné */}
+  {!selectedSport && (
+    <Ionicons
+      name="fitness" 
+      size={18}
+      color="#5B5FFF"
+      style={{ marginRight: 8 }}
+    />
+  )}
+
+  {selectedSport ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {sportIcons[selectedSport]?.icon}
+      <Text style={[styles.inputText, { marginLeft: 6 }]}>
+        {selectedSport}
+      </Text>
+    </View>
+  ) : (
+    <Text style={styles.dropdownText}>Sport</Text>
+  )}
+</TouchableOpacity>
 
            {/* Modal Sport */}
            <Modal
@@ -563,7 +594,7 @@ const handleCancelSession = async () => {
 {/* Lieu */}
 <View style={{ marginTop: 5 }}>
  <TouchableOpacity
-   style={styles.input}
+   style={[styles.input, { flexDirection: 'row', alignItems: 'center' }]}
    activeOpacity={0.85}
    onPress={() => {
      setTempLocation(location || '');
@@ -572,8 +603,15 @@ const handleCancelSession = async () => {
      setAddressModalVisible(true);
    }}
  >
+  <Ionicons
+    name="location-outline"
+    size={18}
+    color="#5B5FFF"
+    style={{ marginRight: 8 }}
+  />
+
    <Text style={location ? styles.inputText : styles.dropdownText}>
-     {location || "Point de rencontre…"}
+     {location || "Point de rencontre"}
    </Text>
  </TouchableOpacity>
 
@@ -588,148 +626,86 @@ const handleCancelSession = async () => {
 
 {/* Modal Adresse */}
 <Modal
- transparent
- animationType="fade"
- visible={addressModalVisible}
- onRequestClose={() => setAddressModalVisible(false)}
- presentationStyle="overFullScreen"
- statusBarTranslucent
+  visible={addressModalVisible}
+  animationType="slide"
+  transparent
+  onRequestClose={() => setAddressModalVisible(false)}
 >
- <KeyboardAvoidingView
-   style={{ flex: 1 }}
-   behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-   keyboardVerticalOffset={insets.top}
- >
-   <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-     <View style={[styles.addressModalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
-       <View style={[styles.addressModalContainer, { width: '92%', maxHeight: kbOpen ? '65%' : '80%' }]}>
+  <View style={styles.addressOverlay}>
 
+    <SafeAreaView style={styles.addressFullscreenContainer}>
 
-         {/* Header : Croix + Titre + Bouton Valider */}
-         <View
-           style={{
-             flexDirection: 'row',
-             alignItems: 'center',
-             justifyContent: 'space-between',
-             marginBottom: 12,
-             paddingHorizontal: 12,
-             marginTop: 8,
-           }}
-         >
-           {/* Croix */}
-           <TouchableOpacity onPress={() => setAddressModalVisible(false)}>
-             <Ionicons name="close" size={24} color="#666" />
-           </TouchableOpacity>
+      {/* HEADER */}
+      <View style={styles.addressHeader}>
+        <TouchableOpacity onPress={() => setAddressModalVisible(false)}>
+          <Ionicons name="close" size={26} color="#444" />
+        </TouchableOpacity>
 
+        <Text style={styles.addressTitle}>Choisir un lieu</Text>
 
-           {/* Titre */}
-           <Text style={[styles.addressModalTitle, { marginRight: 10, marginTop: 6 }]}>
-             Choisir un lieu
-           </Text>
+        <TouchableOpacity
+          disabled={!Number.isFinite(tempLat)}
+          onPress={() => {
+            setLocation(tempLocation.trim());
+            setLatitude(tempLat);
+            setLongitude(tempLng);
+            setAddressModalVisible(false);
+          }}
+          style={[
+            styles.addressValidateBtn,
+            { opacity: Number.isFinite(tempLat) ? 1 : 0.4 },
+          ]}
+        >
+          <Text style={styles.addressValidateText}>Valider</Text>
+        </TouchableOpacity>
+      </View>
 
+      {/* SEARCH + LIST */}
+      <View style={{ flex: 1 }}>
+        <PlaceSearchField
+          autoFocus
+          value={tempLocation}
+          onChange={(txt) => {
+            setTempLocation(txt);
+            setTempLat(null);
+            setTempLng(null);
+          }}
+          onPick={({ description, lat, lng }) => {
+            setTempLocation(description);
+            setTempLat(lat);
+            setTempLng(lng);
+          }}
+          placeholder="Ex : Parc Monceau, Paris"
+          boxStyle={styles.addressSearchBox}
+          suggestionContainerStyle={styles.addressSuggestions}
+          keyboardShouldPersistTaps="handled"
+        />
+      </View>
 
-           {/* Bouton Valider */}
-           <TouchableOpacity
-             style={[
-               styles.addressValidateBtn,
-               {
-                 paddingHorizontal: 25,
-                 paddingVertical: 10,
-                 borderRadius: 8,
-                 marginLeft: 5,
-               },
-             ]}
-             activeOpacity={0.9}
-             onPress={async () => {
-               if (Number.isFinite(tempLat) && Number.isFinite(tempLng)) {
-                 setLocation((tempLocation || '').trim());
-                 setLatitude(tempLat);
-                 setLongitude(tempLng);
-                 setAddressModalVisible(false);
-                 return;
-               }
-
-
-               const addr = (tempLocation || '').trim();
-               if (!addr) {
-                 Alert.alert('Adresse vide', "Saisis une adresse ou choisis une suggestion.");
-                 return;
-               }
-               if (!GOOGLE_MAPS_API_KEY) {
-                 Alert.alert('Config', "Clé Google Maps absente.");
-                 return;
-               }
-
-
-               try {
-                 const url =
-                   'https://maps.googleapis.com/maps/api/geocode/json' +
-                   `?address=${encodeURIComponent(addr)}` +
-                   `&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}` +
-                   `&language=fr&components=country:FR`;
-
-
-                 const res = await fetch(url);
-                 const json = await res.json();
-
-
-                 if (json.status === 'OK' && Array.isArray(json.results) && json.results[0]) {
-                   const r = json.results[0];
-                   const lat = r?.geometry?.location?.lat;
-                   const lng = r?.geometry?.location?.lng;
-                   const label = r?.formatted_address || addr;
-
-
-                   if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                     setLocation(label);
-                     setLatitude(lat);
-                     setLongitude(lng);
-                     setAddressModalVisible(false);
-                     return;
-                   }
-                 }
-                 Alert.alert('Adresse introuvable', "Choisis une suggestion ou précise l’adresse.");
-               } catch {
-                 Alert.alert('Erreur', "Validation de l’adresse impossible pour le moment.");
-               }
-             }}
-           >
-             <Text style={styles.addressValidateText}>Valider</Text>
-           </TouchableOpacity>
-         </View>
-
-
-         {/* Champ recherche */}
-         <PlaceSearchField
-           autoFocus
-           value={tempLocation}
-           onChange={(txt) => { setTempLocation(txt); setTempLat(null); setTempLng(null); }}
-           onPick={({ description, lat, lng }) => { setTempLocation(description); setTempLat(lat); setTempLng(lng); }}
-           placeholder="Ex : Parc Monceau, Paris"
-           boxStyle={styles.addressPickerBox}
-           suggestionContainerStyle={[styles.addressSuggestBox, { maxHeight: 360, flexGrow: 0 }]}
-           keyboardShouldPersistTaps="handled"
-         />
-       </View>
-     </View>
-   </TouchableWithoutFeedback>
- </KeyboardAvoidingView>
+    </SafeAreaView>
+  </View>
 </Modal>
-
 
 {/* Date — même container + modal que Création */}
 <View style={{ marginTop: 5 }}>
+  <View style={styles.rowTwoCols}>
  <TouchableOpacity
-   style={styles.input}
+   style={[styles.inlineInput, {  flex: 2, flexDirection: 'row', alignItems: 'center' }]}
    activeOpacity={0.85}
    onPress={() => setShowCalendar(true)}
  >
+  <Ionicons
+    name="calendar-outline"
+    size={18}
+    color="#5B5FFF"
+    style={{ marginRight: 8 }}
+  />
+
    <Text style={selectedDate ? styles.inputText : styles.placeholder}>
      {selectedDate
        ? capitalizeFirst(
            selectedDate.toLocaleDateString('fr-FR', {
              weekday: 'long',
-             year: 'numeric',
              month: 'long',
              day: 'numeric',
            })
@@ -737,8 +713,25 @@ const handleCancelSession = async () => {
        : 'Date de la session…'}
    </Text>
  </TouchableOpacity>
-</View>
 
+{/* Heure — natif Android, modal iOS */}
+<TouchableOpacity 
+style={[styles.inlineInput,{flex: 1, flexDirection: 'row', alignItems: 'center',}]}
+onPress={showTimePicker}
+activeOpacity={0.85}
+>
+  <Ionicons name="time-outline" size={18} color="#5B5FFF" />
+  <Text style={styles.timeText}>
+    {selectedHour
+      ? `${selectedHour.getHours().toString().padStart(2, '0')}:${selectedHour
+          .getMinutes()
+          .toString()
+          .padStart(2, '0')}`
+      : 'Heure de la session'}
+  </Text>
+</TouchableOpacity>
+</View>
+</View>
 
 {/* Modal Date — identique à Création */}
 <Modal
@@ -788,18 +781,6 @@ const handleCancelSession = async () => {
  </View>
 </Modal>
 
-{/* Heure — natif Android, modal iOS */}
-<TouchableOpacity style={styles.input} onPress={showTimePicker}>
-  <Text style={selectedHour ? styles.inputText : styles.placeholder}>
-    {selectedHour
-      ? `${selectedHour.getHours().toString().padStart(2, '0')}:${selectedHour
-          .getMinutes()
-          .toString()
-          .padStart(2, '0')}`
-      : 'Heure de la session...'}
-  </Text>
-</TouchableOpacity>
-
 {timePickerVisible && (
   Platform.OS === 'ios' ? (
     // ✅ iOS : affiché dans un modal avec bouton
@@ -846,14 +827,13 @@ const handleCancelSession = async () => {
     />
   )
 )}
-
            {/* Niveau (modal) */}
-           <TouchableOpacity style={styles.input} onPress={() => setLevelPickerVisible(true)}>
-             <Text style={selectedLevel ? styles.inputText : styles.dropdownText}>
-               {selectedLevel || "Niveau..."}
+           <TouchableOpacity style={[styles.input, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => setLevelPickerVisible(true)}>
+                <Ionicons name="trending-up-outline" size={18} color="#5B5FFF" />
+             <Text style={styles.levelText}>
+               {selectedLevel || "Niveau"}
              </Text>
            </TouchableOpacity>
-
 
            <Modal
              transparent
@@ -887,11 +867,18 @@ const handleCancelSession = async () => {
 
            {/* === Max Participants === */}
 <TouchableOpacity
-  style={styles.input}
+  style={[styles.input, { flexDirection: 'row', alignItems: 'center' }]}
   onPress={() => setMaxPickerVisible(true)}
 >
+  <Ionicons
+    name="people-outline"
+    size={18}
+    color="#5B5FFF"
+    style={{ marginRight: 8 }}
+  />
+  
   <Text style={maxParticipants === null ? styles.dropdownText : styles.inputText}>
-    {maxParticipants === null ? "Nombre maximum de participants…" : maxParticipants}
+    {maxParticipants === null ? "Nombre maximum de participants" : maxParticipants}
   </Text>
 </TouchableOpacity>
 
@@ -1016,12 +1003,12 @@ const handleCancelSession = async () => {
     <Text style={[styles.buttonText, { color: '#fff', fontWeight: 'bold' }]}>
       {loading ? '...' : 'Annuler la session'}
     </Text>
-  </LinearGradient>
-</TouchableOpacity>
-         </ScrollView>
-       </TouchableWithoutFeedback>
-     </KeyboardAvoidingView>
-   </SafeAreaView>
+       </LinearGradient>
+      </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+  </View>
  );
 };
 
@@ -1034,16 +1021,17 @@ const styles = StyleSheet.create({
    backgroundColor: '#fff',
    paddingBottom: 30,  // respiration propre
  },
- input: {
-   height: 52,
-   borderWidth: 1,
-   borderColor: '#E7E7ED',
-   borderRadius: 12,
-   paddingHorizontal: 14,
-   backgroundColor: '#fff',
-   justifyContent: 'center',
-   marginBottom: 14,
- },
+  input: {
+    height: 52,
+    borderWidth: 1,
+    borderColor: '#E7E7ED',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#fff',
+     justifyContent: 'flex-start',
+    marginBottom: 18,
+    position: 'relative',
+  },
  inputText: {
    fontSize: 15,
    color: '#333',
@@ -1125,51 +1113,47 @@ const styles = StyleSheet.create({
    textAlign: 'center',
    fontFamily: FONT,
  },
- addressModalOverlay: {
- flex: 1,
- backgroundColor: 'rgba(0,0,0,0.35)',
+addressOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.35)',
 },
-addressModalContainer: {
- backgroundColor: '#fff',
- borderRadius: 16,
- padding: 14,
- elevation: 8,
- shadowColor: '#000',
- shadowOpacity: 0.15,
- shadowRadius: 12,
- shadowOffset: { width: 0, height: 6 },
+addressFullscreenContainer: {
+  flex: 1,
+  backgroundColor: '#fff',
+  paddingTop: 8,
 },
-addressModalTitle: {
- fontSize: 18,
- fontWeight: '700',
- marginBottom: 8,
+addressHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  paddingBottom: 10,
+  borderBottomWidth: 1,
+  borderBottomColor: '#eee',
 },
-addressPickerBox: {
- borderRadius: 12,
- borderWidth: 1,
- borderColor: '#eee',
- paddingHorizontal: 12,
- paddingVertical: 10,
- marginBottom: 10,
-},
-addressSuggestBox: {},
-addressModalFooter: {
- flexDirection: 'row',
- justifyContent: 'flex-end',
- marginTop: 12,
- gap: 12,
-},
-addressCancelBtn: {
- paddingHorizontal: 14,
- paddingVertical: 10,
- borderRadius: 10,
- backgroundColor: '#f2f2f2',
+addressTitle: {
+  fontSize: 17,
+  fontWeight: '600',
+  color: '#111',
 },
 addressValidateBtn: {
- paddingHorizontal: 16,
- paddingVertical: 10,
- borderRadius: 10,
- backgroundColor: '#5B4EFF',
+  backgroundColor: '#5B5FFF',
+  paddingHorizontal: 18,
+  paddingVertical: 8,
+  borderRadius: 8,
+},
+addressValidateText: {
+  color: '#fff',
+  fontWeight: '600',
+},
+addressSearchBox: {
+  marginTop: 12,
+  marginHorizontal: 16,
+},
+addressSuggestions: {
+  flex: 1,
+  marginTop: 8,
+  paddingHorizontal: 16,
 },
 calendarBox: {
  width: '100%',
@@ -1182,8 +1166,58 @@ calendarBox: {
  shadowOffset: { width: 0, height: 3 },
  marginBottom: 12,
 },
-addressCancelText: { fontWeight: '600', color: '#444' },
-addressValidateText: { fontWeight: '700', color: '#fff' },
+rowTwoCols: {
+  flexDirection: 'row',
+  gap: 12,
+  marginTop: 5,
+  marginBottom: 18,
+},
+timeContainer: {
+  flex: 1,
+  height: 52,                 // même hauteur que input
+  borderRadius: 12,           // même radius que input
+  backgroundColor: '#fff',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 14,      // 🔑 clé de l’alignement
+  borderWidth: 1,
+  borderColor: '#E7E7ED',
+},
+levelContainer: {
+  flex: 1,
+  height: 52,
+  borderRadius: 12,
+  backgroundColor: '#fff',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 14,
+  borderWidth: 1,
+  borderColor: '#E7E7ED',
+},
+timeText: {
+  fontSize: 15,
+  color: '#333',
+  marginLeft: 8,
+},
+levelText: {
+  fontSize: 15,
+  color: '#333',
+  marginLeft: 8,
+},
+inlineInput: {
+  flex: 1,
+  height: 52,
+  borderWidth: 1,
+  borderColor: '#E7E7ED',
+  borderRadius: 12,
+  paddingHorizontal: 14,
+  backgroundColor: '#fff',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
 });
 
 

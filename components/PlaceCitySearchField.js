@@ -66,8 +66,7 @@ export default function PlaceCitySearchField({
       url.searchParams.set('sessiontoken', sessionToken.current);
       url.searchParams.set('language', 'fr');
       url.searchParams.set('components', 'country:FR');
-      // ✅ villes/arrondissements uniquement
-      url.searchParams.set('types', 'locality|administrative_area_level_3');
+      
 
       const res = await fetch(url.toString());
       const json = await res.json();
@@ -132,7 +131,7 @@ const handlePick = useCallback(async (item) => {
     const cleanLabel = pickedLabel.replace(/, France$/i, '').trim();
 
     // ✅ Vérifie seulement que lat/lng existent
-    if (lat && lng) {
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
       onPick?.({ description: cleanLabel, lat, lng });
       onChange?.(cleanLabel);
 

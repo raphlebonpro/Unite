@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
 View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList,
-Dimensions, Platform, SafeAreaView, ScrollView, Alert, Modal, ActivityIndicator,  Pressable,
+Dimensions, Platform, SafeAreaView, ScrollView, Alert, Modal, ActivityIndicator,  Pressable, Image, Animated,
 } from 'react-native';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
@@ -11,10 +11,10 @@ AntDesign,
 FontAwesome5,
 MaterialCommunityIcons,
 Ionicons,
-MaterialIcons,
+MaterialIcons, 
 } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
-import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import MiniAppBar from '../components/MiniAppBar';
 import SessionCardHome from '../components/SessionCardHome';
 import { getDistance } from 'geolib';
@@ -30,7 +30,8 @@ const APPBAR_H = 56;
 const SEARCH_H = 44;
 
 // espace réel, maîtrisé, sans bloc fantôme
-const SEARCH_TOP  = APPBAR_H + 2;
+const SEARCH_TOP =
+  APPBAR_H + (Platform.OS === 'ios' ? 2 : 10);
 const FILTERS_TOP = SEARCH_TOP + SEARCH_H + 10;
 
 const GOOGLE_MAPS_API_KEY =
@@ -45,8 +46,8 @@ const PARIS_CENTER = {
 const PARIS_REGION = {
   latitude: 48.8566,
   longitude: 2.3522,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
+  latitudeDelta: 0.20,
+  longitudeDelta: 0.20,
 }
 
 const levelOptions = [
@@ -57,88 +58,88 @@ const levelOptions = [
 ];
 
 const sportData = [
-{ label: 'Football', icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
-{ label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={hp('2.1%')} color="#FFA726" /> },
-{ label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#2ECC71" /> },
-{ label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" />, color: "#E9436D" },
-{ label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={hp('2.1%')} color="#3CD6E6" /> },
-{ label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={hp('2.1%')} color="#1469B9" /> },
-{ label: "Musculation", icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.4%')} color="#7367F0"/>},
-{ label: 'Autres', icon: <Ionicons name="ellipsis-horizontal" size={hp('2.2%')} color="#999" /> },
+  { label: 'Football', icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
+  { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={hp('2.1%')} color="#FFA726" /> },
+  { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#2ECC71" /> },
+  { label: 'Padel', icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#FFD600" /> },
+  { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" /> },
+  { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={hp('2.1%')} color="#3CD6E6" /> },
+  { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={hp('2.1%')} color="#1469B9" /> },
+  { label: 'Musculation', icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.4%')} color="#7367F0" /> },
+  { label: 'Fitness', icon: <MaterialCommunityIcons name="weight-lifter" size={hp('2.3%')} color="#7C4DFF" /> },
+  { label: 'Randonnée/Trail', icon: <MaterialCommunityIcons name="hiking" size={hp('2.1%')} color="#43A047" /> },
+  { label: '+ de sports', icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 ];
 
-
 const sportIcons = {
- Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
- Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
- Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
- Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
- Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
- Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
- Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
- Yoga: { icon: <MaterialCommunityIcons name="yoga" size={20} color="#A259F7" />, color: '#A259F7' },
- Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
- Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
- Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
- Rugby: { icon: <MaterialCommunityIcons name="rugby" size={18} color="#8E44AD" />, color: '#8E44AD' },
- Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
- Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
- Triathlon: { icon: <MaterialCommunityIcons name="medal" size={18} color="#FF9800" />, color: '#FF9800' },
- 'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
- VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
- Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
- Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
- Ski: { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
- Snow: { icon: <MaterialCommunityIcons name="snowboard" size={18} color="#5f95de" />, color: '#5f95de' },
- Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
- Surf: { icon: <MaterialCommunityIcons name="wave" size={18} color="#26C6DA" />, color: '#26C6DA' },
- Escalade: { icon: <MaterialCommunityIcons name="hiking" size={18} color="#689F38" />, color: '#689F38' },
- Parapente: { icon: <MaterialCommunityIcons name="parachute" size={18} color="#1976D2" />, color: '#1976D2' },
- CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
- Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
- Golf: { icon: <MaterialCommunityIcons name="golf" size={18} color="#43A047" />, color: '#43A047' },
- 'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
- Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#C62828" />, color: '#C62828' },
- 'Football américain': { icon: <MaterialCommunityIcons name="football" size={18} color="#FF7043" />, color: '#FF7043' },
- Baseball: { icon: <MaterialCommunityIcons name="baseball" size={18} color="#FFD600" />, color: '#FFD600' },
- 'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
- Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
- Pilate: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
- Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
- Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={18} color="#757575" />, color: '#757575' },
- '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
+  Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
+  Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
+  Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
+  Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
+  Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
+  Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
+  Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
+  Fitness: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#7C4DFF" />, color: '#7C4DFF' },
+  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />,color: '#999',},
+
+  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={18} color="#A259F7" />, color: '#A259F7' },
+  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
+  Pilates: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+
+  Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
+
+  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  'Ski de randonnée': { icon: <MaterialCommunityIcons name="ski-cross-country" size={18} color="#4FC3F7" />, color: '#4FC3F7' },
+  'Ski/Snow': { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
+
+  VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
+  Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
+  Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
+
+  Surf: { icon: <MaterialCommunityIcons name="surfing" size={18} color="#26C6DA" />, color: '#26C6DA' },
+  Kitesurf: { icon: <MaterialCommunityIcons name="kitesurfing" size={18} color="#29B6F6" />, color: '#29B6F6' },
+  Windsurf: { icon: <MaterialCommunityIcons name="windsock" size={18} color="#42A5F5" />, color: '#42A5F5' },
+  'Stand Up Paddle': { icon: <MaterialCommunityIcons name="wave" size={18} color="#26A69A" />, color: '#26A69A' },
+
+  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
+  Roller: { icon: <MaterialCommunityIcons name="roller-skate" size={18} color="#FF8A65" />, color: '#FF8A65' },
+
+  Escalade: { icon: <MaterialCommunityIcons name="terrain" size={18} color="#689F38" />, color: '#689F38' },
+  Parapente: { icon: <MaterialCommunityIcons name="paragliding" size={18} color="#1976D2" />, color: '#1976D2' },
+
+  CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
+  Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
+
+  'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
+
+  Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
+
+  '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
 
 const otherSports = [
- 'Yoga',
- 'Padel',
- 'Handball',
- 'Rugby',
- 'Volleyball',
- 'Badminton',
- 'Triathlon',
- 'Randonnée/Trail',
- 'VTT',
- 'Marche',
- 'Kayak',
- 'Ski',
- 'Snow',
- 'Skate',
- 'Surf',
- 'Escalade',
- 'Parapente',
- 'CrossFit',
- 'Callisthénie',
- 'Golf',
- 'Arts Martiaux',
- 'Boxe',
- 'Football américain',
- 'Baseball',
- 'Tennis de table',
- 'Danse',
- 'Pilate',
- 'Échecs',
- 'Pétanque',
+  'CrossFit',
+  'Yoga',
+  'Pilates',
+  'Danse',
+  'Marche',
+  'VTT',
+  'Kayak',
+  'Surf',
+  'Kitesurf',
+  'Stand Up Paddle',
+  'Ski/Snow',
+  'Ski de randonnée',
+  'Skate',
+  'Roller',
+  'Escalade',
+  'Parapente',
+  'Callisthénie',
+  'Arts Martiaux',
+  'Tennis de table',
+  'Échecs',
+  'Autres'
 ];
 
 const { width } = Dimensions.get('window');
@@ -146,7 +147,6 @@ const { width } = Dimensions.get('window');
 const HomeScreen = () => {
 const navigation = useNavigation();
 const route = useRoute();
-const isFocused = useIsFocused();
 const user = { avatar_url: null };
 const { notifUnseen } = useNotificationRefresh();
 
@@ -162,8 +162,6 @@ const [suggestions, setSuggestions] = useState([]);
 const [showLevelModal, setShowLevelModal] = useState(false);
 const [showCalendar, setShowCalendar] = useState(false);
 
-const [navigationReady, setNavigationReady] = useState(false);
-
 const [mapReady, setMapReady] = useState(false);
 
 const [sportPickerVisible, setSportPickerVisible] = useState(false);
@@ -171,10 +169,17 @@ const [showOtherSports, setShowOtherSports] = useState(false);
 
 const [pressedPoint, setPressedPoint] = useState(null);
 
-useEffect(() => {
-  const timer = setTimeout(() => setNavigationReady(true), 1500);
-  return () => clearTimeout(timer);
-}, []);
+const [gpsEnabled, setGpsEnabled] = useState(true);
+
+const [regionSource, setRegionSource] = useState('gps');
+
+const [locationBounds, setLocationBounds] = useState(null);
+
+const [showLongPressHint, setShowLongPressHint] = useState(false);
+const hasLongPressed = useRef(false);
+const firstHintShown = useRef(false);
+
+const hintOpacity = useRef(new Animated.Value(0)).current;
 
 const flatListRef = useRef(null);
 
@@ -222,24 +227,26 @@ useEffect(() => {
         .eq('id', user.id)
         .single();
 
-      if (userDataError) {
-        await supabase.auth.signOut();
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Login" }],
-        });
-        return;
-      }
+if (userDataError) {
+  console.warn('User data error, fallback Paris:', userDataError.message);
+
+  // fallback safe
+  setRegion(PARIS_REGION);
+  setMyLocation(PARIS_CENTER);
+  return;
+}
 
       geolocPref = userData?.geoloc_enabled !== false;
 
       if (!geolocPref) {
-        setRegion(PARIS_COORDS);
+        setGpsEnabled(false);
+        setRegion(PARIS_REGION);
         setMyLocation(PARIS_CENTER);
       } else {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          setRegion(PARIS_COORDS);
+          setGpsEnabled(false);
+          setRegion(PARIS_REGION);
           setMyLocation(PARIS_CENTER);
         } else {
 let location = await Location.getCurrentPositionAsync({});
@@ -267,12 +274,11 @@ setMyLocation({
         }
       }
     } catch (err) {
-      await supabase.auth.signOut();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Login" }],
-      });
-    }
+  console.warn('Bootstrap error, fallback Paris:', err);
+  setGpsEnabled(false);
+  setRegion(PARIS_REGION);
+  setMyLocation(PARIS_CENTER);
+}
   })();
 }, [navigation]);
 
@@ -303,22 +309,7 @@ const reverseGeocode = async (latitude, longitude) => {
 // --- Fetch initial + au focus, puis polling 5s quand visible ---
 useFocusEffect(
   useCallback(() => {
-    let isActive = true;
-    const load = async () => {
-      if (!isActive) return;
-      await fetchSessions();
-    };
-    load();
-
-    // Polling 5s tant que l’écran est focus
-    const id = setInterval(() => {
-      if (isActive) fetchSessions();
-    }, 5000);
-
-    return () => {
-      isActive = false;
-      clearInterval(id);
-    };
+    fetchSessions();
   }, [fetchSessions])
 );
 
@@ -343,7 +334,7 @@ useEffect(() => {
     }
     try {
       const encoded = encodeURIComponent(search.trim());
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encoded}&key=${GOOGLE_MAPS_API_KEY}&language=fr&types=geocode&components=country:fr`;
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encoded}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
       const res = await fetch(url);
       const data = await res.json();
       setSuggestions(Array.isArray(data?.predictions) ? data.predictions : []);
@@ -365,19 +356,49 @@ const handleSuggestionPress = async (placeId, description) => {
     const res = await fetch(url);
     const data = await res.json();
 
-    const { lat, lng } = data?.result?.geometry?.location || {};
-    if (typeof lat !== 'number' || typeof lng !== 'number') return;
+    const geometry = data?.result?.geometry;
+    const components = data?.result?.address_components;
 
-    const newRegion = {
-      latitude: lat,
-      longitude: lng,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
-    };
+    if (!geometry?.location || !geometry?.viewport || !components) return;
 
-    setRegion(newRegion);
+    const { lat, lng } = geometry.location;
+    const { northeast, southwest } = geometry.viewport;
 
-    setTimeout(() => Keyboard.dismiss(), 150);
+    const countryComponent = components.find(c =>
+      c.types.includes('country')
+    );
+    const countryCode = countryComponent?.short_name;
+
+    const isDomTom = ['GP', 'MQ', 'RE', 'GF', 'YT', 'PF', 'NC', 'PM', 'WF']
+      .includes(countryCode);
+
+    const lower = description.toLowerCase();
+    const isLargeArea =
+      lower.includes('région') ||
+      lower.includes('pays') ||
+      lower.includes('département');
+
+const latDelta = Math.abs(northeast.lat - southwest.lat);
+const lngDelta = Math.abs(northeast.lng - southwest.lng);
+
+// marge de confort pour éviter un zoom trop serré
+const paddingFactor = 1.2;
+
+setRegion({
+  latitude: lat,
+  longitude: lng,
+  latitudeDelta: latDelta * paddingFactor,
+  longitudeDelta: lngDelta * paddingFactor,
+});
+
+    setLocationBounds({
+      north: northeast.lat,
+      south: southwest.lat,
+      east: northeast.lng,
+      west: southwest.lng,
+    });
+
+    setRegionSource('manual');
   } catch (e) {
     console.error('Place details error:', e);
   }
@@ -430,30 +451,60 @@ const getFastLocation = async () => {
   }
 };
 
+const fadeInHint = () => {
+  Animated.timing(hintOpacity, {
+    toValue: 1,
+    duration: 200,
+    useNativeDriver: true,
+  }).start();
+};
+
+const fadeOutHint = () => {
+  Animated.timing(hintOpacity, {
+    toValue: 0,
+    duration: 300,
+    useNativeDriver: true,
+  }).start();
+};
+
 const clearFilters = async () => {
   setSelectedSport('');
   setSelectedLevel('');
   setSelectedDate(null);
   setSearch('');
   setSuggestions([]);
+  setLocationBounds(null);
 
-  const coords = await getFastLocation();
-  if (!coords) {
-    // fallback Paris si GPS KO
-    setRegion(PARIS_COORDS);
+  hasAdjustedZoom.current = false;
+
+  // 🚫 SI GPS REFUSÉ → TOUJOURS PARIS
+  if (!gpsEnabled) {
+    setRegionSource('default');
+    setRegion(PARIS_REGION);
     setMyLocation(PARIS_CENTER);
     return;
   }
 
-  const currentCoords = {
-    ...coords,
+  // ✅ GPS autorisé → on peut recentrer
+  setRegionSource('gps');
+
+  const coords = await getFastLocation();
+  if (!coords) {
+    setRegion(PARIS_REGION);
+    setMyLocation(PARIS_CENTER);
+    return;
+  }
+
+  setRegion({
+    latitude: coords.latitude,
+    longitude: coords.longitude,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
-  };
+  });
 
-  setRegion(currentCoords);
-  setMyLocation(currentCoords);
+  setMyLocation(coords);
 };
+
 
 function formatTime(time) {
   if (!time) return '';
@@ -472,81 +523,137 @@ function isSessionInFuture(session) {
   }
 }
 
+const getAdaptiveDelta = (sessions) => {
+  if (!sessions || sessions.length === 0) return 0.85; // zone très vide
+
+  const nearest = Math.min(...sessions.map(s => s.distance));
+
+  if (nearest < 1000) return 0.06;    // ultra local
+  if (nearest < 3000) return 0.10;
+  if (nearest < 8000) return 0.18;
+  if (nearest < 20000) return 0.30;
+
+  return 0.45; // campagne
+};
+
 const today = new Date().toISOString().split('T')[0];
 
-const isNoFilter =
-  !selectedSport &&
-  !selectedLevel &&
-  (!selectedDate || selectedDate === today) &&
-  !search;
+const filteredSessions = useMemo(() => {
+  if (!region || !sessions.length) return [];
 
-let filteredSessions = [];
-
-if (isNoFilter && region) {
-  filteredSessions = [...sessions]
-    .filter(session => isSessionInFuture(session))
+  const enriched = sessions
+    .filter(isSessionInFuture)
     .map(session => {
       const sessionDateTime = new Date(
         `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
       );
 
-      return {
-        ...session,
-        distance: getDistance(
-          { latitude: region.latitude, longitude: region.longitude },
-          { latitude: Number(session.lat), longitude: Number(session.lng) }
-        ),
-        sessionDateTime,
-      };
+      const distance = getDistance(
+        { latitude: region.latitude, longitude: region.longitude },
+        { latitude: Number(session.lat), longitude: Number(session.lng) }
+      );
+
+      return { ...session, sessionDateTime, distance };
     })
-.sort((a, b) => {
-  // 🥇 1. D'abord la distance
-  if (a.distance !== b.distance) return a.distance - b.distance;
 
-  // 🥈 2. Puis la date
-  return a.sessionDateTime - b.sessionDateTime;
-});
-} else {
-filteredSessions = sessions
-  .filter(session => {
-    if (!isSessionInFuture(session)) return false;
+    // ✅ FILTRAGE GÉOGRAPHIQUE STRICT
+    .filter(session => {
+      if (!locationBounds) return true;
 
-    if (selectedSport && session.sport !== selectedSport) return false;
-    if (selectedLevel && session.level !== selectedLevel) return false;
-    if (selectedDate && session.date !== selectedDate) return false;
+      const lat = Number(session.lat);
+      const lng = Number(session.lng);
 
-    if (search && session.location && !session.location.toLowerCase().includes(search.toLowerCase()))
-      return false;
+      return (
+        lat >= locationBounds.south &&
+        lat <= locationBounds.north &&
+        lng >= locationBounds.west &&
+        lng <= locationBounds.east
+      );
+    })
 
-    return true;
-  })
-  .map(session => {
-    const sessionDateTime = new Date(
-      `${session.date}T${session.time.length === 5 ? session.time : session.time.slice(0, 5)}`
-    );
+    // ✅ filtres métier
+    .filter(session => {
+      if (selectedSport && session.sport !== selectedSport) return false;
+      if (selectedLevel && session.level !== selectedLevel) return false;
+      if (selectedDate && session.date !== selectedDate) return false;
+      return true;
+    })
 
-    // 👉 Calcul de la distance même quand les filtres sont actifs
-    const distance = region
-      ? getDistance(
-          { latitude: region.latitude, longitude: region.longitude },
-          { latitude: Number(session.lat), longitude: Number(session.lng) }
-        )
-      : null;
+    .sort((a, b) => {
+      if (a.distance !== b.distance) return a.distance - b.distance;
+      return a.sessionDateTime - b.sessionDateTime;
+    });
 
-    return {
-      ...session,
-      sessionDateTime,
-      distance,
-    };
-  })
-  .sort((a, b) => {
-    // 👉 1. D'abord les sessions les plus proches géographiquement
-    if (a.distance !== b.distance) return a.distance - b.distance;
+  return enriched;
+}, [
+  sessions,
+  region,
+  selectedSport,
+  selectedLevel,
+  selectedDate,
+  locationBounds,
+]);
 
-    // 👉 2. Si la distance est la même, on trie par date
-    return a.sessionDateTime - b.sessionDateTime;
-  });
-}
+  const hasAdjustedZoom = useRef(false);
+
+useEffect(() => {
+  if (
+    !region ||
+    !filteredSessions ||
+    hasAdjustedZoom.current ||
+    regionSource !== 'gps'
+  ) {
+    return;
+  }
+
+  const delta = getAdaptiveDelta(filteredSessions);
+
+  setRegion(prev => ({
+    ...prev,
+    latitudeDelta: delta,
+    longitudeDelta: delta,
+  }));
+
+  hasAdjustedZoom.current = true;
+}, [filteredSessions, region, regionSource]);
+
+useEffect(() => {
+  if (hasLongPressed.current) return;
+
+  let hideTimeout;
+  let interval;
+
+const showHint = (duration) => {
+  if (hasLongPressed.current) return;
+
+  setShowLongPressHint(true);
+  fadeInHint();
+
+  setTimeout(() => {
+    fadeOutHint();
+
+    setTimeout(() => {
+      setShowLongPressHint(false);
+    }, 300); // durée du fade-out
+  }, duration);
+};
+
+  // 🔥 Premier affichage → 10s
+  if (!firstHintShown.current) {
+    firstHintShown.current = true;
+    showHint(5000);
+  }
+
+  // 🔁 Puis toutes les 60s → 5s
+  interval = setInterval(() => {
+    showHint(5000);
+  }, 60000);
+
+  return () => {
+    clearTimeout(hideTimeout);
+    clearInterval(interval);
+  };
+}, []);
 
 useEffect(() => {
   if (route.params?.showCongrats) {
@@ -563,45 +670,51 @@ if (isNaN(d)) return 'Date';
 return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
 };
 
-const normalizedSessions = filteredSessions
-  .filter(s => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
-  .map(s => ({
-    id: s.id,
-    lat: Number(s.lat),
-    lng: Number(s.lng),
-    sport: sportIcons[s.sport] ? s.sport : 'Autres',
-  }));
+const normalizedSessions = useMemo(() => {
+  return filteredSessions
+    .filter(s => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
+    .map(s => ({
+      id: s.id,
+      lat: Number(s.lat),
+      lng: Number(s.lng),
+      sport: sportIcons[s.sport] ? s.sport : 'Autres',
+    }));
+}, [filteredSessions]);
 
 return (
 <View style={{ flex: 1, backgroundColor: "#fff" }}>
   {/* 🗺️ 1. LA CARTE — TOUJOURS RENDUE */}
-<MapViewUnite
-  region={region || PARIS_REGION}
-  sessions={normalizedSessions.map(s => ({
-    ...s,
-    icon: sportIcons[s.sport]?.icon || sportIcons.Autres.icon,
-  }))}
-  onMapReady={() => setMapReady(true)} // ✅ CRUCIAL
-  onSelectSession={(session) =>
-    navigation.navigate("SessionDetail", { sessionId: session.id })
-  }
-  selectedPoint={pressedPoint}
-onLongPress={async ({ latitude, longitude }) => {
-  setPressedPoint({
-    latitude,
-    longitude,
-    address: 'Chargement de l’adresse…',
-  });
+{region && (
+  <MapViewUnite
+    region={region}
+    sessions={normalizedSessions.map(s => ({
+      ...s,
+      icon: sportIcons[s.sport]?.icon || sportIcons.Autres.icon,
+    }))}
+    gpsEnabled={gpsEnabled}
+    userLocation={myLocation}
+    onMapReady={() => setMapReady(true)}
+    onSelectSession={(session) =>
+      navigation.navigate("SessionDetail", { sessionId: session.id })
+    }
+    selectedPoint={pressedPoint}
+    onLongPress={async ({ latitude, longitude }) => {
+      setPressedPoint({
+        latitude,
+        longitude,
+        address: 'Chargement de l’adresse…',
+      });
 
-  const address = await reverseGeocode(latitude, longitude);
+      const address = await reverseGeocode(latitude, longitude);
 
-  setPressedPoint({
-    latitude,
-    longitude,
-    address: address || 'Adresse inconnue',
-  });
-}}
-/>
+      setPressedPoint({
+        latitude,
+        longitude,
+        address: address || 'Adresse inconnue',
+      });
+    }}
+  />
+)}
 
   {/* ⏳ 2. OVERLAY — SEULEMENT SI LA MAP N’EST PAS PRÊTE */}
   {!mapReady && (
@@ -639,14 +752,21 @@ onLongPress={async ({ latitude, longitude }) => {
       position: 'absolute',
       top: 0, left: 0, right: 0, zIndex: 30,
     }}>
-      <MiniAppBar
-        title="Accueil"
-        profileUri={user?.avatar_url}
-        hasNotifications={notifUnseen > 0}
-        onProfilePress={() => navigation.navigate('Profile')}
-        onNotificationsPress={() => navigation.navigate('Notifications')}
-        onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
-      />
+<MiniAppBar
+  centerComponent={
+    <Image
+      source={require('../assets/UniteLogo.png')}
+      resizeMode="contain"
+      style={{
+        height: 60,
+        width: 100,
+        transform: [{ translateY: Platform.OS === 'ios' ? -1.5 : 0 }],
+      }}
+    />
+  }
+  onNotificationsPress={() => navigation.navigate('Notifications')}
+  onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
+/>
     </View>
 
 <View
@@ -797,12 +917,30 @@ onLongPress={async ({ latitude, longitude }) => {
         </Text>
         <AntDesign name="down" size={wp('3.2%')} style={{ marginLeft: wp('1%'), color: selectedLevel ? "#3F4FFF" : "#666" }} />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.midFilterChip} onPress={() => setShowCalendar(!showCalendar)}>
-        <Text style={styles.midChipText}>{selectedDate}</Text>
-        <AntDesign name="calendar" size={wp('3.5%')} style={{ marginLeft: wp('1.2%'), color: "#666" }} />
-      </TouchableOpacity>
+<TouchableOpacity
+  style={styles.midFilterChip}
+  onPress={() => setShowCalendar(true)}
+>
+  <Text
+    style={[
+      styles.midChipText,
+      selectedDate ? { color: '#3F4FFF' } : {},
+    ]}
+  >
+    {selectedDate ? formatDateLabel(selectedDate) : 'Date'}
+  </Text>
+
+  <AntDesign
+    name="down"
+    size={wp('3.2%')}
+    style={{
+      marginLeft: wp('1%'),
+      color: selectedDate ? '#3F4FFF' : '#666',
+    }}
+  />
+</TouchableOpacity>
       <TouchableOpacity style={styles.midClearChip} onPress={clearFilters}>
-        <AntDesign name="close" size={wp('3.4%')} color="#1877F2" />
+        <AntDesign name="close" size={wp('2.4%')} color="#1877F2" />
         <Text style={styles.midClearChipText}>Effacer</Text>
       </TouchableOpacity>
     </View>
@@ -839,9 +977,9 @@ onLongPress={async ({ latitude, longitude }) => {
           ))}
           <TouchableOpacity
             onPress={() => setShowLevelModal(false)}
-            style={styles.pickerModalCancel}
+            style={styles.validateButton}
           >
-            <Text style={styles.pickerModalCancelText}>Annuler</Text>
+            <Text style={styles.validateText}>Fermer</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -901,50 +1039,6 @@ onRequestClose={() => setShowCalendar(false)}
     zIndex: 50,
   }}
 >
-{/* Bouton Créer une session */}
-<TouchableOpacity
-  onPress={() => navigation.navigate('Créer')}
-  style={[
-    {
-      position: 'absolute',
-      left: wp('5%'),
-      backgroundColor: '#fff',
-      borderRadius: 20,
-      paddingVertical: hp('0.8%'),
-      paddingHorizontal: wp('3.5%'),
-      shadowColor: '#000',
-      shadowOpacity: 0.12,
-      shadowRadius: 3,
-      shadowOffset: { width: 0, height: 1.5 },
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-Platform.select({
-  ios: {
-    bottom: hp('21%'),
-    elevation: 3,
-    zIndex: 60,
-  },
-  android: {
-    bottom: hp('21%'), // ✅ identique à iOS
-    elevation: 12,
-    zIndex: 999,
-  },
-}),
-  ]}
-  activeOpacity={0.85}
->
-  <Text
-    style={{
-      color: '#3F4FFF',
-      fontWeight: '700',
-      fontSize: wp('3.3%'),
-      textAlign: 'center',
-    }}
-  >
-    + Créer une session
-  </Text>
-</TouchableOpacity>
 
   {/* Liste des sessions */}
   <View
@@ -968,27 +1062,25 @@ Platform.select({
       }}
       ItemSeparatorComponent={() => <View style={{ width: wp('2.5%') }} />}
 renderItem={({ item }) => {
-  if (item.group_id) {
-    return (
-      <SessionGroupCard
-        session={item}
-        onPress={() =>
-          navigation.navigate('GroupDetail', { groupId: item.group_id })
-        }
-      />
-    );
-  }
+if (item.group_id) {
   return (
+    <SessionGroupCard
+      session={item}
+      onPress={() =>
+        navigation.navigate('SessionDetail', { sessionId: item.id })
+      }
+    />
+  );
+}
+  return (
+    
 <SessionCardHome
   session={item}
-  disabled={!navigationReady || !item?.id}
-  onPress={() => {
-    if (!navigationReady) return;  // bloque tant que l'app n'est pas prête
-    if (!item?.id) return;         // sécurité totale
-
-    navigation.navigate('SessionDetail', { sessionId: item.id });
-  }}
+  onPress={() =>
+    navigation.navigate('SessionDetail', { sessionId: item.id })
+  }
 />
+
   );
 }}
     />
@@ -1160,9 +1252,27 @@ renderItem={({ item }) => {
         </Text>
       </LinearGradient>
     </TouchableOpacity>
-
   </View>
 )}
+{showLongPressHint && (
+  <Animated.View
+    style={[
+      styles.longPressHint,
+      { opacity: hintOpacity }
+    ]}
+  >
+    <MaterialCommunityIcons
+      name="gesture-tap-hold"
+      size={16}
+      color="#555"
+      style={{ marginRight: 6 }}
+    />
+    <Text style={styles.longPressHintText}>
+      Appui long sur la carte pour créer une session
+    </Text>
+  </Animated.View>
+)}
+
   </View>
   );
 };
@@ -1269,13 +1379,16 @@ const styles = StyleSheet.create({
    flexDirection: 'row',
    alignItems: 'center',
    elevation: 0,
-   height: hp('4%'),
+   height: hp('3%'),
  },
  midClearChipText: {
    color: "#1877F2",
-   fontSize: wp('3.4%'),
+   fontSize: wp('2.4%'),
    fontWeight: '500',
    marginLeft: wp('1%'),
+   transform: [
+    { translateY: Platform.OS === 'android' ? -1 : 0 }
+  ],
  },
  suggestionItem: {
    padding: hp('1.3%'),
@@ -1622,7 +1735,6 @@ modalContainer: {
   shadowOffset: { width: 0, height: 6 },
   elevation: 10,
 },
-
 dropdownItemText: {
   fontSize: wp('4%'),
   color: '#222',
@@ -1652,14 +1764,12 @@ createFromMapCard: {
   elevation: 12,
   zIndex: 100,
 },
-
 createFromMapHeader: {
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'space-between',
   marginBottom: hp('0.6%'),
 },
-
 createFromMapTitle: {
   fontSize: wp('3.8%'),
   fontWeight: '700',
@@ -1668,7 +1778,6 @@ createFromMapTitle: {
   marginRight: wp('2%'),
   textAlign: 'center',
 },
-
 createFromMapAddress: {
   fontSize: wp('3.4%'),
   color: '#666',
@@ -1676,7 +1785,6 @@ createFromMapAddress: {
   marginBottom: hp('1.2%'),
   textAlign: 'center',
 },
-
 createFromMapButton: {
   borderRadius: 14,
   paddingVertical: hp('1.2%'),
@@ -1684,10 +1792,38 @@ createFromMapButton: {
   alignItems: 'center',
   justifyContent: 'center',
 },
-
 createFromMapButtonText: {
   color: '#fff',
   fontWeight: '700',
   fontSize: wp('3.4%'),
+},
+hintOverlay: {
+ flex: 1,
+ justifyContent: 'center',
+ alignItems: 'center',
+ paddingTop: hp('8%'),
+ backgroundColor: 'transparent',
+},
+longPressHint: {
+ position: 'absolute',
+ bottom: hp('25%'),
+ alignSelf: 'center',
+ backgroundColor: 'rgba(255,255,255,0.97)',
+ paddingHorizontal: 12,
+ paddingVertical: 8,
+ borderRadius: 14,
+ flexDirection: 'row',
+ alignItems: 'center',
+ zIndex: 10000,
+ elevation: 30,
+ shadowColor: '#000',
+ shadowOpacity: 0.18,
+ shadowRadius: 10,
+ shadowOffset: { width: 0, height: 4 },
+},
+longPressHintText: {
+ fontSize: 12,
+ fontWeight: '600',
+ color: '#333',
 },
 });

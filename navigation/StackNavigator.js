@@ -34,8 +34,7 @@ import CreateGroupScreen from '../screens/CreateGroupScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import EditGroupScreen from "../screens/EditGroupScreen";
 import GroupChatScreen from '../screens/GroupChatScreen.js';
-import CreateSessionGroupScreen from "../screens/CreateSessionGroupScreen";
-import GroupSessionDetailScreen from '../screens/GroupSessionDetailScreen.js';
+import CreateSessionScreen from "../screens/CreateSessionScreen";
 import UnitePlusScreen from '../screens/UnitePlusScreen.js';
 import UnitePlusCompareScreen from '../screens/UnitePlusCompareScreen.js';
 import GradientTitle from '../components/GradientTitle';
@@ -162,9 +161,9 @@ export default function StackNavigator() {
         options={gradientHeader('Modifier la session')}
       />
       <Stack.Screen
-        name="Activities"
+        name="Sessions"
         component={ActivitiesScreen}
-        options={gradientHeader('Activités')}
+        options={gradientHeader('Sessions')}
       />
 
       {/* Autres */}
@@ -264,14 +263,9 @@ export default function StackNavigator() {
         options={gradientHeader("Modifier le groupe")}
       />
       <Stack.Screen
-        name="CreateSessionGroup"
-        component={CreateSessionGroupScreen}
-        options={gradientHeader("Créer session de groupe")}
-      />
-      <Stack.Screen
-        name="GroupSessionDetail"
-        component={GroupSessionDetailScreen}
-        options={gradientHeader('Détail session de groupe')}
+        name="CreateSession"
+        component={CreateSessionScreen}
+        options={gradientHeader("Créer session groupe")}
       />
       <Stack.Screen
         name="UnitePlusScreen"
