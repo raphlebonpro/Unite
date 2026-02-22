@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from "dotenv";
+dotenv.config();
 
 export default {
   expo: {
@@ -30,7 +31,7 @@ export default {
 
     ios: {
       bundleIdentifier: "com.uniteapp.collectif",
-      buildNumber: "123",
+      buildNumber: "129",
       icon: "./assets/icon1.png",
       supportsTablet: false,
       infoPlist: {
@@ -53,7 +54,7 @@ export default {
 
     android: {
       package: "com.uniteapp.collectif",
-      versionCode: 78,
+      versionCode: 80,
       supportsTablet: false,
       forceDarkAllowed: false,
       blockedDeviceModels: ["*Tab*", "*Pad*", "*Tablet*"],
@@ -73,7 +74,7 @@ export default {
 
 config: {
   googleMaps: {
-    apiKey: process.env.ANDROID_GOOGLE_MAPS_API_KEY,
+    apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
   },
 },
      },
@@ -94,7 +95,7 @@ plugins: [
 ],
   
     extra: {
-      ANDROID_GOOGLE_MAPS_API_KEY: process.env.ANDROID_GOOGLE_MAPS_API_KEY,
+      ANDROID_GOOGLE_MAPS_SDK_KEY: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
       GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
       EXPO_PUBLIC_SUPABASE_ANON_KEY:

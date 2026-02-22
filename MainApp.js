@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, StyleSheet, Platform, Alert } from 'react-native';
 import Navigation from './navigation/Navigation';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -16,6 +16,9 @@ import { useChatActivity } from './context/ChatActivityContext';
 import { AppState } from 'react-native';
 import * as Application from 'expo-application';
 import * as Linking from 'expo-linking';
+import * as IntentLauncher from 'expo-intent-launcher';
+
+console.log("MAINAPP VERSION TEST STORE V3");
 
 // ✅ Enregistrement du token push
 async function registerForPushNotificationsAsync(userId) {
@@ -79,6 +82,7 @@ export default function MainApp() {
   const responseListener = useRef();
   const colorScheme = useColorScheme();
   const { activeSessionChatId, activeGroupChatId } = useChatActivity();
+  const [pendingStoreRedirect, setPendingStoreRedirect] = useState(false);
 
   // 🔒 Orientation portrait
   useEffect(() => {
@@ -148,11 +152,41 @@ useEffect(() => {
 
 useEffect(() => {
   responseListener.current =
-    Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response?.notification?.request?.content?.data;
+    Notifications.addNotificationResponseReceivedListener(async (response) => {
+
+      let data = response?.notification?.request?.content?.data;
+
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {}
+      }
+
       if (!data?.type) return;
 
-      // 💬 Message de session
+      // 🔁 APP UPDATE → REDIRECTION STORE
+      if (data.type === 'app_update') {
+        if (Platform.OS === 'ios') {
+          await Linking.openURL('itms-apps://itunes.apple.com/app/id6755112837');
+        } else {
+          try {
+            await IntentLauncher.startActivityAsync(
+              'android.intent.action.VIEW',
+              {
+                data: 'market://details?id=com.uniteapp.collectif',
+                packageName: 'com.android.vending',
+              }
+            );
+          } catch {
+            await Linking.openURL(
+              'https://play.google.com/store/apps/details?id=com.uniteapp.collectif'
+            );
+          }
+        }
+        return;
+      }
+
+      // 💬 Message session
       if (data.type === 'new_message' && data.session_id) {
         navigate('SessionMessages', {
           sessionId: data.session_id,
@@ -161,7 +195,7 @@ useEffect(() => {
         return;
       }
 
-      // 💬 Message de groupe
+      // 💬 Message groupe
       if (data.type === 'group_new_message' && data.group_id) {
         navigate('GroupChat', {
           groupId: data.group_id,
@@ -170,7 +204,7 @@ useEffect(() => {
         return;
       }
 
-      // 🔁 fallback session
+      // fallback
       if (data.session_id) {
         navigate('SessionDetail', {
           sessionId: data.session_id,
