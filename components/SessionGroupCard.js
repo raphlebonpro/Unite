@@ -67,42 +67,61 @@ function formatTime(time) {
   }
 }
 
-function SessionGroupCard({ session, onPress }) {
+function SessionGroupCard({ session, onPress, disabled }) {
   const { icon, color } = sportIcons[session.sport] || sportIcons.Autres;
 
   return (
-    <View style={[styles.card, { shadowColor: color }]}>
-      {/* CONTENU */}
+    <TouchableOpacity
+      disabled={disabled}
+      onPress={disabled ? null : onPress}
+      activeOpacity={disabled ? 1 : 0.92}
+      style={[
+        styles.card,
+        {
+          shadowColor: color,
+          opacity: disabled ? 0.6 : 1,
+          borderLeftWidth: 2.5,
+          borderLeftColor: color,
+          borderBottomWidth: 2.5,
+          borderBottomColor: color,
+        },
+      ]}
+    >
       <View style={styles.content}>
-        {/* Icône + titre */}
+        
+        {/* Header */}
         <View style={styles.headerRow}>
           <View style={{ marginRight: 7 }}>{icon}</View>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
             {session.title || session.sport}
           </Text>
         </View>
 
         {/* Date + heure */}
-        <Text style={styles.dateTime}>
-          {formatDate(session.date)} · <Text style={{ color }}>{formatTime(session.time)}</Text>
+        <View style={styles.metaRow}>
+          <Text style={styles.dateTime}>
+            {formatDate(session.date)} ·{' '}
+            <Text style={{ color }}>
+              {formatTime(session.time)}
+            </Text>
+          </Text>
+        </View>
+
+        {/* Description */}
+        <Text style={styles.desc} numberOfLines={2} ellipsizeMode="tail">
+          Session réservée aux membres du groupe{' '}
+          <Text style={{ fontWeight: '700', color }}>
+            {session.groups?.name || '—'}
+          </Text>
         </Text>
 
-        {/* Mention groupe */}
-        <Text style={styles.groupNotice}>
-          Cette session est réservée aux membres du groupe{" "}
-          <Text style={{ fontWeight: 'bold', color }}>{session.groups?.name || 'inconnu'}</Text>
+        {/* CTA */}
+        <Text style={[styles.ctaText, { color }]}>
+          Voir Session Groupe
         </Text>
+
       </View>
-
-      {/* BOUTON BAS */}
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: color }]}
-        activeOpacity={0.93}
-        onPress={onPress}
-      >
-        <Text style={styles.buttonText}>Voir Session de Groupe</Text>
-      </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -111,8 +130,8 @@ export default React.memo(SessionGroupCard);
 const styles = StyleSheet.create({
   card: {
     width: wp('56%'),
-    minHeight: hp('19%'),
-    paddingVertical: hp('1.3%'),
+    minHeight: hp('16%'),
+    paddingVertical: hp('1.4%'),
     paddingHorizontal: wp('3.2%'),
     borderRadius: wp('4.5%'),
     backgroundColor: '#fff',
@@ -121,18 +140,15 @@ const styles = StyleSheet.create({
     shadowRadius: wp('2.5%'),
     shadowOffset: { width: 0, height: hp('0.4%') },
     flexDirection: 'column',
-    justifyContent: 'space-between',
   },
   content: {
-    flex: 1,
     width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: hp('0.2%'),
+    justifyContent: 'center',
+    marginBottom: hp('0.5%'),
     width: '100%',
   },
   title: {
@@ -144,31 +160,33 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     textAlign: 'center',
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: hp('0.6%'),
+    marginBottom: hp('0.6%'),
+    width: '100%',
+  },
   dateTime: {
     fontSize: wp('3.2%'),
     color: '#43494e',
     fontWeight: '600',
-    marginTop: hp('0.5%'),
   },
-  groupNotice: {
+  desc: {
     fontSize: wp('3.1%'),
-    color: '#666',
-    marginTop: hp('0.8%'),
-    fontStyle: 'italic',
-    textAlign: 'center',
+    color: '#757A87',
+    marginTop: hp('0.5%'),
+    fontWeight: '500',
     lineHeight: hp('2.2%'),
+    textAlign: 'center',
   },
-  button: {
-    borderRadius: wp('1.9%'),
-    paddingVertical: hp('1%'),
-    alignItems: 'center',
-    width: '100%',
-    marginTop: hp('0.8%'),
-  },
-  buttonText: {
-    color: '#fff',
+  ctaText: {
+    marginTop: hp('1.2%'),
+    fontSize: wp('3.2%'),
     fontWeight: '700',
-    fontSize: wp('3.5%'),
-    letterSpacing: 0.07,
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
 });
+

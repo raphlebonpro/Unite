@@ -115,19 +115,19 @@ const handleShareApp = async () => {
         <Text style={styles.sectionHeader}>Compte</Text>
         <View style={styles.card}>
           <SettingsItem
-            icon={<AntDesign name="user" size={22} color="#1976d2" />}
+            icon={<AntDesign name="user" size={21} color="#888" />}
             label="Modifier le profil"
             onPress={() => navigation.navigate('EditProfile')}
           />
           <ItemSeparator />
           <SettingsItem
-            icon={<Entypo name="location-pin" size={22} color="#43b97f" />}
+            icon={<Entypo name="location-pin" size={21} color="#888" />}
             label="Localisation"
             onPress={() => navigation.navigate('Location')}
           />
           <ItemSeparator />
           <SettingsItem
-            icon={<Feather name="bell" size={22} color="#faad14" />}
+            icon={<Feather name="bell" size={21} color="#888" />}
             label="Notifications"
             onPress={() => navigation.navigate('AutorisationNotifications')}
           />
@@ -148,23 +148,21 @@ const handleShareApp = async () => {
           />
           <ItemSeparator />
           <SettingsItem
-           icon={<Feather name="message-square" size={21} color="#FF4C4C" />}
+            icon={<AntDesign name="filetext1" size={21} color="#888" />}
+            label="Mentions légales"
+            onPress={() => navigation.navigate('MentionsLegales')}
+          />
+          <ItemSeparator />
+          <SettingsItem
+           icon={<Feather name="message-square" size={21} color="#888" />}
            label="Retour et Signalement"
            onPress={() => navigation.navigate('FeedbackAndReport')}
           />
           <ItemSeparator />
-
           <SettingsItem
             icon={<Feather name="share" size={21} color="#1976d2" />}
             label="Partager Unite"
             onPress={handleShareApp}
-          />
-          <ItemSeparator />
-
-          <SettingsItem
-            icon={<AntDesign name="filetext1" size={21} color="#888" />}
-            label="Mentions légales"
-            onPress={() => navigation.navigate('MentionsLegales')}
           />
          </View>
 
@@ -220,7 +218,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   sectionHeader: {
-    fontSize: wp('4.2%'),
+    fontSize: wp('3.2%'),
     fontWeight: '700',
     marginLeft: wp('1.5%'),
     marginTop: hp('1.1%'),
@@ -243,8 +241,8 @@ const styles = StyleSheet.create({
   cardAction: {
     backgroundColor: '#fff',
     borderRadius: wp('5%'),
-    paddingVertical: hp('2.3%'),
-    paddingHorizontal: wp('5.2%'),
+    paddingVertical: hp('1.5%'),
+    paddingHorizontal: wp('4%'),
     marginTop: hp('1.3%'),
     shadowColor: '#191A20',
     shadowOffset: { width: 0, height: hp('0.25%') },
@@ -259,8 +257,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp('3.5%'),
   },
   iconBox: {
-    width: wp('9.3%'),
-    height: wp('9.3%'),
+    width: wp('8.3%'),
+    height: wp('8.3%'),
     borderRadius: wp('4.65%'),
     backgroundColor: '#f1f4f9',
     alignItems: 'center',
@@ -269,43 +267,44 @@ const styles = StyleSheet.create({
   },
   itemText: {
     flex: 1,
-    fontSize: wp('4.1%'),
+    fontSize: wp('3.9%'),
     color: '#222',
     fontWeight: '500',
   },
   logoutBtn: {
-    backgroundColor: '#222',
+    backgroundColor: '#383838',
     borderRadius: wp('3.3%'),
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingVertical: hp('2%'),
+    paddingVertical: hp('1.7%'),
     marginBottom: hp('1.1%'),
+    marginHorizontal: 10,
   },
   logoutText: {
     color: '#fff',
     fontWeight: '600',
     marginLeft: wp('1.7%'),
-    fontSize: wp('4%'),
+    fontSize: wp('3.5%'),
     letterSpacing: 0.1,
   },
   deleteBtn: {
-    backgroundColor: '#ff0000',
+    backgroundColor: '#EB1E1E',
     borderRadius: wp('3.3%'),
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingVertical: hp('2%'),
-    marginTop: hp('0.4%'),
+    paddingVertical: hp('1.7%'),
+    marginTop: hp('0.5%'),
+    marginHorizontal: 10,
   },
   deleteText: {
     color: '#fff',
     fontWeight: '600',
     marginLeft: wp('1.7%'),
-    fontSize: wp('4%'),
+    fontSize: wp('3.5%'),
     letterSpacing: 0.1,
   },
 });
 
 export default SettingsScreen;
-

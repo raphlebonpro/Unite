@@ -52,15 +52,12 @@ function GeneralCollectiveBanner() {
         { opacity: 0.9 } // effet visuel "désactivé"
       ]}
     >
-      <LinearGradient
-        colors={['#5371ff', '#a259f7']}
-        style={styles.heroBannerCompact}
-        start={{ x: 0.08, y: 0.13 }}
-        end={{ x: 1, y: 0.9 }}
+      <View
+        style={[styles.heroBannerCompact, {backgroundColor: '#888'}]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
           <MaterialCommunityIcons
-            name="trophy"
+            name="medal"
             size={18}
             color="#fff"
             style={{ marginRight: 8, marginTop: 1 }}
@@ -74,12 +71,33 @@ function GeneralCollectiveBanner() {
         </Text>
 
         {/* Message Bientôt dispo en gras et blanc */}
-        <Text style={[styles.heroDescCompact, { marginTop: 4, fontWeight: 'bold', color: '#fff', fontSize: 13 }]}>
-          🚧 Bientôt disponible !
+        <Text style={[styles.heroDescCompact, { marginTop: 4, fontWeight: 'bold', color: '#fff', fontSize: 11 }]}>
+          Bientôt disponible !
         </Text>
-      </LinearGradient>
+      </View>
     </View>
   );
+}
+
+function getCurrentMonthRange() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0); // dernier jour réel
+
+  const monthName = now.toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric'
+  });
+
+  return {
+    start: String(firstDay.getDate()).padStart(2, '0'),
+    end: String(lastDay.getDate()).padStart(2, '0'),
+    monthLabel: monthName
+  };
 }
 
   const Avatar = ({ photo, username, size = 48, style }) => {
@@ -138,7 +156,7 @@ function getPodiumColor(rank) {
   return COLORS.gray;
 }
 
-function PodiumUser({ user, userId, rank, count, onPress }) {
+function PodiumUser({ user, userId, rank, count, selectedTab, onPress }) {
   if (!user) {
     return (
       <View style={[styles.podiumUser, { opacity: 0.5 }]}>
@@ -160,9 +178,6 @@ function PodiumUser({ user, userId, rank, count, onPress }) {
         rank === 1 && styles.podiumGoldAvatar,
         {
           borderColor: getPodiumColor(rank),
-          shadowColor: getPodiumColor(rank),
-          shadowOpacity: 0.22,
-          shadowRadius: 14,
           elevation: 9,
           width: rank === 1 ? 66 : 48,
           height: rank === 1 ? 66 : 48,
@@ -195,7 +210,9 @@ function PodiumUser({ user, userId, rank, count, onPress }) {
   >
     {user.username}
   </Text>
-
+<Text style={styles.podiumSessionCount}>
+  {count} {selectedTab === 'created' ? 'créées' : 'rejointes'}
+</Text>
 </View>
     </TouchableOpacity>
   );
@@ -206,6 +223,7 @@ export default function LeaderBoardScreen({ navigation, userId }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [myRank, setMyRank] = useState(null);
   const [loading, setLoading] = useState(true);
+  const monthRange = getCurrentMonthRange();
 
 const goToProfile = (uid) => {
   if (!uid) return;
@@ -336,18 +354,15 @@ const maxContainerHeight = windowHeight * 0.82;
 
 return (
   <SafeAreaView style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
-    <GeneralCollectiveBanner onPress={() => navigation.navigate('CollectiveChallenges')} />
-<LinearGradient
-  colors={['#fffefa', '#fff6e7', '#f7f3ff']}
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 1 }}
-  style={[
+  <View
+    style={[
     styles.floatContainer,
     {
       maxHeight: maxContainerHeight,
       flexShrink: 1,
       marginTop: 10,
       marginBottom: 4,
+      backgroundColor: '#FFFFFF',
     }
   ]}
 >
@@ -360,21 +375,16 @@ return (
         key={tab.key}
         onPress={() => setSelectedTab(tab.key)}
         activeOpacity={0.9}
-        style={{ flex: 1, marginHorizontal: 6 }}
+        style={{ flex: 1 }}
       >
         {isActive ? (
-          <LinearGradient
-            colors={['#FF914D', '#FF4D97']} // 🔥 Dégradé Unite
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.tabBtnGradient}
-          >
-            <Text style={[styles.tabLabel, { color: '#fff', fontWeight: '700' }]}>
+          <View style={[styles.segmentActive]}>
+            <Text style={[styles.tabLabel, { color: '#F62DAE', fontWeight: '700' }]}>
               {tab.label}
             </Text>
-          </LinearGradient>
+          </View>
         ) : (
-          <View style={styles.tabBtn}>
+          <View style={styles.segmentInactive}>
             <Text style={[styles.tabLabel, { color: '#555' }]}>{tab.label}</Text>
           </View>
         )}
@@ -383,12 +393,25 @@ return (
   })}
 </View>
 
+<View style={styles.monthRangeContainer}>
+  <MaterialCommunityIcons
+    name="calendar-month-outline"
+    size={16}
+    color="#FE5D02"
+    style={{ marginRight: 6 }}
+  />
+  <Text style={styles.monthRangeStyledText}>
+    {monthRange.start} – {monthRange.end} {monthRange.monthLabel}
+  </Text>
+</View>
+
 <View style={styles.podiumContainer}>
   <PodiumUser
     user={podium[0]?.users}
     userId={podium[0]?.user_id}
     rank={2}
     count={podium[0]?.count}
+    selectedTab={selectedTab}
     onPress={goToProfile}
   />
   <PodiumUser
@@ -396,6 +419,7 @@ return (
     userId={podium[1]?.user_id}
     rank={1}
     count={podium[1]?.count}
+    selectedTab={selectedTab}
     onPress={goToProfile}
   />
   <PodiumUser
@@ -403,6 +427,7 @@ return (
     userId={podium[2]?.user_id}
     rank={3}
     count={podium[2]?.count}
+    selectedTab={selectedTab}
     onPress={goToProfile}
   />
 </View>
@@ -435,7 +460,7 @@ return (
           )}
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
     {myRank && (
       <View style={styles.stickyMyRank}>
         <Text style={{ fontWeight: 'bold', color: COLORS.accent, fontSize: 15 }}>
@@ -444,6 +469,7 @@ return (
         <Text style={{ color: '#555', fontSize: 13 }}>Sessions ce mois : {myRank.count}</Text>
       </View>
     )}
+     <GeneralCollectiveBanner onPress={() => navigation.navigate('CollectiveChallenges')} />
   </SafeAreaView>
 );
 }
@@ -471,13 +497,14 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
     marginBottom: hp('0.3%'),
   },
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: hp('1.5%'),
-    marginTop: hp('1.2%'),
-    gap: wp('2.7%'),
-  },
+tabBar: {
+  flexDirection: 'row',
+  backgroundColor: '#EFEFF4',
+  borderRadius: 30,
+  padding: 4,
+  marginHorizontal: wp('4%'),
+  marginBottom: hp('1.5%'),
+},
   tabBtn: {
     paddingHorizontal: wp('4.5%'),
     paddingVertical: hp('0.7%'),
@@ -533,9 +560,6 @@ const styles = StyleSheet.create({
     borderRadius: wp('9%'),
     borderWidth: 4,
     borderColor: COLORS.gold,
-    shadowColor: COLORS.gold,
-    shadowOpacity: 0.22,
-    shadowRadius: wp('3.9%'),
     marginBottom: hp('0.2%'),
     backgroundColor: "#fff",
     alignItems: 'center',
@@ -699,32 +723,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
-  heroBannerCompact: {
-    width: wp('86%'),
-    alignSelf: 'center',
-    borderRadius: wp('4.5%'),
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: hp('1%'),
-    paddingHorizontal: wp('4.5%'),
-    minHeight: hp('5%'),
-    elevation: 1,
-    shadowColor: '#8f50ff',
-    shadowOpacity: 0.10,
-    shadowRadius: wp('2.4%'),
-    shadowOffset: { width: 0, height: 2 },
-  },
+heroBannerCompact: {
+  width: wp('85%'),
+  alignSelf: 'center',
+  borderRadius: wp('4.5%'),
+  alignItems: "center",
+  justifyContent: "center",
+  paddingVertical: hp('1%'),
+  paddingHorizontal: wp('4.5%'),
+  minHeight: hp('5%'),
+  backgroundColor: '#888',
+  overflow: 'hidden', // 🔥 IMPORTANT Android
+},
   heroTitleCompact: {
     color: "#fff",
     fontWeight: 'bold',
-    fontSize: wp('3.7%'),
+    fontSize: wp('3.1%'),
     marginBottom: 0,
     marginTop: hp('0.1%'),
     textAlign: "center",
   },
   heroDescCompact: {
     color: "#eae6ff",
-    fontSize: wp('2.6%'),
+    fontSize: wp('2.3%'),
     fontWeight: "600",
     letterSpacing: 0.01,
     textAlign: "center",
@@ -803,5 +824,43 @@ sessionBadgeText: {
   fontSize: wp('3.6%'),
   fontWeight: '700',
   color: COLORS.accent,
+},
+podiumSessionCount: {
+  fontSize: 11,
+  color: '#666',
+  marginTop: 2,
+  fontWeight: '600',
+},
+monthRangeContainer: {
+  alignSelf: 'center',
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#FFF4EB',
+  paddingHorizontal: 14,
+  paddingVertical: 6,
+  borderRadius: 20,
+  marginBottom: 12,
+},
+monthRangeStyledText: {
+  fontSize: 13,
+  fontWeight: '600',
+  color: '#FE5D02',
+},
+segmentActive: {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 26,
+  paddingVertical: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+  elevation: 2,
+},
+segmentInactive: {
+  paddingVertical: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+tabLabel: {
+  fontSize: 15,
+  fontWeight: '700',
 },
 });

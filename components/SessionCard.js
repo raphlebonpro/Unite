@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AntDesign, MaterialCommunityIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const sportIcons = {
@@ -70,127 +69,171 @@ const SessionCard = ({ session, onPress }) => {
   const { icon, color } = sportIcons[session.sport] || sportIcons.Autres;
 
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.89} onPress={onPress}>
-      {/* Icône sport + titre + niveau */}
-      <View style={styles.row1}>
-        <View style={[styles.iconCircle, { backgroundColor: color + '22' }]}>
-          {icon}
-        </View>
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={styles.title} numberOfLines={1}>{session.title || session.sport}</Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {session.level ? <AntDesign name="star" size={13} color="#ffc66e" /> : null}
-            <Text style={{ color: '#6066AD', fontWeight: '600', marginLeft: 4 }}>{session.level || ''}</Text>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.95}
+      style={[
+        styles.card,
+        {
+          borderColor: color + '30',
+        },
+      ]}
+    >
+      {/* 🔥 Fond interne teinté propre */}
+      <View
+        style={[
+          styles.innerCard,
+          {
+            backgroundColor: color + '08',
+          },
+        ]}
+      >
+      {/* BADGE GROUPE */}
+{session.group?.name && (
+  <View style={styles.groupBadge}>
+    <Text style={styles.groupBadgeText}>
+      Groupe • {session.group.name}
+    </Text>
+  </View>
+)}
+      {/* HEADER */}
+      <View style={styles.headerRow}>
+        <View style={{ marginRight: 8 }}>{icon}</View>
+
+        <Text style={styles.title} numberOfLines={1}>
+          {session.title || session.sport}
+        </Text>
+      </View>
+
+      {/* META */}
+      <View style={styles.metaRow}>
+        <View style={[styles.level, { borderColor: color }]}>
+          <Text style={[styles.levelText, { color }]}>
+            {session.level}
           </Text>
         </View>
+
+<View style={[styles.dateContainer, { backgroundColor: color + '12' }]}>
+  <AntDesign name="calendar" size={13} color={color} />
+  <Text style={[styles.dateText, { color }]}>
+    {formatDateTime(session.date, session.time)}
+  </Text>
+</View>
       </View>
 
-      {/* Lieu + date/heure */}
-      <View style={styles.row2}>
-        <AntDesign name="enviromento" size={15} color="#A7A6D7" />
-        <Text style={styles.place} numberOfLines={1}>{session.location}</Text>
-      </View>
-      <View style={styles.row2}>
-        <AntDesign name="calendar" size={14} color="#7D78F8" />
-        <Text style={styles.date}>{formatDateTime(session.date, session.time)}</Text>
-      </View>
-
-      {/* Voir session */}
-<LinearGradient
-  colors={['#7D78F8', '#6D6AFF']}
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 0 }}
-  style={styles.button}
->
-  <TouchableOpacity
-    onPress={onPress}
-    activeOpacity={0.85}
-    style={{ width: '100%', alignItems: 'center' }}
-  >
-    <Text style={styles.buttonTxt}>Voir Session</Text>
-  </TouchableOpacity>
-</LinearGradient>
+      {/* LOCATION */}
+      {session.location ? (
+        <View style={styles.locationRow}>
+          <AntDesign name="enviromento" size={14} color={color} />
+          <Text style={[styles.location, { color }]} numberOfLines={1}>
+            {session.location}
+          </Text>
+        </View>
+      ) : null}
+      {/* Accent signature */}
+      <View style={[styles.bottomAccent, { backgroundColor: color }]} />
+     </View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: wp('5%'),         // ~19 sur 390px
-    padding: wp('4.1%'),            // ~16
-    marginBottom: hp('2%'),         // ~17
-    elevation: 4,
-    shadowColor: "#d1d0fd",
-    shadowOpacity: 0.10,
-    shadowRadius: wp('2.7%'),       // ~10
-    shadowOffset: { width: 0, height: hp('0.38%') }, // ~3
-    marginHorizontal: wp('0.3%'),   // ~1
-    minWidth: wp('60%'),            // ~230 sur 390px
+card: {
+  borderRadius: wp('5%'),
+  marginBottom: 16,
+  marginHorizontal: wp('0.5%'),
+  backgroundColor: '#fff',
+  borderWidth: 1,
+  // iOS shadow
+  shadowColor: '#000',
+  shadowOpacity: 0.06,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 6 },
+  // Android shadow calibrée
+  elevation: 4,
+},
+headerRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginBottom: hp('0.9%'),
+},
+title: {
+  fontSize: wp('4%'),
+  fontWeight: '800',
+  color: '#1C1C1E',
+  flex: 1,
+},
+metaRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginBottom: hp('0.8%'),
+},
+level: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    marginRight: 8,
+    backgroundColor: '#F6F7FA',
   },
-  row1: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginBottom: hp('0.85%'),      // ~7
-  },
-  iconCircle: {
-    width: wp('10.5%'),             // ~41
-    height: wp('10.5%'),            // ~41
-    borderRadius: wp('5.4%'),       // ~21
-    alignItems: 'center', 
-    justifyContent: 'center',
-    backgroundColor: '#F4F4FF',
-    borderWidth: 1, 
-    borderColor: '#E5E5F8',
-  },
-  title: { 
-    fontWeight: 'bold', 
-    fontSize: wp('4.2%'),           // ~16.5
-    color: '#21213A' 
-  },
-  meta: { 
-    fontSize: wp('3.4%'),           // ~13.2
-    color: "#6565ad", 
-    marginTop: hp('0.25%'),         // ~2
-    marginLeft: wp('0.5%'),         // ~2
-    fontWeight: '500' 
-  },
-  row2: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginTop: hp('0.24%'),         // ~2
-    marginBottom: hp('0.24%'),      // ~2
-  },
-  place: { 
-    fontSize: wp('3.5%'),           // ~13.7
-    color: '#7E7EA7', 
-    marginLeft: wp('1.8%'),         // ~7
-    fontWeight: '500', 
-    flex: 1 
-  },
-  date: { 
-    fontSize: wp('3.5%'),           // ~13.6
-    color: '#7D78F8', 
-    marginLeft: wp('1.8%'),         // ~7
-    fontWeight: '600' 
-  },
-  button: {
-    borderRadius: wp('3.5%'),       // ~13
-    paddingVertical: hp('1.1%'),    // ~9
-    marginTop: hp('1.2%'),          // ~10
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-    shadowColor: "#7D78F8",
-    shadowOpacity: 0.14,
-    shadowRadius: wp('2%'),         // ~8
-  },
-  buttonTxt: { 
-    color: "#fff", 
-    fontWeight: "700", 
-    fontSize: wp('3.9%'),           // ~15
-    letterSpacing: 0.3 
-  },
+levelText: {
+  fontSize: wp('3.1%'),
+  fontWeight: '700',
+},
+dateTime: {
+  fontSize: wp('3.3%'),
+  color: '#6B7280',
+  fontWeight: '600',
+},
+locationRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginTop: hp('0.6%'),
+},
+location: {
+  fontSize: wp('3.2%'),
+  marginLeft: 6,
+  fontWeight: '500',
+  opacity: 0.85,
+},
+dateContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  alignSelf: 'flex-start',
+  paddingHorizontal: 11,
+  paddingVertical: 5,
+  borderRadius: 20,
+},
+bottomAccent: {
+  height: 3,
+  width: 40,
+  borderRadius: 3,
+  marginTop: 12,
+},
+dateText: {
+  fontSize: wp('3.1%'),
+  fontWeight: '600',
+  marginLeft: 6,
+  letterSpacing: 0.2,
+},
+innerCard: {
+  borderRadius: wp('4.2%'),
+  padding: wp('4.8%'),
+},
+groupBadge: {
+  alignSelf: 'flex-start',
+  backgroundColor: '#EEF0FF',
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 20,
+  marginBottom: 8,
+},
+groupBadgeText: {
+  fontSize: wp('2.8%'),
+  fontWeight: '700',
+  color: '#5B4EFF',
+  letterSpacing: 0.3,
+},
 });
 
 export default SessionCard;

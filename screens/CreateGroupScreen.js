@@ -13,7 +13,6 @@ import {
   Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   Feather,
   FontAwesome5,
@@ -403,16 +402,19 @@ navigation.replace("GroupDetail", { groupId: data.id });
           activeOpacity={0.9}
           style={{ alignSelf: "center", marginTop: 8, marginBottom: 30 }}
         >
-          <LinearGradient
-            colors={["#FF9D3C", "#FF6C4A", "#FF375E"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.btn}
-          >
-            <Text style={styles.btnTxt}>
-              {loading ? "Création…" : "Créer le groupe"}
-            </Text>
-          </LinearGradient>
+<View
+  style={[
+    styles.btn,
+    {
+      backgroundColor: '#FE5D02',
+    },
+  ]}
+  disabled={loading}
+>
+  <Text style={styles.btnTxt}>
+    {loading ? 'Création…' : 'Créer le groupe'}
+  </Text>
+</View>
         </TouchableOpacity>
 
         {/* === Modal sports === */}
@@ -530,13 +532,14 @@ const styles = StyleSheet.create({
   placeholderText: { fontSize: 15, color: "#bababa" },
   textarea: { minHeight: 160, textAlignVertical: "top", paddingTop: 14 },
   btn: {
-    width: 300, // ✅ bouton plus étroit
-    height: 48,
-    borderRadius: 14,
+    marginTop: 10,
+    width: 300,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  btnTxt: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  btnTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",

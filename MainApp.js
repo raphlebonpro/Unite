@@ -13,6 +13,9 @@ import SafeTop from './components/SafeTop';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { navigate } from './navigation/navigationRef';
 import { useChatActivity } from './context/ChatActivityContext';
+import { AppState } from 'react-native';
+import * as Application from 'expo-application';
+import * as Linking from 'expo-linking';
 
 // ✅ Enregistrement du token push
 async function registerForPushNotificationsAsync(userId) {
@@ -177,6 +180,80 @@ useEffect(() => {
     });
 
   return () => responseListener.current?.remove();
+}, []);
+
+useEffect(() => {
+  let currentState = AppState.currentState;
+
+  const subscription = AppState.addEventListener('change', async (nextState) => {
+    if (currentState.match(/inactive|background/) && nextState === 'active') {
+      console.log('🔁 App revenue au premier plan → reconnexion');
+
+      try {
+if (supabase.getChannels().length === 0) {
+  // reconnect seulement si nécessaire
+}
+      } catch (e) {
+        console.warn('⚠️ Reconnexion Supabase échouée', e.message);
+      
+      }
+    }
+
+    console.log('🟡 AppState change →', nextState);
+
+    currentState = nextState;
+  });
+
+  return () => subscription.remove();
+}, []);
+
+useEffect(() => {
+  const checkAppVersion = async () => {
+    try {
+      const currentVersion = Application.nativeApplicationVersion;
+
+      const { data, error } = await supabase
+        .from('app_config')
+        .select('latest_version')
+        .single();
+
+      if (error || !data?.latest_version) return;
+
+      const isOlder = (v1, v2) => {
+        const a = v1.split('.').map(Number);
+        const b = v2.split('.').map(Number);
+        for (let i = 0; i < 3; i++) {
+          if ((a[i] || 0) < (b[i] || 0)) return true;
+          if ((a[i] || 0) > (b[i] || 0)) return false;
+        }
+        return false;
+      };
+
+      if (isOlder(currentVersion, data.latest_version)) {
+        Alert.alert(
+          'Nouvelle version disponible',
+          'Une mise à jour de Unite est disponible avec des améliorations.',
+          [
+            { text: 'Plus tard', style: 'cancel' },
+            {
+              text: 'Mettre à jour',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('https://apps.apple.com/us/app/uniteapp/id6755112837');
+                } else {
+                  Linking.openURL('https://play.google.com/store/apps/details?id=com.uniteapp.collectif');
+                }
+              },
+            },
+          ]
+        );
+      }
+    } catch (e) {
+      console.warn('Erreur check version:', e.message);
+    }
+  };
+
+  checkAppVersion();
 }, []);
 
 return (

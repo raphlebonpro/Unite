@@ -448,16 +448,13 @@ userId: user.id,
   activeOpacity={0.9} 
   style={{ alignSelf: "center", marginTop: 16, marginBottom: 12 }}
 >
-  <LinearGradient
-    colors={["#FF9D3C", "#FF6C4A", "#FF375E"]}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 1 }}
-    style={styles.btn}
+  <View
+    style={[styles.btn, {backgroundColor: '#F62DAE'}]}
   >
     <Text style={styles.btnTxt}>
       {saving ? "Enregistrement…" : "Modifier le groupe"}
     </Text>
-  </LinearGradient>
+  </View>
 </TouchableOpacity>
 
 {/* === Bouton Supprimer le groupe === */}
@@ -538,11 +535,12 @@ const styles = StyleSheet.create({
 
   // — CTA
   btn: {
-    width: 300,
+    width: 340,
     height: 42,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: 20,
   },
   btnTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
@@ -618,19 +616,13 @@ addressSuggestions: {
   marginTop: 8,
   paddingHorizontal: 16,
 },
-buttonDanger: {
-  backgroundColor: '#E53935',
-  borderRadius: 12,
-  paddingVertical: 12,
-  alignItems: 'center',
-},
 buttonDangerText: {
 color: "#fff", fontWeight: "700", fontSize: 15 },
 buttonDanger: {
-  width: 300,
+  width: 340,
   height: 42,
   backgroundColor: '#E53935',
-  borderRadius: 12,
+  borderRadius: 20,
   paddingVertical: 12,
   alignItems: 'center',
   justifyContent: 'center',

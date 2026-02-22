@@ -16,7 +16,6 @@ import {
 import { AntDesign, MaterialCommunityIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import MiniAppBar from '../components/MiniAppBar';
 import {
@@ -141,9 +140,9 @@ function buildLimits(date = new Date()) {
 
   const minTime = isToday
     ? new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), 0, 0)
-    : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 6, 0, 0);
+    : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 5, 0, 0);
 
-  const maxTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 21, 0, 0);
+  const maxTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 22, 0, 0);
   return { isToday, minTime, maxTime };
 }
 
@@ -155,9 +154,9 @@ const getClampedDefaultHour = () => {
   futureHour.setMilliseconds(0);
   
   const hour = futureHour.getHours();
-  if (hour < 6) {
+  if (hour < 5) {
     futureHour.setHours(6, 0, 0, 0);
-  } else if (hour > 21) {
+  } else if (hour > 22) {
     const tomorrow = new Date(futureHour);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(6, 0, 0, 0);
@@ -191,9 +190,9 @@ function formatHour(date) {
 function isAllowedStartTime(localDate) {
   const h = localDate.getHours();
   const m = localDate.getMinutes();
-  if (h < 6) return false;
-  if (h > 21) return false;
-  if (h === 21 && m > 0) return false;
+  if (h < 5) return false;
+  if (h > 22) return false;
+  if (h === 22 && m > 0) return false;
   return true;
 }
 
@@ -235,12 +234,12 @@ const prefillAddress = route.params?.prefillAddress;
     futureHour.setMilliseconds(0);
     
     const hour = futureHour.getHours();
-    if (hour < 6) {
-      futureHour.setHours(6, 0, 0, 0);
-    } else if (hour > 21) {
+    if (hour < 5) {
+      futureHour.setHours(5, 0, 0, 0);
+    } else if (hour > 22) {
       const tomorrow = new Date(futureHour);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(6, 0, 0, 0);
+      tomorrow.setHours(5, 0, 0, 0);
       return tomorrow;
     }
     
@@ -302,12 +301,12 @@ useEffect(() => {
       safeHour.setMilliseconds(0);
       
       // Vérifier la plage horaire
-      if (safeHour.getHours() < 6) {
-        safeHour.setHours(6, 0, 0, 0);
-      } else if (safeHour.getHours() > 21) {
+      if (safeHour.getHours() < 5) {
+        safeHour.setHours(5, 0, 0, 0);
+      } else if (safeHour.getHours() > 22) {
         const tomorrow = new Date(safeHour);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(6, 0, 0, 0);
+        tomorrow.setHours(5, 0, 0, 0);
         setSelectedDate(tomorrow);
         setSelectedHour(tomorrow);
       } else {
@@ -522,7 +521,7 @@ const handleCreateSession = async () => {
     if (!isAllowedStartTime(candidateStart)) {
       Alert.alert(
         'Heure non autorisée',
-        'Tu peux sélectionner une heure uniquement entre 6h00 et 21h00.'
+        'Tu peux sélectionner une heure uniquement entre 5h00 et 22h00.'
       );
       return;
     }
@@ -604,7 +603,7 @@ requestAnimationFrame(() => {
 // 🧭 Navigation IMMÉDIATE
 navigation.navigate('MainTabs', {
   screen: 'Sessions',
-  params: { tab: 'created', showCreatedAlert: true },
+  params: { section: 'upcoming', showCreatedAlert: true },
 });
 
   } catch (err) {
@@ -658,11 +657,10 @@ const confirmCreateSession = () => {
     );
     
     // Vérifier que l'heure est dans la plage autorisée
-    const hour = combinedDateTime.getHours();
-    if (hour < 6 || hour > 21) {
+    if (!isAllowedStartTime(combinedDateTime)){
       Alert.alert(
         'Heure non autorisée', 
-        'Veuillez choisir une heure entre 6h00 et 21h00.'
+        'Veuillez choisir une heure entre 5h00 et 22h00.'
       );
       hideTimePicker();
       return;
@@ -749,9 +747,9 @@ return (
   {/* Icône par défaut UNIQUEMENT si aucun sport sélectionné */}
   {!selectedSport && (
     <Ionicons
-      name="fitness" 
+      name="walk" 
       size={18}
-      color="#5B5FFF"
+      color="#8C8C8C"
       style={{ marginRight: 8 }}
     />
   )}
@@ -860,7 +858,7 @@ return (
   <Ionicons
     name="location-outline"
     size={18}
-    color="#5B5FFF"
+    color="#8C8C8C"
     style={{ marginRight: 8 }}
   />
 
@@ -936,14 +934,14 @@ return (
 <View style={{ marginTop: 5 }}>
   <View style={styles.rowTwoCols}>
 <TouchableOpacity
-  style={[styles.inlineInput, {  flex: 2, flexDirection: 'row', alignItems: 'center' }]}
+  style={[styles.inlineInput2, {  flex: 2, flexDirection: 'row', alignItems: 'center' }]}
   activeOpacity={0.85}
   onPress={() => setShowCalendar(true)}
 >
   <Ionicons
     name="calendar-outline"
     size={18}
-    color="#5B5FFF"
+    color="#8C8C8C"
     style={{ marginRight: 8 }}
   />
 
@@ -964,7 +962,7 @@ return (
     onPress={() => setTimePickerVisible(true)}
     activeOpacity={0.85}
   >
-    <Ionicons name="time-outline" size={18} color="#5B5FFF" />
+    <Ionicons name="time-outline" size={18} color="#8C8C8C" />
     <Text style={styles.timeText}>
       {formatHour(selectedHour)}
     </Text>
@@ -1021,7 +1019,7 @@ return (
     onPress={() => setLevelPickerVisible(true)}
     activeOpacity={0.85}
   >
-    <Ionicons name="trending-up-outline" size={18} color="#5B5FFF" />
+    <Ionicons name="trending-up-outline" size={18} color="#8C8C8C" />
     <Text style={styles.levelText}>
       {selectedLevel ? selectedLevel : 'Niveau'}
     </Text>
@@ -1132,7 +1130,7 @@ return (
   <Ionicons
     name="people-outline"
     size={18}
-    color="#5B5FFF"
+    color="#8C8C8C"
     style={{ marginRight: 8 }}
   />
 
@@ -1264,14 +1262,12 @@ return (
               style={{ borderRadius: 16, overflow: 'hidden', marginTop: 12, marginBottom: 20, alignSelf: 'center', }}
               onPress={confirmCreateSession}
             >
-              <LinearGradient
-                colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.buttonGradient, { width: '90%' }]}
-              >
+<View
+  style={[
+    styles.buttonGradient,
+    {width: '90%', backgroundColor: '#FE5D02'}]}>
                 <Text style={styles.buttonText}>Créer une session</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1350,12 +1346,12 @@ const styles = StyleSheet.create({
     height: 45,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
+    borderRadius: 20,
    paddingHorizontal: 70,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   placesModal: {
@@ -1590,6 +1586,16 @@ inlineInput: {
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'center',
+},
+inlineInput2: {
+  flex: 1,
+  height: 52,
+  borderWidth: 1,
+  borderColor: '#E7E7ED',
+  borderRadius: 12,
+  paddingHorizontal: 14,
+  backgroundColor: '#fff',
+  flexDirection: 'row',
 },
 });
 

@@ -11,10 +11,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useNavigation } from '@react-navigation/native';
 import { notifyUser } from '../helpers/notifications';
+import { Feather } from '@expo/vector-icons';
 
 const SearchFriendsScreen = () => {
   const [query, setQuery] = useState('');
@@ -34,7 +34,7 @@ const SearchFriendsScreen = () => {
 
 const handleSearch = async (text) => {
   setQuery(text);
-  if (text.length < 2) {
+  if (text.length < 1) {
     setResults([]);
     return;
   }
@@ -43,7 +43,7 @@ const handleSearch = async (text) => {
   const { data, error } = await supabase
     .from('users')
     .select('id, username, profile_photo')
-    .ilike('username', `%${text}%`)
+    .ilike('username', `${text}%`)
     .or('is_deleted.is.null,is_deleted.eq.false')
     .limit(20);
 
@@ -153,14 +153,10 @@ const renderItem = ({ item }) => (
         onPress={() => handleSendFriendRequest(item.id)} 
         activeOpacity={0.85}
       >
-        <LinearGradient
-          colors={['#6A11CB', '#2575FC']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.friendGradientBtn}
-        >
+        <View
+          style={[styles.friendGradientBtn, {backgroundColor:'#F62DAE'}]}>
           <Text style={styles.friendGradientText}>Ajouter</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     )
   ) : (
@@ -176,18 +172,42 @@ const renderItem = ({ item }) => (
     <SafeAreaView style={styles.container}>
 {!loading && results.length === 0 && query.length === 0 && (
   <View style={styles.emptyStateContainer}>
-    <Text style={styles.emptyStateTitle}>⚡ Construis ton équipe</Text>
+    <Text style={styles.emptyStateTitle}>Construis ton équipe</Text>
     <Text style={styles.emptyStateText}>
-« Entoure-toi de partenaires qui t’inspirent. Ensemble, allez plus loin, plus vite, et faites vibrer Unite. »
+      Entoure-toi de coéquipiers qui t’inspirent.
+    </Text>
+    <Text style={styles.emptyStateText}>
+      Ensemble, allez plus loin, plus vite, et faites vibrer Unite. 
     </Text>
   </View>
 )}
-      <TextInput
-        style={styles.searchInput}
-        placeholder="🔍 Rechercher un pseudo..."
-        value={query}
-        onChangeText={handleSearch}
-      />
+<View style={styles.searchWrapper}>
+<Feather name="search" size={18} color="#999" style={{ marginRight: 10 }} />
+
+  <TextInput
+    style={styles.searchInput}
+    placeholder="Rechercher un coéquipier"
+    placeholderTextColor="#999"
+    value={query}
+    onChangeText={handleSearch}
+    autoCorrect={false}
+    autoCapitalize="none"
+  />
+
+  {query.length > 0 && (
+    <TouchableOpacity onPress={() => {
+      setQuery('');
+      setResults([]);
+    }}>
+      <Text style={styles.clearText}>✕</Text>
+      {query.length >= 2 && (
+  <Text style={styles.resultInfo}>
+    {results.length} résultat{results.length > 1 ? 's' : ''}
+  </Text>
+)}
+    </TouchableOpacity>
+  )}
+</View>
     
       {loading && <ActivityIndicator size="small" style={{ marginTop: 12 }} />}
       <FlatList
@@ -207,46 +227,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp('4%'),
     paddingTop: hp('1.5%'),
   },
-  searchInput: {
-    backgroundColor: '#fff',
-    borderRadius: wp('3%'),
-    paddingVertical: hp('1.2%'),
-    paddingHorizontal: wp('4%'),
-    fontSize: wp('4%'),
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginHorizontal: wp('8%'),
-    marginTop: hp('3%'),
-  },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginVertical: 6,
-    padding: 12,
-    borderRadius: wp('5%'),
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  avatar: {
-    width: wp('12%'),
-    height: wp('12%'),
-    borderRadius: wp('6%'),
-    marginRight: wp('4%'),
-  },
-  username: {
-    flex: 1,
-    fontSize: wp('4.2%'),
-    fontWeight: '600',
-    color: '#222',
-  },
+userRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#fff',
+  marginVertical: 8,
+  paddingVertical: 14,
+  paddingHorizontal: 14,
+  borderRadius: 20,
+
+  borderWidth: 1,
+  borderColor: '#EFEFEF',
+},
+avatar: {
+  width: wp('13%'),
+  height: wp('13%'),
+  borderRadius: wp('6.5%'),
+  marginRight: wp('4%'),
+  borderWidth: 1,
+  borderColor: '#EAEAEA',
+},
+username: {
+  flex: 1,
+  fontSize: wp('4.3%'),
+  fontWeight: '700',
+  color: '#1C1C1E',
+},
   friendGradientBtn: {
     borderRadius: wp('6%'),
     paddingVertical: hp('0.9%'),
@@ -278,6 +284,42 @@ emptyStateText: {
   textAlign: 'center',
   lineHeight: wp('6%'),
   marginBottom: hp('1%'),
+},
+searchWrapper: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#fff',
+  borderRadius: 20,
+  height: hp('6.2%'), // 🔥 Hauteur fixe pour uniformiser Android / iOS
+  paddingHorizontal: 16,
+  marginTop: 18,
+  marginBottom: 10,
+  marginHorizontal: 10,
+  borderWidth: 1,
+  borderColor: '#EAEAEA',
+  elevation: 1,
+},
+searchIcon: {
+  fontSize: 16,
+  marginRight: 8,
+  opacity: 0.6,
+},
+searchInput: {
+  flex: 1,
+  fontSize: 16,
+  color: '#111',
+  paddingVertical: 0,
+},
+clearText: {
+  fontSize: 16,
+  color: '#999',
+  marginLeft: 8,
+},
+resultInfo: {
+  fontSize: 13,
+  color: '#888',
+  marginBottom: 6,
+  marginLeft: 4,
 },
 });
 

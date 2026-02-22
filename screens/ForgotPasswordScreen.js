@@ -66,14 +66,11 @@ const ForgotPasswordScreen = () => {
                 {error ? <Text style={styles.error}>{error}</Text> : null}
 
                 <TouchableOpacity onPress={handleResetPassword} activeOpacity={0.85}>
-                  <LinearGradient
-                    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.button}
+                  <View
+                    style={[styles.button, {backgroundColor: '#FE5D02'}]}
                   >
                     <Text style={styles.buttonText}>Réinitialiser</Text>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               </>
             ) : (
@@ -138,7 +135,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#f9f9f9',
-    borderRadius: 10,
+    borderRadius: 15,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
@@ -148,20 +145,19 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 20,
-    borderRadius: 12,
+    borderRadius: 20,
     paddingVertical: 10,
     alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
+    fontWeight: '700',
+    fontSize: 15,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
   link: {
-    color: '#A8957E',
-    textDecorationLine: 'underline',
+    color: '#F62DAE',
     fontWeight: '700',
     textAlign: 'center',
     fontSize: 14,

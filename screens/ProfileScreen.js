@@ -54,7 +54,7 @@ function getColorFromUsername(username = '') {
 
 const Chip = ({ label }) => (
   <View style={styles.chip}>
-    <Feather name="activity" size={15} color="#43b97f" style={{ marginRight: 6 }} />
+    <Feather name="activity" size={15} color="#FE5D02" style={{ marginRight: 6 }} />
     <Text style={styles.chipText}>{label}</Text>
   </View>
 );
@@ -272,7 +272,7 @@ return (
 
 const Badge = ({ icon, value }) => (
   <View style={styles.badge}>
-    <Feather name={icon} size={14} color="#ff9100" style={{ marginRight: 6 }} />
+    <Feather name={icon} size={14} color="#256EFF" style={{ marginRight: 6 }} />
     <Text style={styles.badgeText}>{value}</Text>
   </View>
 );
@@ -556,7 +556,7 @@ const stats = {
   createdCount,
   joinedCount,
   isPremium: !!user?.is_premium,
-  accountAge, // ✅ maintenant toujours défini
+  accountAge,
   createdAt: user?.created_at || null,
   invitedUsers: user?.invited_users || 0,
   reportsCount: user?.reports_count || 0,
@@ -581,17 +581,12 @@ const openFriendsList = () => {
     onPress={() => navigation.navigate('LeaderBoard')}
     style={styles.leaderboardContainer}
   >
-    <LinearGradient
-      colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.leaderboardGradient}
-    >
+ <View style={[styles.leaderboardGradient, { backgroundColor: '#FE5D02' }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
         <FontAwesome5 name="trophy" size={16} color="#fff" style={{ marginRight: 8 }} />
         <Text style={styles.leaderboardText}>Voir le classement</Text>
       </View>
-    </LinearGradient>
+      </View>
   </TouchableOpacity>
 
 {/* 🔥 Bloc dynamique juste sous le classement */}
@@ -824,23 +819,25 @@ const openFriendsList = () => {
             </View>
           )}
 
+          {/* Description (en bas de la card) */}
+{user?.bio ? (
+<View style={styles.descBox}>
+  <Text style={styles.descText}>
+    {user.bio}
+  </Text>
+</View>
+) : null}
+
           {/* Bouton */}
           <TouchableOpacity
             style={styles.editBtn}
             onPress={() => navigation.navigate('EditProfile')}
             activeOpacity={0.8}
           >
-            <Feather name="edit-2" size={17} color="#1976d2" />
+            <Feather name="edit-2" size={17} color="#fff" />
             <Text style={styles.editBtnText}>Modifier Profil</Text>
           </TouchableOpacity>
-
-          {/* Description (en bas de la card) */}
-          {user?.bio ? (
-            <View style={styles.descBox}>
-              <MaterialCommunityIcons name="format-quote-close" size={22} color="#e56a54" style={{ marginRight: 5 }} />
-              <Text style={styles.descText}>{user.bio}</Text>
-            </View>
-          ) : null}
+          
         </View>
       </ScrollView>
     </View>
@@ -905,10 +902,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp('8.5%'),
     marginBottom: hp('2%'),
     marginTop: 0,
-    shadowColor: '#1877f2',
-    shadowOpacity: 0.09,
-    shadowOffset: { width: 0, height: hp('0.3%') },
-    shadowRadius: wp('2.2%'),
     elevation: 2,
     alignSelf: 'center',
     minWidth: wp('38%'),
@@ -950,16 +943,17 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff4e5',
+    backgroundColor: '#fff',
     borderRadius: wp('4%'),
     paddingVertical: hp('0.8%'),
     paddingHorizontal: wp('3.5%'),
     marginHorizontal: wp('1%'),
     borderWidth: 1,
-    borderColor: '#ffcfa3',
+    borderColor: '#256EFF',
+    marginTop: hp('2%'),
   },
   badgeText: {
-    color: '#ff9100',
+    color: '#333333',
     fontWeight: '600',
     fontSize: wp('4.2%'),
   },
@@ -969,26 +963,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginVertical: hp('1.2%'),
     marginBottom: hp('1.7%'),
+    marginTop: hp('1.5%'),
     gap: wp('1.8%'),
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#eafbf4',
+    backgroundColor: '#fff',
     borderRadius: wp('5%'),
     paddingVertical: hp('0.8%'),
     paddingHorizontal: wp('4%'),
     marginHorizontal: wp('1%'),
     marginBottom: hp('0.7%'),
     borderWidth: 1.1,
-    borderColor: '#baf0d0',
-    shadowColor: '#1976d2',
-    shadowOpacity: 0.08,
-    shadowRadius: wp('2.1%'),
+    borderColor: '#FE5D02',
     elevation: 1,
   },
   chipText: {
-    color: '#2a8860',
+    color: '#333333',
     fontWeight: '600',
     fontSize: wp('4%'),
     letterSpacing: 0.1,
@@ -1000,42 +992,41 @@ const styles = StyleSheet.create({
     paddingVertical: hp('1.3%'),
     paddingHorizontal: wp('7.3%'),
     borderRadius: wp('7%'),
-    backgroundColor: '#f3f9ff',
-    borderColor: '#1976d2',
+    backgroundColor: '#256EFF',
+    borderColor: '#256EFF',
     borderWidth: 1,
     alignSelf: 'center',
     elevation: 1,
   },
   editBtnText: {
     marginLeft: wp('2.1%'),
-    color: '#1976d2',
+    color: '#fff',
     fontWeight: '700',
     fontSize: wp('4.3%'),
   },
   descBox: {
-    marginTop: hp('2.7%'),
+    marginTop: hp('0.5%'),
+    marginBottom: hp('2%'),
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#fff6f3',
+    backgroundColor: '#fff',
     borderRadius: wp('4.5%'),
     paddingVertical: hp('1.7%'),
     paddingHorizontal: wp('4.1%'),
     borderWidth: 1,
-    borderColor: '#ffe3da',
-    shadowColor: '#f79489',
-    shadowOpacity: 0.06,
-    shadowRadius: wp('1.8%'),
+    borderColor: '#256EFF',
     elevation: 1,
     maxWidth: '95%',
   },
   descText: {
-    color: '#e56a54',
+    color: '#333333',
     fontSize: wp('4.2%'),
     fontStyle: 'italic',
     fontWeight: '500',
     flex: 1,
     flexWrap: 'wrap',
     lineHeight: hp('2.6%'),
+    textAlign: 'center',
   },
   appBar: {
     height: hp('6.2%'),
@@ -1138,8 +1129,8 @@ verifiedText: {
 leaderboardContainer: {
   width: wp('55%'),
   alignSelf: 'center',
-  marginTop: hp('-1.2%'),
-  marginBottom: hp('1.5%'),
+  marginTop: hp('-2.2%'),
+  marginBottom: hp('1.2%'),
   borderRadius: wp('7%'),
   shadowColor: '#FF6C4A',
   shadowOpacity: 0.15,

@@ -15,7 +15,6 @@ import {
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Feather, Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
-import GradientTitle from '../components/GradientTitle';
 import { ReportUserButton } from '../components/ReportUserButton';
 import { BADGES, BADGE_ICONS } from '../constants/badges';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -51,7 +50,7 @@ function getColorFromUsername(username = '') {
 
 const Chip = ({ label }) => (
   <View style={styles.chip}>
-    <Feather name="activity" size={15} color="#43b97f" style={{ marginRight: 6 }} />
+    <Feather name="activity" size={15} color="#FE5D02" style={{ marginRight: 6 }} />
     <Text style={styles.chipText}>{label}</Text>
   </View>
 );
@@ -90,7 +89,7 @@ function getUserBadges(stats) {
 
 const Badge = ({ icon, value }) => (
   <View style={styles.badge}>
-    <Feather name={icon} size={14} color="#ff9100" style={{ marginRight: 6 }} />
+    <Feather name={icon} size={14} color="#256EFF" style={{ marginRight: 6 }} />
     <Text style={styles.badgeText}>{value}</Text>
   </View>
 );
@@ -159,6 +158,10 @@ const UserProfileScreen = () => {
   // Demande reçue depuis CE profil (sender = userId, receiver = moi)
   const [pendingRequestId, setPendingRequestId] = useState(null);
   const [loadingFR, setLoadingFR] = useState(false);
+
+  const [optionsVisible, setOptionsVisible] = useState(false);
+
+  const [reportAutoOpen, setReportAutoOpen] = useState(false);
 
 const refreshFriendState = useCallback(async () => {
   if (!currentUserId || !userId || currentUserId === userId) return;
@@ -363,7 +366,7 @@ const handleBlockUser = async () => {
 
   Alert.alert(
     "Bloquer cet utilisateur",
-    "Tu ne verras plus ses sessions, messages ou interactions. Es-tu sûr ?",
+    "Tu ne verras plus ses sessions, messages ou interactions.",
     [
       { text: "Annuler", style: "cancel" },
       {
@@ -371,17 +374,12 @@ const handleBlockUser = async () => {
         style: "destructive",
         onPress: async () => {
           try {
-            // 1) Ajoute le blocage
-            const { error } = await supabase
+            // 1️⃣ Ajoute le blocage
+            await supabase
               .from('blocked_users')
               .insert([{ blocker_id: currentUserId, blocked_id: userId }]);
 
-            if (error) {
-              Alert.alert("Erreur", "Impossible de bloquer cet utilisateur.");
-              return;
-            }
-
-            // 2) Supprime la relation d’amis si existante
+            // 2️⃣ Supprime relation amis dans les deux sens
             await supabase
               .from('friends')
               .delete()
@@ -390,7 +388,7 @@ const handleBlockUser = async () => {
                 `and(follower_id.eq.${userId},following_id.eq.${currentUserId})`
               );
 
-            // 3) Supprime une demande d’ami si existante
+            // 3️⃣ Supprime demandes d’amis
             await supabase
               .from('friend_requests')
               .delete()
@@ -399,15 +397,14 @@ const handleBlockUser = async () => {
                 `and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
               );
 
-            Alert.alert("Utilisateur bloqué", "Cet utilisateur est désormais bloqué.");
-
+            // 4️⃣ Reset états locaux
             setIsBlocked(true);
-
-            // Option : retourne en arrière
-            navigation.goBack();
+            setIsFriend(false);
+            setFriendRequestStatus(null);
+            setPendingRequestId(null);
 
           } catch (e) {
-            Alert.alert("Erreur", "Une erreur est survenue.");
+            Alert.alert("Erreur", "Impossible de bloquer cet utilisateur.");
           }
         },
       },
@@ -674,29 +671,41 @@ if (!user) {
 return (
   <SafeAreaView style={{ flex: 1, backgroundColor: '#fafbff' }}>
     <StatusBar barStyle="dark-content" />
-    {/* Flèche retour seule */}
-    <View style={styles.appBarOnlyBack}>
-      <TouchableOpacity
-        style={{ paddingHorizontal: 12, paddingVertical: 5 }}
-        onPress={() => navigation.goBack()}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Ionicons name="arrow-back" size={27} color="#222" />
-      </TouchableOpacity>
-    </View>
+<View style={styles.appBarOnlyBack}>
+  {/* Bouton fermer */}
+  <TouchableOpacity
+    onPress={() => navigation.goBack()}
+    activeOpacity={0.8}
+    style={styles.closeButton}
+  >
+    <Ionicons name="close" size={18} color="#444" />
+  </TouchableOpacity>
+
+  {/* Menu options */}
+  {currentUserId && userId !== currentUserId && (
+    <TouchableOpacity
+      onPress={() => setOptionsVisible(true)}
+      activeOpacity={0.8}
+      style={styles.moreButton}
+    >
+      <Feather name="more-vertical" size={20} color="#444" />
+    </TouchableOpacity>
+  )}
+</View>
 
     <ScrollView
       contentContainerStyle={styles.scrollContainer}
       showsVerticalScrollIndicator={false}
     >
+      {isBlocked && (
+  <View style={styles.blockBanner}>
+    <Feather name="slash" size={16} color="#c62828" />
+    <Text style={styles.blockBannerText}>
+      Vous avez bloqué cet utilisateur
+    </Text>
+  </View>
+)}
       <View style={styles.centerContent}>
-        {/* Titre du profil */}
-        <View style={styles.profileTitleContainer}>
-          <GradientTitle style={styles.profileTitle}>
-            Profil de {user?.username || 'Utilisateur'}
-          </GradientTitle>
-        </View>
-
         <View style={styles.profileCard}>
           {/* Avatar */}
           {user?.profile_photo ? (
@@ -820,7 +829,7 @@ return (
           </View>
 
 {/* Actions d’amitié (compact) */}
-{currentUserId && userId !== currentUserId && (
+{currentUserId && userId !== currentUserId && !isBlocked && (
   pendingRequestId ? (
     // CE PROFIL t'a envoyé une demande -> Accepter / Refuser ici
     <View style={styles.friendActionsRow}>
@@ -847,7 +856,7 @@ return (
   ) : isFriend ? (
     // Déjà amis
     <View style={styles.pillMuted}>
-      <Text style={styles.pillMutedText}>Vous êtes déjà amis</Text>
+      <Text style={styles.pillMutedText}>Vous êtes déjà coéquipiers</Text>
     </View>
   ) : friendRequestStatus === 'pending' ? (
     // Demande QUE TU AS envoyée
@@ -857,13 +866,10 @@ return (
   ) : (
     // Aucune relation
     <TouchableOpacity onPress={handleAddFriend} activeOpacity={0.85}>
-      <LinearGradient
-        colors={['#6A11CB', '#2575FC']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={styles.friendGradientBtn}
-      >
-        <Text style={styles.friendGradientText}>Ajouter en ami</Text>
-      </LinearGradient>
+      <View
+        style={[styles.friendGradientBtn, { backgroundColor: '#F62DAE' }]}>
+        <Text style={styles.friendGradientText}>Devenir coéquipiers</Text>
+      </View>
     </TouchableOpacity>
   )
 )}
@@ -913,106 +919,73 @@ return (
           {/* Description */}
           {user?.bio ? (
             <View style={styles.descBox}>
-              <MaterialCommunityIcons
-                name="format-quote-close"
-                size={22}
-                color="#e56a54"
-                style={{ marginRight: 5 }}
-              />
               <Text style={styles.descText}>{user.bio}</Text>
             </View>
           ) : null}
-
-          {/* Bouton signalement */}
-          {currentUserId && userId !== currentUserId && (
-            <ReportUserButton
-              reportedUserId={userId}
-              currentUserId={currentUserId}
-            />
-          )}
-
-{/* Blocage */}
-{userId !== currentUserId && (
-  isBlocked ? (
-    <View style={{ marginTop: 12, alignItems: "center" }}>
-      <View
-        style={{
-          paddingVertical: 10,
-          paddingHorizontal: 18,
-          borderRadius: 12,
-          backgroundColor: "#eee",
-          borderWidth: 1,
-          borderColor: "#ddd",
-          marginBottom: 8,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 15,
-            fontWeight: "600",
-            color: "#777",
-            textAlign: "center",
-          }}
-        >
-          Vous avez bloqué cet utilisateur
-        </Text>
-      </View>
-
-      {/* Bouton débloquer */}
-      <TouchableOpacity
-        onPress={handleUnblockUser}
-        activeOpacity={0.85}
-        style={{
-          paddingVertical: 10,
-          paddingHorizontal: 18,
-          borderRadius: 12,
-          backgroundColor: "#e3f2fd",
-          borderWidth: 1,
-          borderColor: "#bbdefb",
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 15,
-            fontWeight: "600",
-            color: "#1565c0",
-            textAlign: "center",
-          }}
-        >
-          Débloquer cet utilisateur
-        </Text>
-      </TouchableOpacity>
-    </View>
-  ) : (
+  </View>
+ </View>
+</ScrollView>
+    {optionsVisible && (
+  <View style={styles.overlay}>
     <TouchableOpacity
-      onPress={handleBlockUser}
-      activeOpacity={0.85}
-      style={{
-        marginTop: 12,
-        paddingVertical: 10,
-        paddingHorizontal: 18,
-        borderRadius: 12,
-        backgroundColor: "#ffebee",
-        borderWidth: 1,
-        borderColor: "#ffcdd2",
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 15,
-          fontWeight: "600",
-          color: "#c62828",
-          textAlign: "center",
-        }}
-      >
-        Bloquer cet utilisateur
-      </Text>
-    </TouchableOpacity>
-  )
+      style={{ flex: 1 }}
+      activeOpacity={1}
+      onPress={() => setOptionsVisible(false)}
+    />
+<View style={styles.bottomSheet}>
+  <Text style={styles.sheetTitle}>Options</Text>
+
+  {/* Signaler */}
+<TouchableOpacity
+  style={styles.sheetItem}
+  onPress={() => {
+    setOptionsVisible(false);
+    setReportAutoOpen(true);
+  }}
+>
+  <Feather name="flag" size={18} color="#FE5D02" />
+  <Text style={styles.sheetText}>Signaler cet utilisateur</Text>
+</TouchableOpacity>
+
+  {/* Bloquer / Débloquer */}
+  <TouchableOpacity
+    style={styles.sheetItem}
+    onPress={() => {
+      setOptionsVisible(false);
+
+      if (isBlocked) {
+        handleUnblockUser();
+      } else {
+        handleBlockUser();
+      }
+    }}
+  >
+    <Feather
+      name={isBlocked ? "unlock" : "slash"}
+      size={18}
+      color="#FE5D02"
+    />
+    <Text style={styles.sheetText}>
+      {isBlocked
+        ? "Débloquer cet utilisateur"
+        : "Bloquer cet utilisateur"}
+    </Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    style={styles.cancelBtn}
+    onPress={() => setOptionsVisible(false)}
+  >
+    <Text style={styles.cancelText}>Annuler</Text>
+  </TouchableOpacity>
+</View>
+  </View>
 )}
-        </View>
-      </View>
-    </ScrollView>
+<ReportUserButton
+  reportedUserId={userId}
+  currentUserId={currentUserId}
+  autoOpen={reportAutoOpen}
+/>
   </SafeAreaView>
 );
 };
@@ -1082,7 +1055,7 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     fontSize: wp('10%'),
-    color: '#43b97f',
+    color: '#256EFF',
     fontWeight: 'bold',
     textAlign: 'center',
     lineHeight: wp('25%'),
@@ -1103,10 +1076,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp('8.5%'),
     marginBottom: hp('2%'),
     marginTop: 0,
-    shadowColor: '#1877f2',
-    shadowOpacity: 0.09,
-    shadowOffset: { width: 0, height: hp('0.3%') },
-    shadowRadius: wp('2.2%'),
     elevation: 2,
     alignSelf: 'center',
     minWidth: wp('38%'),
@@ -1125,7 +1094,7 @@ const styles = StyleSheet.create({
     marginHorizontal: wp('2.1%'),
   },
   counterNumber: {
-    fontSize: wp('5.3%'),
+    fontSize: wp('5.4%'),
     fontWeight: 'bold',
     color: '#1877F2',
     textAlign: 'center',
@@ -1141,23 +1110,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: wp('2.2%'),
+    gap: wp('2.3%'),
     marginBottom: hp('1.7%'),
     marginTop: 0,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff4e5',
-    borderRadius: wp('4.3%'),
-    paddingVertical: hp('0.85%'),
+    backgroundColor: '#fff',
+    borderRadius: wp('4%'),
+    paddingVertical: hp('0.8%'),
     paddingHorizontal: wp('3.5%'),
     marginHorizontal: wp('1%'),
     borderWidth: 1,
-    borderColor: '#ffcfa3',
+    borderColor: '#256EFF',
+    marginTop: hp('2%'),
   },
   badgeText: {
-    color: '#ff9100',
+    color: '#333333',
     fontWeight: '600',
     fontSize: wp('4.2%'),
   },
@@ -1165,56 +1135,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginVertical: hp('1.1%'),
+    marginVertical: hp('1.2%'),
     marginBottom: hp('1.7%'),
+    marginTop: hp('1.5%'),
     gap: wp('1.8%'),
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#eafbf4',
+    backgroundColor: '#fff',
     borderRadius: wp('5%'),
     paddingVertical: hp('0.8%'),
     paddingHorizontal: wp('4%'),
     marginHorizontal: wp('1%'),
     marginBottom: hp('0.7%'),
     borderWidth: 1.1,
-    borderColor: '#baf0d0',
-    shadowColor: '#1976d2',
-    shadowOpacity: 0.08,
-    shadowRadius: wp('2.1%'),
+    borderColor: '#FE5D02',
     elevation: 1,
   },
   chipText: {
-    color: '#2a8860',
+    color: '#333333',
     fontWeight: '600',
     fontSize: wp('4%'),
     letterSpacing: 0.1,
   },
   descBox: {
-    marginTop: hp('2.7%'),
+    marginTop: hp('0.5%'),
+    marginBottom: hp('2%'),
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#fff6f3',
+    backgroundColor: '#fff',
     borderRadius: wp('4.5%'),
     paddingVertical: hp('1.7%'),
     paddingHorizontal: wp('4.1%'),
     borderWidth: 1,
-    borderColor: '#ffe3da',
-    shadowColor: '#f79489',
-    shadowOpacity: 0.06,
-    shadowRadius: wp('1.8%'),
+    borderColor: '#256EFF',
     elevation: 1,
     maxWidth: '95%',
   },
   descText: {
-    color: '#e56a54',
+    color: '#333333',
     fontSize: wp('4.2%'),
     fontStyle: 'italic',
     fontWeight: '500',
     flex: 1,
     flexWrap: 'wrap',
     lineHeight: hp('2.6%'),
+    textAlign: 'center',
   },
   badgesListContainer: {
     flexDirection: 'row',
@@ -1225,6 +1192,24 @@ const styles = StyleSheet.create({
     minHeight: hp('7%'),
     width: '100%',
   },
+  blockBanner: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#ffebee',
+  paddingVertical: 10,
+  marginHorizontal: 16,
+  borderRadius: 12,
+  marginBottom: 10,
+  borderWidth: 1,
+  borderColor: '#ffcdd2',
+  },
+blockBannerText: {
+  marginLeft: 8,
+  color: '#c62828',
+  fontWeight: '600',
+  fontSize: 14,
+},
   // === NOUVEAUX STYLES PREMIUM BADGES ===
   premiumBadgeCard: {
     width: wp("22%"),
@@ -1327,6 +1312,89 @@ verifiedText: {
   fontWeight: '700',
   fontSize: wp('3.2%'),
   letterSpacing: 0.3,
+},
+closeButton: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: '#F2F4F7',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginLeft: 12,
+  borderWidth: 1,
+  borderColor: '#E4E7EC',
+},
+moreButton: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: '#F2F4F7',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: 12,
+  borderWidth: 1,
+  borderColor: '#E4E7EC',
+  position: 'absolute',
+  right: 0,
+},
+
+overlay: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.3)',
+  justifyContent: 'flex-end',
+},
+
+bottomSheet: {
+  backgroundColor: '#FFFFFF',
+  borderTopLeftRadius: 24,
+  borderTopRightRadius: 24,
+  paddingVertical: 20,
+  paddingHorizontal: 24,
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: 10,
+  elevation: 10,
+},
+
+sheetTitle: {
+  fontSize: 16,
+  fontWeight: '700',
+  color: '#222',
+  marginBottom: 16,
+  textAlign: 'center',
+},
+
+sheetItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingVertical: 14,
+  borderBottomWidth: 1,
+  borderBottomColor: '#F0F2F5',
+},
+
+sheetText: {
+  marginLeft: 12,
+  fontSize: 15,
+  fontWeight: '600',
+  color: '#333',
+},
+
+cancelBtn: {
+  marginTop: 16,
+  alignItems: 'center',
+  paddingVertical: 12,
+  borderRadius: 12,
+  backgroundColor: '#F2F4F7',
+},
+
+cancelText: {
+  fontSize: 15,
+  fontWeight: '600',
+  color: '#666',
 },
 });
 

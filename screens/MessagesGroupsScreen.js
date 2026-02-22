@@ -12,15 +12,15 @@ import {
   Image,
   Platform,
   RefreshControl,
+  Pressable,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import MiniAppBar from '../components/MiniAppBar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MessagesGroupsScreen = () => {
@@ -294,31 +294,24 @@ return (
         {['sessions', 'groups'].map((tab) => {
           const isActive = activeTab === tab;
           return (
-            <TouchableOpacity
-              key={tab}
-              style={styles.tabButton}
-              onPress={() => setActiveTab(tab)}
-              activeOpacity={0.9}
-            >
-              <View style={styles.gradientWrapper}>
-                {isActive && (
-                  <LinearGradient
-                    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientBackground}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.tabText,
-                    isActive && styles.tabTextActive,
-                  ]}
-                >
-                  {tab === 'sessions' ? 'Sessions' : 'Groupes'}
-                </Text>
-              </View>
-            </TouchableOpacity>
+<Pressable
+  key={tab}
+  onPress={() => setActiveTab(tab)}
+  style={({ pressed }) => [
+    styles.tabButton,
+    isActive && styles.tabWrapperActive,
+    pressed && { opacity: 0.85 },
+  ]}
+>
+  <Text
+    style={[
+      styles.tabText,
+      isActive && styles.tabTextActive,
+    ]}
+  >
+    {tab === 'sessions' ? 'Sessions' : 'Groupes'}
+  </Text>
+</Pressable>
           );
         })}
       </View>
@@ -414,21 +407,20 @@ return (
                           </Text>
                         </View>
 
-                        <View style={styles.infoContainer}>
-                          <View style={styles.titleRow}>
-                            <Text style={styles.groupTitle} numberOfLines={1}>
-                              {item.title}
-                            </Text>
-{hasUnread && (
-  <View style={styles.unreadBubble}>
-    <Text style={styles.unreadText}>●</Text>
+<View style={styles.infoContainer}>
+  <View style={styles.titleRow}>
+    <Text style={styles.groupTitle} numberOfLines={1}>
+      {item.title}
+    </Text>
+
+    {hasUnread && <View style={styles.unreadDot} />}
   </View>
-)}
+
+  <Text style={styles.groupSport} numberOfLines={1}>
+    {item.sport}
+  </Text>
 </View>
-<Text style={styles.groupSport} numberOfLines={1}>
-{item.sport}
-</Text>
-</View>
+
 </TouchableOpacity>
 <View style={styles.statusRow}>
     <View
@@ -635,7 +627,7 @@ tabContainer: {
   flexDirection: 'row',
   justifyContent: 'space-between',
   alignItems: 'center',
-  backgroundColor: '#F6F6F7',
+  backgroundColor: '#F2F2F0',
   borderRadius: 30,
   marginHorizontal: wp('5%'),
   marginTop: 12,
@@ -648,39 +640,33 @@ tabButton: {
   borderRadius: 25,
   alignItems: 'center',
   justifyContent: 'center',
-  overflow: 'hidden',
 },
-gradientWrapper: {
-  flex: 1,
-  width: '100%',
-  height: '100%',
-  borderRadius: 25,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-gradientBackground: {
-  ...StyleSheet.absoluteFillObject,
-  borderRadius: 25,
+tabWrapperActive: {
+  backgroundColor: '#FFF4F2',
 },
 tabText: {
-  fontSize: hp('1.9%'),
-  color: '#777',
+  fontSize: 15,
+  color: '#5F5F5F',
   fontWeight: '600',
   textAlign: 'center',
+  includeFontPadding: false,
 },
 tabTextActive: {
-  color: '#fff',
+  color: '#FE5D02',
   fontWeight: '700',
 },
-unreadBubble: {
-  backgroundColor: '#FF375E',
-  minWidth: 23,
-  height: 23,
-  borderRadius: 100,
-  paddingHorizontal: 6,
+titleRow: {
+  flexDirection: 'row',
   alignItems: 'center',
-  justifyContent: 'center',
+  position: 'relative',
+},
+unreadDot: {
+  width: 10,
+  height: 10,
+  borderRadius: 5,
+  backgroundColor: '#FF375E',
   marginLeft: 8,
+  marginTop: Platform.OS === 'android' ? 2 : 0,
 },
 unreadText: {
   color: '#fff',

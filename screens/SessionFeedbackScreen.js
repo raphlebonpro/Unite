@@ -12,7 +12,6 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -119,14 +118,11 @@ const SessionFeedbackScreen = ({ route, navigation }) => {
             style={styles.continueWrapper}
             activeOpacity={0.9}
           >
-            <LinearGradient
-              colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.continueButton}
+            <View
+              style={[styles.continueButton, {backgroundColor: '#FE5D02'}]}
             >
               <Text style={styles.continueText}>Continuer</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -179,16 +175,13 @@ const SessionFeedbackScreen = ({ route, navigation }) => {
             activeOpacity={0.9}
             style={{ marginTop: hp('5%') }}
           >
-            <LinearGradient
-              colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.submitBtn}
+            <View
+              style={[styles.submitBtn, {backgroundColor: '#FE5D02'}]}
             >
               <Text style={styles.submitText}>
                 {loading ? 'Envoi...' : 'Continuer'}
               </Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -229,19 +222,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fafafa',
   },
   submitBtn: {
-    borderRadius: 18,
+    borderRadius: 20,
     paddingVertical: hp('1.5%'),
     paddingHorizontal: wp('18%'),
     alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
   },
   submitText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: wp('4.6%'),
+    fontSize: wp('4%'),
     textAlign: 'center',
   },
 
@@ -283,7 +272,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   continueButton: {
-    borderRadius: 18,
+    borderRadius: 30,
     paddingVertical: hp('1.6%'),
     paddingHorizontal: wp('11%'),
     alignSelf: 'center',
@@ -291,7 +280,7 @@ const styles = StyleSheet.create({
   continueText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: wp('4.6%'),
+    fontSize: wp('4%'),
     textAlign: 'center',
   },
 });

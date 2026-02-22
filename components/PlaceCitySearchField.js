@@ -65,8 +65,6 @@ export default function PlaceCitySearchField({
       url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
       url.searchParams.set('sessiontoken', sessionToken.current);
       url.searchParams.set('language', 'fr');
-      url.searchParams.set('components', 'country:FR');
-      
 
       const res = await fetch(url.toString());
       const json = await res.json();

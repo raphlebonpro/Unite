@@ -1,41 +1,41 @@
 export const BADGE_ICONS = {
   // 🏆 Classement
-  top1_creator:      { icon: 'trophy', color: '#FFD700' },  // or pur
-  top3_creator:      { icon: 'medal', color: '#C0C0C0' },   // argent
-  top10_creator:     { icon: 'award', color: '#CD7F32' },   // bronze
+  top1_creator:      { icon: 'trophy', color: '#09A129' },
+  top3_creator:      { icon: 'medal', color: '#09A129' },
+  top10_creator:     { icon: 'award', color: '#09A129' },
 
-  top1_participant:  { icon: 'trophy', color: '#00C9A7' },  // vert menthe
-  top3_participant:  { icon: 'medal', color: '#73C2FB' },   // bleu pastel
-  top10_participant: { icon: 'award', color: '#4CAF50' },   // vert nature
+  top1_participant:  { icon: 'trophy', color: '#09A129' },
+  top3_participant:  { icon: 'medal', color: '#09A129' },
+  top10_participant: { icon: 'award', color: '#09A129' },
 
   // 🚀 Création de sessions
-  create_10:   { icon: 'medal', color: '#3D5AFE' },   // bleu profond
-  create_25:   { icon: 'fire', color: '#FF7043' },    // orange feu
-  create_50:   { icon: 'gem', color: '#00B0FF' },     // bleu azur
-  create_100:  { icon: 'crown', color: '#FFB300' },   // doré royal
+  create_10:   { icon: 'medal', color: '#09A129' },
+  create_25:   { icon: 'fire', color: '#09A129' },
+  create_50:   { icon: 'gem', color: '#09A129' },
+  create_100:  { icon: 'crown', color: '#09A129' },
 
   // 🤝 Participation
-  join_10:   { icon: 'handshake', color: '#43A047' },       // vert forêt
-  join_25:   { icon: 'user-friends', color: '#26A69A' },    // turquoise doux
-  join_50:   { icon: 'running', color: '#FFB74D' },         // orange clair
-  join_100:  { icon: 'crown', color: '#E91E63' },           // rose fuchsia
+  join_10:   { icon: 'handshake', color: '#09A129' }, 
+  join_25:   { icon: 'user-friends', color: '#09A129' },
+  join_50:   { icon: 'running', color: '#09A129' },
+  join_100:  { icon: 'crown', color: '#09A129' },
 
   // 🗓️ Fidélité / régularité
-  weekly_presence: { icon: 'calendar-week', color: '#9C27B0' }, // violet royal
-  anniversary:     { icon: 'birthday-cake', color: '#EC407A' }, // rose framboise
-  loyal:           { icon: 'gem', color: '#29B6F6' },           // bleu glacier
+  weekly_presence: { icon: 'calendar-week', color: '#09A129' },
+  anniversary:     { icon: 'birthday-cake', color: '#09A129' },
+  loyal:           { icon: 'gem', color: '#09A129' },
 
   // 🏃 Diversité & Esprit sportif
-  multi_sport: { icon: 'dumbbell', color: '#00ACC1' },          // cyan sportif
-  fair_play: { icon: 'hands-helping', color: '#2ECC71' }, // vert émeraude fair-play
-  guardian:    { icon: 'shield-alt', color: '#D32F2F' },        // rouge protecteur
-  big_session: { icon: 'users', color: '#00E5FF' },             // bleu électrique
+  multi_sport: { icon: 'dumbbell', color: '#09A129' },
+  fair_play: { icon: 'hands-helping', color: '#09A129' },
+  guardian:    { icon: 'shield-alt', color: '#09A129' },
+  big_session: { icon: 'users', color: '#09A129' },
 
   // 🌟 Spéciaux
-  superstar:   { icon: 'star', color: '#FFD740' },              // or clair
-  supporter:   { icon: 'heart', color: '#FF3B5F' },             // rose passion
-  og_member:   { icon: 'user-ninja', color: '#607D8B' },        // gris anthracite
-  ambassador:  { icon: 'globe-europe', color: '#66BB6A' },      // vert ambassadeur
+  superstar:   { icon: 'star', color: '#09A129' },
+  supporter:   { icon: 'heart', color: '#09A129' },
+  og_member:   { icon: 'user-ninja', color: '#09A129' },
+  ambassador:  { icon: 'globe-europe', color: '#09A129' },
 };
 
 // Ta liste de badges

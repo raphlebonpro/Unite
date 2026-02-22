@@ -16,10 +16,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabaseClient';
 import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '../context/UserContext';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
 if (typeof global !== "undefined") global.Buffer = Buffer;
@@ -27,7 +25,7 @@ if (typeof global !== "undefined") global.Buffer = Buffer;
 const BAD_WORDS = [
  'pd', 'pédé', 'fdp', 'enculé', 'ntm', 'nique ta mère', 'sale negre', 'negro', 'batard', 'tg', 'connard', 'sale noir',
  'pute', 'salope', 'bougnoule', 'youpin', 'encule', 'encu', 'nègre', 'negro', 'juif', 'negre', 'arabe',
- 'nique', 'sale', 'n3gre', 'negr3', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'pute', 'baise', 'foudroyeur', 'renoi'
+ 'nique', 'sale', 'n3gre', 'negr3', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'pute', 'baise', 'foudroyeur', 'renoi', 'bougnoul',
 ];
 
 function containsBadWord(text) {
@@ -86,14 +84,11 @@ const Chip = ({ label, selected, onPress, gradient, disabled }) => {
   if (gradient && selected) {
     return (
       <TouchableOpacity onPress={onPress} activeOpacity={0.78}>
-        <LinearGradient
-          colors={['#ff9966', '#ff5e62']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.chip, styles.chipSelectedGradient]}
+        <View
+          style={[styles.chip, styles.chipSelectedGradient, {backgroundColor: '#F62DAE'}]}
         >
           <Text style={[styles.chipText, { color: '#fff' }]}>{label}</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     );
   }
@@ -135,6 +130,9 @@ const EditProfileScreen = ({ navigation }) => {
   const [favoriteSports, setFavoriteSports] = useState([]);
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
+  const [initialProfile, setInitialProfile] = useState(null);
+  const [usernameError, setUsernameError] = useState('');
+  const [bioError, setBioError] = useState('');
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -157,6 +155,14 @@ const cleanedFavorites = Array.isArray(data.favorite_sports)
   ? data.favorite_sports.filter(sport => allowedSports.includes(sport))
   : [];
 setFavoriteSports(cleanedFavorites.slice(0, 3));
+setInitialProfile({
+  username: data.username || '',
+  birthdate: data.birthdate || '',
+  gender: data.gender || '',
+  bio: data.bio || '',
+  avatar: data.profile_photo || null,
+  favoriteSports: cleanedFavorites.slice(0, 3),
+});
     };
     fetchUser();
   }, []);
@@ -220,6 +226,19 @@ setFavoriteSports(cleanedFavorites.slice(0, 3));
       }
     }
   };
+
+const hasChanges = () => {
+  if (!initialProfile) return false;
+
+  return (
+    username !== initialProfile.username ||
+    birthdate !== initialProfile.birthdate ||
+    gender !== initialProfile.gender ||
+    bio !== initialProfile.bio ||
+    avatar !== initialProfile.avatar ||
+    JSON.stringify(favoriteSports) !== JSON.stringify(initialProfile.favoriteSports)
+  );
+};
 
 const toggleSport = (sport) => {
   if (favoriteSports.includes(sport)) {
@@ -303,46 +322,58 @@ const handleSave = async () => {
 };
 
 return (
-  <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafe' }}>
-    <ScrollView
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="always"
+  <View style={{ flex: 1, backgroundColor: '#f9fafe' }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-
-      {/* AVATAR */}
-      <View style={styles.avatarWrap}>
-        <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8}>
-          <Image
-            source={
-              avatar
-                ? { uri: avatar }
-                : require('../assets/avatar-default.png')
-            }
-            style={styles.avatar}
-          />
-          <View style={styles.avatarCamera}>
-            <Feather name="camera" size={16} color="#fff" />
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* ========================= */}
-      {/* INPUTS UNIQUEMENT */}
-      {/* ========================= */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
       >
 
-        <Text style={styles.label}>Pseudo</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Votre pseudo"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-          placeholderTextColor="#aaa"
-        />
+        {/* AVATAR */}
+        <View style={styles.avatarWrap}>
+          <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8}>
+            <Image
+              source={
+                avatar
+                  ? { uri: avatar }
+                  : require('../assets/avatar-default.png')
+              }
+              style={styles.avatar}
+            />
+            <View style={styles.avatarCamera}>
+              <Feather name="camera" size={16} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        </View>
 
+        {/* PSEUDO */}
+        <Text style={styles.label}>Pseudo</Text>
+<TextInput
+  style={[
+    styles.input,
+    usernameError && { borderWidth: 1, borderColor: '#FF3B30' }
+  ]}
+  placeholder="Votre pseudo"
+  value={username}
+  onChangeText={(text) => {
+    setUsername(text);
+
+    if (text.length < 3) {
+      setUsernameError("Le pseudo doit contenir au moins 3 caractères.");
+    } else if (containsBadWord(text)) {
+      setUsernameError("Pseudo inapproprié.");
+    } else {
+      setUsernameError('');
+    }
+  }}
+  autoCapitalize="none"
+  placeholderTextColor="#aaa"
+/>
+
+        {/* EMAIL */}
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={[styles.input, { color: '#bbb' }]}
@@ -354,6 +385,7 @@ return (
           placeholderTextColor="#aaa"
         />
 
+        {/* ÂGE */}
         <Text style={styles.label}>Âge</Text>
         <View style={styles.ageChipWrap}>
           <View style={styles.ageChip}>
@@ -363,75 +395,74 @@ return (
           </View>
         </View>
 
+        {/* GENRE */}
         <Text style={styles.label}>Genre</Text>
         <View style={styles.rowWrap}>
           <Chip label={gender} selected disabled />
         </View>
 
-      </KeyboardAvoidingView>
+        {/* SPORTS FAVORIS */}
+        <Text style={styles.label}>Sports favoris</Text>
+        <View style={styles.rowWrap}>
+          {SPORTS_OPTIONS.map((sport) => (
+            <Chip
+              key={sport}
+              label={sport}
+              selected={favoriteSports.includes(sport)}
+              onPress={() => toggleSport(sport)}
+              gradient
+            />
+          ))}
+        </View>
 
-      {/* ========================= */}
-      {/* SPORTS FAVORIS (HORS KAV) */}
-      {/* ========================= */}
-      <Text style={styles.label}>Sports favoris</Text>
-      <View style={styles.rowWrap}>
-        {SPORTS_OPTIONS.map((sport) => (
-          <Chip
-            key={sport}
-            label={sport}
-            selected={favoriteSports.includes(sport)}
-            onPress={() => toggleSport(sport)}
-            gradient
-          />
-        ))}
-      </View>
+        {/* BIO */}
+        <Text style={styles.label}>Bio</Text>
+<TextInput
+  style={[
+    styles.input,
+    { height: 86, textAlignVertical: 'top', paddingTop: 14 },
+    bioError && { borderWidth: 1, borderColor: '#FF3B30' }
+  ]}
+  placeholder="Parle un peu de toi !"
+  value={bio}
+  onChangeText={(text) => {
+    setBio(text);
 
-      {/* ========================= */}
-      {/* BIO */}
-      {/* ========================= */}
-      <Text style={styles.label}>Bio</Text>
-      <TextInput
-        style={[
-          styles.input,
-          { height: 86, textAlignVertical: 'top', paddingTop: 14 }
-        ]}
-        placeholder="Parle un peu de toi !"
-        value={bio}
-        onChangeText={setBio}
-        multiline
-        maxLength={160}
-        placeholderTextColor="#aaa"
-      />
-      <Text style={styles.charCount}>{bio.length}/160</Text>
+    if (containsBadWord(text)) {
+      setBioError("Description inappropriée.");
+    } else {
+      setBioError('');
+    }
+  }}
+  multiline
+  maxLength={160}
+  placeholderTextColor="#aaa"
+/>
 
-      {/* ========================= */}
-      {/* BOUTON SAVE */}
-      {/* ========================= */}
-      <View style={styles.buttonContainer}>
-        <LinearGradient
-          colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.buttonGradient}
-        >
-          <TouchableOpacity
-            style={styles.buttonTouchable}
-            onPress={handleSave}
-            activeOpacity={0.85}
-            disabled={saving}
+        {/* BOUTON SAVE */}
+        <View style={styles.buttonContainer}>
+          <View
+           style={[styles.buttonGradient,{ backgroundColor: hasChanges() && !usernameError && !bioError ? '#FE5D02': '#ccc'}]}
           >
-            <Text style={styles.buttonText}>
-              {saving ? "Enregistrement..." : "Valider profil"}
-            </Text>
-          </TouchableOpacity>
-        </LinearGradient>
-      </View>
+            <TouchableOpacity
+              style={styles.buttonTouchable}
+              onPress={handleSave}
+              activeOpacity={0.85}
+              disabled={saving || !hasChanges() || !!usernameError || !!bioError}
+            >
+              <Text style={styles.buttonText}>
+                {saving ? 'Enregistrement...' : 'Valider profil'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-      <View style={{ height: 20 }} />
-    </ScrollView>
-  </SafeAreaView>
-);
-};
+        <View style={{ height: 20 }} />
+
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </View>
+)};
 
 const styles = StyleSheet.create({
   container: {
@@ -463,7 +494,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   label: {
-    marginBottom: hp('0.8%'),
+    marginBottom: hp('1.5%'),
     fontWeight: '600',
     color: '#222',
     fontSize: wp('3.9%'),
@@ -477,7 +508,8 @@ const styles = StyleSheet.create({
     paddingVertical: hp('1.6%'),
     paddingHorizontal: wp('4%'),
     marginBottom: hp('0.7%'),
-    color: '#191a20',
+    color: '#000',
+    selectionColor: '#FE5D02',
     borderWidth: 0,
     shadowColor: 'rgba(40,50,55,0.03)',
     shadowOffset: { width: 0, height: 1 },
@@ -528,9 +560,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   buttonGradient: {
-    width: '80%',
+    width: '100%',
     paddingVertical: hp('1.5%'),
-    borderRadius: wp('4%'),
+    marginVertical: 2,
+    borderRadius: wp('6%'),
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -543,7 +576,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: wp('4.3%'),
+    fontSize: wp('3.8%'),
     letterSpacing: 0.2,
   },
   charCount: {
@@ -558,20 +591,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: hp('0.5%'),
   },
-  ageChip: {
-    backgroundColor: '#ffe2d2',
-    borderRadius: wp('4%'),
-    paddingVertical: hp('0.6%'),
-    paddingHorizontal: wp('4.5%'),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: hp('0.7%'),
-  },
-  ageChipText: {
-    color: '#fa6f3b',
-    fontWeight: '600',
-    fontSize: wp('3.9%'),
-  },
+ageChip: {
+  backgroundColor: '#f0f0f2',
+  borderRadius: wp('6%'),
+  paddingVertical: hp('0.9%'),
+  paddingHorizontal: wp('4.8%'),
+},
+ageChipText: {
+  color: '#aaa',
+  fontWeight: '600',
+  fontSize: wp('3.6%'),
+},
   helperText: {
   fontSize: wp('3.3%'),
   color: '#888',

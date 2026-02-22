@@ -21,6 +21,7 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-nat
 import { LinearGradient } from 'expo-linear-gradient';
 import { Animated, TouchableWithoutFeedback } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Linking, Platform } from 'react-native';
 
 // ---------- Icônes par type
 const ICONS = {
@@ -107,6 +108,10 @@ payment_success: { name: 'credit-card-check-outline', color: '#27ae60' },
  newsletter_subscribed: { name: 'email-check-outline', color: '#2196f3' },
  report_confirmation: { name: 'alert-circle-check-outline', color: '#f57c00' },
  feedback_received: { name: 'comment-check-outline', color: '#4caf50' },
+
+ //Mise à jour
+ app_update: { name: 'update', color: '#3f4fff' },
+
 };
 
 
@@ -204,6 +209,9 @@ const TYPE_MAP = {
 
   // Défaut
   default: 'neutral',
+
+  //Mise à jour
+  app_update: 'profile',
 };
 
 
@@ -273,6 +281,20 @@ const fetchNotifications = useCallback(async (opts = { spinner: false }) => {
 
   if (opts.spinner) setLoading(false);
 }, []);
+
+const openStoreUpdate = () => {
+  const iosUrl = 'https://apps.apple.com/us/app/uniteapp/id6755112837';
+  const androidUrl = 'https://play.google.com/store/apps/details?id=com.uniteapp.collectif';
+
+  const url = Platform.OS === 'ios' ? iosUrl : androidUrl;
+
+  Linking.openURL(url).catch(() => {
+    Alert.alert(
+      'Erreur',
+      'Impossible d’ouvrir le store. Essaie manuellement depuis le store.'
+    );
+  });
+};
 
 const markAllAsRead = useCallback(async () => {
   const { data: { user } } = await supabase.auth.getUser();
@@ -705,6 +727,26 @@ const Card = ({ onPress }) => {
               </View>
 
               <Text style={styles.body} numberOfLines={3}>{item.body}</Text>
+              {item.type === 'app_update' && (
+  <TouchableOpacity
+    onPress={openStoreUpdate}
+    style={{
+      marginTop: 10,
+      alignSelf: 'flex-start',
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 16,
+      backgroundColor: theme.bg,
+      borderWidth: 1,
+      borderColor: theme.tint,
+    }}
+    activeOpacity={0.85}
+  >
+    <Text style={{ color: theme.tint, fontWeight: '600' }}>
+      Mettre à jour
+    </Text>
+  </TouchableOpacity>
+)}
 
               {isNewSinceLastOpen && (
                 <View style={[styles.chip, { backgroundColor: theme.bg, borderColor: theme.tint }]}>

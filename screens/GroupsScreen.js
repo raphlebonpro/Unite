@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { supabase } from "../lib/supabaseClient";
 import GroupCard from "../components/GroupCard";
 import Shimmer from "../components/Shimmer";
+import * as Location from "expo-location";
 
 const PAGE_SIZE = 12;
 
@@ -28,6 +29,7 @@ export default function GroupsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
 
 const fetchPage = useCallback(
   async (reset = false) => {
@@ -94,6 +96,30 @@ const fetchPage = useCallback(
       ...(data || []),
     ].filter((v, i, self) => i === self.findIndex((t) => t.id === v.id));
 
+    let sorted = unique;
+
+if (userLocation) {
+  sorted = unique.sort((a, b) => {
+    const distA = getDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      a.latitude,
+      a.longitude
+    );
+
+    const distB = getDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      b.latitude,
+      b.longitude
+    );
+
+    return distA - distB;
+  });
+}
+
+setItems(sorted);
+
     setItems(unique);
     setHasMore((data || []).length === PAGE_SIZE);
     setPage((prev) => (reset ? 1 : prev + 1));
@@ -106,6 +132,26 @@ useEffect(() => {
   setLoading(true);
   fetchPage(true).then(() => setLoading(false));
 }, [tab]);
+
+useEffect(() => {
+  const delay = setTimeout(() => {
+    setItems([]);
+    setLoading(true);
+    fetchPage(true).then(() => setLoading(false));
+  }, 300); // petit debounce
+
+  return () => clearTimeout(delay);
+}, [q]);
+
+useEffect(() => {
+  (async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") return;
+
+    const location = await Location.getCurrentPositionAsync({});
+    setUserLocation(location.coords);
+  })();
+}, []);
 
   // --- Pull-to-refresh
   const onRefresh = async () => {
@@ -124,6 +170,25 @@ useEffect(() => {
       onPress={() => nav.navigate("GroupDetail", { groupId: item.id })}
     />
   );
+
+  const getDistance = (lat1, lon1, lat2, lon2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+};
 
   // --- Liste vide ou en chargement
   const ListEmpty = () =>
@@ -148,7 +213,6 @@ useEffect(() => {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient colors={["#0E1B2A", "#182B44"]} style={styles.header}>
-        <Text style={styles.hTitle}>Groupes</Text>
 
         <View style={styles.searchWrap}>
           <Feather name="search" size={18} color="#fff" />
@@ -172,18 +236,17 @@ useEffect(() => {
               style={styles.tabBtn}
               activeOpacity={0.8}
             >
-              <LinearGradient
-                colors={
-                  tab === t.key
-                    ? ["#FF9D3C", "#FF6C4A", "#FF375E"]
-                    : ["#22324a", "#22324a"]
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.tabGrad, tab !== t.key && { opacity: 0.5 }]}
-              >
-                <Text style={styles.tabText}>{t.label}</Text>
-              </LinearGradient>
+<View
+  style={[
+    styles.tabGrad,
+    {
+      backgroundColor: tab === t.key ? '#FE5D02' : '#22324a',
+      opacity: tab === t.key ? 1 : 0.5,
+    },
+  ]}
+>
+  <Text style={styles.tabText}>{t.label}</Text>
+</View>
             </TouchableOpacity>
           ))}
         </View>
@@ -194,7 +257,11 @@ useEffect(() => {
         data={items}
         keyExtractor={(it, index) => `${it.id}-${index}`}
         renderItem={renderItem}
-        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+        contentContainerStyle={{
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 120
+       }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -220,19 +287,23 @@ useEffect(() => {
         onPress={() => nav.navigate("CreateGroup")}
         style={styles.fab}
       >
-        <LinearGradient
-          colors={["#FF9D3C", "#FF6C4A", "#FF375E"]}
-          style={styles.fabGrad}
+        <View
+         style={[styles.fabGrad,{
+          backgroundColor: '#FE5D02'
+         }]}
         >
-          <Feather name="plus" size={22} color="#fff" />
-        </LinearGradient>
+          <Feather name="plus" size={25} color="#fff" />
+        </View>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: {
+  flex: 1,
+  backgroundColor: "#F4F6FA",
+},
   header: {
     paddingTop: 14,
     paddingHorizontal: 16,
@@ -240,7 +311,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 18,
   },
-  hTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 12 },
+  Title: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 12 },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -252,7 +323,7 @@ const styles = StyleSheet.create({
   search: { color: "#fff", marginLeft: 8, flex: 1 },
   tabs: { flexDirection: "row", gap: 10, marginTop: 12 },
   tabBtn: { flex: 1 },
-  tabGrad: { borderRadius: 12, paddingVertical: 10, alignItems: "center" },
+  tabGrad: { borderRadius: 20, paddingVertical: 10, alignItems: "center" },
   tabText: {
     color: "#fff",
     fontWeight: "700",
@@ -264,14 +335,11 @@ const styles = StyleSheet.create({
   emptyDesc: { color: "#777", textAlign: "center", marginTop: 4 },
   fab: { position: "absolute", bottom: 26, right: 20 },
   fabGrad: {
-    width: 56,
-    height: 56,
+    width: 50,
+    height: 50,
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
     elevation: 6,
   },
 });

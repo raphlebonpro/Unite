@@ -30,10 +30,12 @@ export default {
 
     ios: {
       bundleIdentifier: "com.uniteapp.collectif",
-      buildNumber: "115",
+      buildNumber: "123",
       icon: "./assets/icon1.png",
       supportsTablet: false,
       infoPlist: {
+        CFBundleDevelopmentRegion: "fr",
+        CFBundleLocalizations: ["fr"],
         ITSAppUsesNonExemptEncryption: false,
         UIRequiresFullScreen: true,
         "UISupportedInterfaceOrientations~ipad": [],
@@ -53,6 +55,7 @@ export default {
       package: "com.uniteapp.collectif",
       versionCode: 78,
       supportsTablet: false,
+      forceDarkAllowed: false,
       blockedDeviceModels: ["*Tab*", "*Pad*", "*Tablet*"],
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon-foreground1.png",

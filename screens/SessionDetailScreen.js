@@ -207,135 +207,131 @@ const SessionDetailScreen = () => {
 // Ajoute un nouvel état
 const [invitation, setInvitation] = useState(null);
 
+const [isGroupMember, setIsGroupMember] = useState(false);
+
 const sportMeta = useMemo(() => {
   return getSportMeta(session?.sport);
 }, [session?.sport]);
 
 const sportColor = sportMeta.color;
 
+const [mapReady, setMapReady] = useState(false);
+
 const insets = useSafeAreaInsets();
 
-useEffect(() => {
-  navigation.setOptions({
-    headerRight: () => (
-      <TouchableOpacity
-        onPress={shareSessionAsImage}
-        style={{ marginRight: 14 }}
-      >
-        <Ionicons name="share-outline" size={24} color="#FF6C4A" />
-      </TouchableOpacity>
-    ),
-  });
-}, [navigation, session]);
+const [isKicked, setIsKicked] = useState(false);
 
-useEffect(() => {
-  if (user && sessionId) {
-    checkInvitation();
-  }
-}, [user, sessionId]);
+const loadSessionData = useCallback(async () => {
+  if (!sessionId) return;
 
-async function checkInvitation() {
-  if (!user?.id) return;
-
-  const { data, error } = await supabase
-    .from('session_invitations')
-    .select('id, inviter_id, created_at')
-    .eq('session_id', sessionId)
-    .eq('invited_id', user.id)
-    .maybeSingle();
-
-  console.log("📩 checkInvitation:", { data, error });
-
-if (!error && data) {
-  const { data: inviter } = await supabase
-    .from('users')
-    .select('username')
-    .eq('id', data.inviter_id)
-    .maybeSingle();
-
-  setInvitation({
-    ...data,
-    inviter_username: inviter?.username || null,
-  });
-}
-}
-
-  // Kick states
-  const [isKicked, setIsKicked] = useState(false);
-  const [checkingKick, setCheckingKick] = useState(true);
-
-  const [participantsLoading, setParticipantsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) setUser(data.user);
-    };
-    fetchUser();
-  }, []);
-
-const fetchSession = async () => {
   setLoading(true);
 
-  // 🚨 Vérifie que sessionId existe bien
-  if (!sessionId) {
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUser = authData?.user || null;
+    setUser(currentUser);
+
+    const { data: sessionData } = await supabase
+      .from('sessions')
+      .select(`
+        *,
+        group:groups(id, name)
+      `)
+      .eq('id', sessionId)
+      .maybeSingle();
+
+    if (!sessionData) {
+      setLoading(false);
+      return;
+    }
+
+    setSession(sessionData);
+
+    const [
+      participantsRes,
+      kickedRes,
+      groupRes,
+      feedbackRes,
+      ratingRes,
+      invitationRes,
+    ] = await Promise.all([
+      supabase
+        .from('session_participants')
+        .select(`
+          user:users!session_participants_user_id_fkey (
+            id,
+            username,
+            profile_photo
+          )
+        `)
+        .eq('session_id', sessionId),
+
+      currentUser
+        ? supabase
+            .from('sessions_kicked')
+            .select('id')
+            .eq('session_id', sessionId)
+            .eq('user_id', currentUser.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+
+      sessionData.group_id && currentUser
+        ? supabase
+            .from('group_members')
+            .select('id')
+            .eq('group_id', sessionData.group_id)
+            .eq('user_id', currentUser.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+
+      currentUser
+        ? supabase
+            .from('session_feedback')
+            .select('id')
+            .eq('session_id', sessionId)
+            .eq('user_id', currentUser.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+
+      currentUser
+        ? supabase
+            .from('user_ratings')
+            .select('id')
+            .eq('session_id', sessionId)
+            .eq('rater_id', currentUser.id)
+        : Promise.resolve({ data: null }),
+
+      currentUser
+        ? supabase
+            .from('session_invitations')
+            .select('id')
+            .eq('session_id', sessionId)
+            .eq('invited_id', currentUser.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const list =
+      participantsRes.data?.map(row => ({
+        id: row.user.id,
+        username: row.user.username,
+        avatar: row.user.profile_photo,
+      })) || [];
+
+    setParticipants(list);
+    setIsParticipant(currentUser && list.some(p => p.id === currentUser.id));
+    setIsKicked(!!kickedRes.data);
+    setIsGroupMember(!!groupRes.data);
+    setHasGivenSessionFeedback(!!feedbackRes.data);
+    setHasRatedParticipants(!!ratingRes.data?.length);
+    setInvitation(invitationRes.data || null);
+
+  } catch (err) {
+    console.log('loadSessionData error:', err);
+  } finally {
     setLoading(false);
-    Alert.alert(
-      "Erreur",
-      "Aucune session à afficher.",
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.navigate("Notifications"),
-        },
-      ]
-    );
-    return;
   }
-
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('*')
-    .eq('id', sessionId)
-    .maybeSingle(); // ✅ empêche le crash
-
-  // ⚠️ Si erreur serveur Supabase
-  if (error) {
-    console.error("⚠️ fetchSession error:", error);
-    Alert.alert(
-      "Erreur",
-      "Impossible de charger cette session.",
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.navigate("Notifications"),
-        },
-      ]
-    );
-    setLoading(false);
-    return;
-  }
-
-  // ❌ Si aucune session trouvée
-  if (!data) {
-    Alert.alert(
-      "Session introuvable",
-      "Cette session n’existe plus ou a été supprimée.",
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.navigate("Notifications"),
-        },
-      ]
-    );
-    setLoading(false);
-    return;
-  }
-
-  // ✅ Si tout est bon
-  setSession(data);
-  setLoading(false);
-};
+}, [sessionId]);
 
 const mapRegion = useMemo(() => {
   if (!session?.lat || !session?.lng) return null;
@@ -347,144 +343,46 @@ const mapRegion = useMemo(() => {
   };
 }, [session?.lat, session?.lng]);
 
-  // Vérification kickée
-  useEffect(() => {
-    const checkKicked = async () => {
-      setCheckingKick(true);
-      const { data: authData } = await supabase.auth.getUser();
-      const currentUser = authData?.user;
-      if (!currentUser || !session?.id) {
-        setIsKicked(false);
-        setCheckingKick(false);
-        return;
-      }
-      const { data } = await supabase
-        .from('sessions_kicked')
-        .select('id')
-        .eq('session_id', session.id)
-        .eq('user_id', currentUser.id)
-        .single();
-      setIsKicked(!!data);
-      setCheckingKick(false);
-    };
-    checkKicked();
-  }, [session?.id, user?.id]);
-
-  // 🔄 Recharge session + participants à chaque retour sur l'écran
 useFocusEffect(
   useCallback(() => {
-fetchSession();
-  }, [sessionId])
+    loadSessionData();
+  }, [loadSessionData])
 );
 
 useEffect(() => {
-  if (session?.id) {
-    fetchParticipants();
-  }
-}, [session?.id]);
-
-  // Fetch participants
-const fetchParticipants = async () => {
   if (!session?.id) return;
 
-  setParticipantsLoading(true);
-
-  try {
-    const { data, error } = await supabase
-      .from('session_participants')
-      .select(`
-        user:users!session_participants_user_id_fkey (
-          id,
-          username,
-          profile_photo
-        )
-      `)
-      .eq('session_id', session.id);
-
-    if (error) throw error;
-
-    let list = (data || [])
-      .map(row => row.user)
-      .filter(Boolean)
-      .map(u => ({
-        id: u.id,
-        username: u.username || 'Utilisateur',
-        avatar: u.profile_photo || null,
-      }));
-
-    // Ajout du créateur s’il n’est pas déjà dedans
-    if (session.creator_id && !list.some(p => p.id === session.creator_id)) {
-      const { data: creator } = await supabase
-        .from('users')
-        .select('id, username, profile_photo')
-        .eq('id', session.creator_id)
-        .single();
-
-      if (creator) {
-        list.unshift({
-          id: creator.id,
-          username: creator.username || 'Créateur',
-          avatar: creator.profile_photo || null,
-        });
+  const channel = supabase
+    .channel(`session-participants-${session.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'session_participants',
+        filter: `session_id=eq.${session.id}`,
+      },
+      () => {
+        loadSessionData(); // on recharge tout proprement
       }
-    }
+    )
+    .subscribe();
 
-    setParticipants(list);
-    setIsParticipant(user && list.some(p => p.id === user.id));
-  } catch (e) {
-    console.error('fetchParticipants error:', e);
-  } finally {
-    setParticipantsLoading(false);
-  }
-};
-
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [session?.id, loadSessionData]);
 
 useEffect(() => {
-  const checkFeedbackStatus = async () => {
-    if (!user?.id || !session?.id) return;
+  const timeout = setTimeout(() => {
+    setMapReady(true);
+  }, 300);
 
-    try {
-      // Vérifie le feedback global (session_feedback)
-      const { data: feedback } = await supabase
-        .from('session_feedback')
-        .select('id')
-        .eq('session_id', session.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (feedback) setHasGivenSessionFeedback(true);
-
-      // Vérifie s’il a noté au moins un participant
-      const { data: ratings } = await supabase
-        .from('user_ratings')
-        .select('id')
-        .eq('session_id', session.id)
-        .eq('rater_id', user.id);
-
-      if (ratings && ratings.length > 0) setHasRatedParticipants(true);
-
-    } catch (e) {
-      console.warn('Erreur vérification avis:', e);
-    }
-  };
-
-  checkFeedbackStatus();
-}, [user, session]);
-
-  if (loading || !session || !session.id) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size={Platform.OS === 'ios' ? 'large' : 50} color="#e8764d" />
-      </View>
-    );
-  }
+  return () => clearTimeout(timeout);
+}, []);
 
   // ===== LOGIQUE GROUPE (DÉRIVÉE) =====
 const isGroupSession = !!session?.group_id;
-
-const isGroupMember =
-  isGroupSession &&
-  (session.creator_id === user?.id || isParticipant);
 
   const getStaticMapUrl = () => {
     if (!session.lat || !session.lng) return null;
@@ -724,11 +622,34 @@ if (session.max_participants !== null && session.max_participants > 0) {
 }
 
   // 5️⃣ Ajoute comme participant
-  const { error: insErr } = await supabase
-    .from('session_participants')
-    .insert({ session_id: session.id, user_id: userId });
+// 🔁 Double vérification juste avant insertion
+const { data: freshRows } = await supabase
+  .from('session_participants')
+  .select('id')
+  .eq('session_id', session.id);
+
+const freshCount = freshRows?.length || 0;
+
+if (
+  session.max_participants !== null &&
+  session.max_participants > 0 &&
+  freshCount >= session.max_participants
+) {
+  setLoadingJoin(false);
+  return Alert.alert(
+    "Session complète",
+    "Quelqu’un vient de prendre la dernière place."
+  );
+}
+
+// ✅ Insert seulement si toujours dispo
+const { error: insErr } = await supabase
+  .from('session_participants')
+  .insert({ session_id: session.id, user_id: userId });
   setLoadingJoin(false);
   if (insErr) return Alert.alert('Erreur', insErr.message);
+
+  setIsParticipant(true);
 
   // 7️⃣ Infos user pour notif
   const { data: userProfile } = await supabase
@@ -742,45 +663,57 @@ if (session.max_participants !== null && session.max_participants > 0) {
     userProfile?.email?.split('@')[0] ||
     'Un utilisateur';
 
-  if (session.creator_id && userId !== session.creator_id) {
-    await notifyParticipantJoinedCreator({
-      creatorId: session.creator_id,
+// NAVIGUE IMMÉDIATEMENT
+navigation.navigate('MainTabs', {
+  screen: 'Sessions',
+  params: { section: 'upcoming' },
+});
+
+// LANCE LES NOTIFS EN ARRIÈRE PLAN
+setTimeout(async () => {
+  try {
+    if (session.creator_id && userId !== session.creator_id) {
+      await notifyParticipantJoinedCreator({
+        creatorId: session.creator_id,
+        joinerId: userId,
+        joinerName: pseudoAffiche,
+        sessionTitle: session.title,
+        sessionId: session.id,
+      });
+    }
+
+    if (session.group_id && userId !== session.creator_id) {
+      await notifyGroupSessionJoinedForMembers({
+        groupId: session.group_id,
+        joinerName: pseudoAffiche,
+        sessionTitle: session.title,
+        sessionId: session.id,
+        joinerId: userId,
+      });
+    }
+
+    await notifyYouJoinedSession({
+      userId,
+      sessionTitle: session.title,
+      sessionId: session.id,
+    });
+
+    await notifyParticipantJoinedOthers({
+      participantIds: participants
+        .map(p => p.id)
+        .filter(pid => pid !== userId && pid !== session.creator_id),
       joinerId: userId,
       joinerName: pseudoAffiche,
       sessionTitle: session.title,
       sessionId: session.id,
     });
+
+    await scheduleSessionReminder(session);
+
+  } catch (err) {
+    console.log("Erreur notif async:", err);
   }
-
-  if (session.group_id && userId !== session.creator_id) {
-  await notifyGroupSessionJoinedForMembers({
-    groupId: session.group_id,
-    joinerName: pseudoAffiche,
-    sessionTitle: session.title,
-    sessionId: session.id,
-    joinerId: userId,
-  });
-}
-
-  // notif au participant lui-même
-  await notifyYouJoinedSession({
-    userId,
-    sessionTitle: session.title,
-    sessionId: session.id,
-  });
-
-  // notif aux autres participants
-  await notifyParticipantJoinedOthers({
-    participantIds: participants.map(p => p.id).filter(pid => pid !== userId && pid !== session.creator_id),
-    joinerId: userId,
-    joinerName: pseudoAffiche,
-    sessionTitle: session.title,
-    sessionId: session.id,
-  });
-
-  await scheduleSessionReminder(session);
-  fetchParticipants();
-  navigation.navigate('MainTabs', { screen: 'Sessions', params: { tab: 'joined' } });
+}, 0);
 };
 
 const handleLeave = async () => {
@@ -852,6 +785,14 @@ const handleLeave = async () => {
     ]
   );
 };
+
+if (loading || !session) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#FE5D02" />
+    </View>
+  );
+}
 
 // ----------- BOUTONS D'ACTION -----------
 let actionButtons = null;
@@ -925,14 +866,11 @@ else if (user && session.creator_id === user.id) {
         onPress={() => navigation.navigate('SessionMessages', { sessionId: session.id })}
         activeOpacity={0.88}
       >
-        <LinearGradient
-          colors={['#6dd5ed', '#2193b0']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.joinButton}
+        <View
+          style={[styles.joinButton, {backgroundColor: '#001242'}]}
         >
           <Text style={styles.joinButtonText}>Groupe / Messages</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
 
       {/* Bouton Modifier session */}
@@ -941,14 +879,11 @@ else if (user && session.creator_id === user.id) {
         onPress={() => navigation.navigate('EditSession', { sessionId: session.id })}
         activeOpacity={0.88}
       >
-        <LinearGradient
-          colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.joinButton}
+        <View
+          style={[styles.joinButton, {backgroundColor: '#FE5D02'}]}
         >
           <Text style={[styles.joinButtonText, { color: '#fff' }]}>Modifier la session</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -970,14 +905,11 @@ else if (isParticipant) {
         onPress={() => navigation.navigate('SessionMessages', { sessionId: session.id })}
         activeOpacity={0.88}
       >
-        <LinearGradient
-          colors={['#6dd5ed', '#2193b0']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.joinButton}
+        <View
+          style={[styles.joinButton, {backgroundColor:'#001242'}]}
         >
           <Text style={styles.joinButtonText}>Groupe / Messages</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
 
       {/* Bouton Quitter */}
@@ -1006,16 +938,12 @@ else if (invitation && !isParticipant && user && user.id !== session.creator_id)
       activeOpacity={0.92}
       disabled={loadingJoin}
     >
-      <LinearGradient
-        colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.joinButton}
-      >
+      <View
+        style={[styles.joinButton, { backgroundColor: '#FE5D02'}]}>
         <Text style={styles.joinButtonText}>
           {loadingJoin ? '...' : 'Rejoindre la session'}
         </Text>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -1068,16 +996,12 @@ else if (
       activeOpacity={0.92}
       disabled={loadingJoin}
     >
-      <LinearGradient
-        colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.joinButton}
-      >
+      <View
+        style={[styles.joinButton, { backgroundColor: '#FE5D02'}]}>
         <Text style={styles.joinButtonText}>
           {loadingJoin ? '...' : 'Rejoindre la session'}
         </Text>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -1289,8 +1213,6 @@ const ShareScreenClone = () => {
   // ----------- RENDER -----------
   return (
   <>
-    {session?.lat && session?.lng && <ShareScreenClone />}
-
 <ScrollView contentContainerStyle={styles.container}>
 {isGroupSession && !isGroupMember && !invitation && (
   <View style={{ 
@@ -1317,6 +1239,21 @@ const ShareScreenClone = () => {
   </View>
 )}
 <View style={styles.headerTextContainer}>
+  {session.group?.name && (
+  <TouchableOpacity
+    style={styles.groupBadge}
+    onPress={() =>
+      navigation.navigate('GroupDetail', {
+        groupId: session.group.id,
+      })
+    }
+    activeOpacity={0.85}
+  >
+    <Text style={styles.groupBadgeText}>
+      Groupe • {session.group.name}
+    </Text>
+  </TouchableOpacity>
+)}
 <Text style={styles.title}>{session.title}</Text>
   <View style={{ height: 12 }} />
   <Text style={styles.address}>{session.location}</Text>
@@ -1324,22 +1261,7 @@ const ShareScreenClone = () => {
 
 <View style={{ height: 26 }} />
   
-{session?.lat &&
- session?.lng &&
- Number.isFinite(Number(session.lat)) &&
- Number.isFinite(Number(session.lng)) && (
-  <View
-    style={{
-      height: 150,
-      borderRadius: 12,
-      overflow: "hidden",
-      marginHorizontal: 10,
-    }}
-  >
-{session?.lat &&
- session?.lng &&
- Number.isFinite(Number(session.lat)) &&
- Number.isFinite(Number(session.lng)) && (
+{mapReady && mapRegion && (
   <View
     style={{
       height: 150,
@@ -1348,7 +1270,6 @@ const ShareScreenClone = () => {
       marginHorizontal: 10,
     }}
   >
-    {mapRegion && (
     <MapView
       style={StyleSheet.absoluteFill}
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
@@ -1364,9 +1285,6 @@ const ShareScreenClone = () => {
         }}
       />
     </MapView>
-    )}
-  </View>
-)}
   </View>
 )}
 
@@ -1495,7 +1413,6 @@ await notifyExclusion({
   otherParticipantIds: participants.map(x => x.id).filter(id => id !== p.id && id !== session.creator_id),
 });
 
-              fetchParticipants();
             } catch (e) {
               Alert.alert('Erreur', e.message);
             }
@@ -1513,23 +1430,24 @@ await notifyExclusion({
     </ScrollView>
   </View>
 
-  {/* ✅ Bouton Inviter un coéquipier juste sous la liste des participants */}
+{/* ✅ Bouton Inviter un coéquipier juste sous la liste des participants */}
 {(user && (session.creator_id === user.id || isParticipant)) && (
   <TouchableOpacity
     onPress={() => navigation.navigate('InviteFriendsToSession', { sessionId: session.id })}
     activeOpacity={0.88}
-    style={{ alignSelf: 'center', marginTop: 3, marginBottom: 10 }}
+    style={[
+      styles.inviteButton,
+      { 
+        alignSelf: 'center',
+        marginTop: 3,
+        marginBottom: 10,
+        backgroundColor: '#F62DAE'
+      }
+    ]}
   >
-<LinearGradient
-    colors={['#7D78F8', '#6D6AFF']}  // 🔥 même dégradé que "Laisser un avis"
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 0 }}
-    style={styles.inviteButton}
-  >
-      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>
-        Inviter un coéquipier
-      </Text>
-    </LinearGradient>
+    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>
+      Inviter un coéquipier
+    </Text>
   </TouchableOpacity>
 )}
 
@@ -1541,14 +1459,11 @@ await notifyExclusion({
 
 </ScrollView>
 {/* BLOC KICK / ANNULATION */}
-{checkingKick || participantsLoading ? (
-  <View style={{ height: 60, justifyContent: 'center', alignItems: 'center' }}>
-    <ActivityIndicator color="#e17055" />
-  </View>
-) : isKicked ? (
+{isKicked ? (
   <View style={{ marginTop: 18, padding: 14, backgroundColor: "#ffefee", borderRadius: 10 }}>
     <Text style={{ color: "#d92e3f", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>
-      Tu as été exclu de cette session par l'organisateur.{"\n"}Tu ne peux plus la rejoindre.
+      Tu as été exclu de cette session par l'organisateur.
+      {"\n"}Tu ne peux plus la rejoindre.
     </Text>
   </View>
 ) : (
@@ -1727,30 +1642,26 @@ container: {
   },
   joinButton: {
     paddingVertical: hp('1.6%'),
-    borderRadius: wp('4.3%'),
+    borderRadius: wp('5.3%'),
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 0,
+    marginHorizontal: 20,
     marginBottom: 0,
-    shadowColor: "#e8764d",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.17,
-    shadowRadius: 7,
-    elevation: 5,
+    elevation: 0,
   },
   joinButtonText: {
-    color: '#fff',
+    color: '#fff', 
     fontWeight: '700',
     fontSize: wp('3.7%'),
     letterSpacing: 0.2,
   },
   leaveButton: {
-    backgroundColor: '#ff4343',
-    borderRadius: wp('4.3%'),
+    backgroundColor: '#EB1E1E',
+    borderRadius: wp('5.3%'),
     paddingVertical: hp('1.6%'),
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 0,
+    marginHorizontal: 20,
     marginBottom: 0,
   },
   leaveButtonText: {
@@ -1791,7 +1702,7 @@ inviteText: {
   fontWeight: '500',
 },
 headerTextContainer: {
-  paddingHorizontal: 20, // 👈 spacing horizontal cohérent avec le reste
+  paddingHorizontal: 20,
 },
 sessionInfoContainer: {
   marginHorizontal: 18,
@@ -1802,14 +1713,12 @@ sessionInfoContainer: {
   borderWidth: 1,
   borderColor: '#eee',
 },
-
 infoRow: {
   flexDirection: 'row',
   justifyContent: 'space-between',
   marginBottom: 10,
   gap: 10,
 },
-
 infoChip: {
   flex: 1,
   flexDirection: 'row',
@@ -1821,7 +1730,6 @@ infoChip: {
   borderRadius: 12,
   gap: 6,
 },
-
 infoChipText: {
   fontSize: 14,
   fontWeight: '600',
@@ -1829,7 +1737,6 @@ infoChipText: {
   flexShrink: 1,
   textAlign: 'center',
 },
-
 levelChip: {
   flex: 1,
   paddingVertical: 10,
@@ -1837,13 +1744,25 @@ levelChip: {
   alignItems: 'center',
   justifyContent: 'center',
 },
-
 levelChipText: {
   color: '#fff',
   fontWeight: '700',
   fontSize: 14,
 },
-
+groupBadge: {
+  alignSelf: 'center',
+  backgroundColor: '#EEF0FF',
+  paddingHorizontal: 14,
+  paddingVertical: 6,
+  borderRadius: 20,
+  marginBottom: 8,
+},
+groupBadgeText: {
+  fontSize: 13,
+  fontWeight: '700',
+  color: '#5B4EFF',
+  letterSpacing: 0.3,
+},
 });
 
 export default SessionDetailScreen;

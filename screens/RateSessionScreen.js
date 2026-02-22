@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, Image, TextInput } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabaseClient';
 import { FontAwesome } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -175,17 +173,13 @@ const handleSubmit = async () => {
         }
         activeOpacity={0.87}
       >
-        <LinearGradient
-          colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-          start={{ x: 0.1, y: 0 }}
-          end={{ x: 1, y: 0.8 }}
+        <View
           style={[
-            styles.buttonGradient,
-            { opacity: Object.keys(ratings).length === participants.length && participants.length > 0 ? 1 : 0.45 }
-          ]}
+            styles.buttonGradient, 
+            { backgroundColor: '#FE5D02', opacity: Object.keys(ratings).length === participants.length && participants.length > 0 ? 1 : 0.45 }]}
         >
           <Text style={styles.buttonText}>{loading ? "Envoi..." : "Envoyer"}</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -209,10 +203,6 @@ const styles = StyleSheet.create({
     marginHorizontal: wp('1.5%'),
     flexDirection: "row",
     alignItems: "flex-start",
-    shadowColor: "#1E3246",
-    shadowOpacity: 0.08,
-    shadowRadius: wp('2.4%'),
-    shadowOffset: { width: 0, height: hp('0.6%') },
     elevation: 2,
     justifyContent: "flex-start",
     minHeight: hp('12%'),
@@ -255,8 +245,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: hp('0.4%') }
   },
   buttonGradient: {
-    borderRadius: wp('3.2%'),
+    borderRadius: wp('5%'),
     paddingVertical: hp('1.4%'),
+    marginHorizontal: 20,
+    marginBottom: 15,
     alignItems: 'center',
     justifyContent: "center",
   },

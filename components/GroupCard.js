@@ -33,17 +33,17 @@ export default function GroupCard({
         <View style={styles.titleRow}>
           <Text style={styles.name} numberOfLines={1}>{name}</Text>
           <View style={styles.tag}>
-            <Feather name="map-pin" size={12} color="#fff" />
-            <Text style={styles.tagText} numberOfLines={1}> {city}</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.bottomRow}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Feather name="activity" size={14} color="#FF5361" />
-          <Text style={styles.sport}> {sport}</Text>
-        </View>
+<View style={styles.cityBadge}>
+  <Feather name="map-pin" size={12} color="#fff" />
+  <Text style={styles.cityText} numberOfLines={1}>
+    {city}
+  </Text>
+</View>
         <AvatarStack urls={membersAvatars} />
       </View>
     </TouchableOpacity>
@@ -51,18 +51,22 @@ export default function GroupCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  coverWrap: { width: "100%", height: 160, position: "relative" },
+card: {
+  backgroundColor: "#fff",
+  borderRadius: 22,
+  overflow: "hidden",
+  marginBottom: 18,
+  shadowColor: "#000",
+  shadowOpacity: 0.06,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 4,
+},
+coverWrap: {
+  width: "100%",
+  height: 180,
+  position: "relative",
+},
   cover: { width: "100%", height: "100%" },
   overlay: { position: "absolute", bottom: 0, left: 0, right: 0, height: "55%" },
   titleRow: {
@@ -74,7 +78,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  name: { color: "#fff", fontSize: 18, fontWeight: "700", flex: 1, marginRight: 8 },
+name: {
+  color: "#fff",
+  fontSize: 20,
+  fontWeight: "800",
+  flex: 1,
+  marginRight: 8,
+},
   tag: {
     flexDirection: "row",
     backgroundColor: "rgba(255,255,255,0.18)",
@@ -90,4 +100,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   sport: { color: "#333", fontSize: 13, fontWeight: "600" },
+  cityBadge: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "rgba(0,0,0,0.55)",
+  paddingHorizontal: 10,
+  paddingVertical: 5,
+  borderRadius: 14,
+},
+cityText: {
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: "600",
+  marginLeft: 4,
+},
 });

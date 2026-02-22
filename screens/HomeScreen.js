@@ -157,7 +157,8 @@ const [selectedSessionId, setSelectedSessionId] = useState(null);
 const [selectedLevel, setSelectedLevel] = useState('');
 const [selectedDate, setSelectedDate] = useState(null);
 const [selectedSport, setSelectedSport] = useState('');
-const [search, setSearch] = useState('');
+const [inputValue, setInputValue] = useState('');   // ce que l’utilisateur tape
+const [searchQuery, setSearchQuery] = useState(''); // ce qui déclenche l’autocomplete
 const [suggestions, setSuggestions] = useState([]);
 const [showLevelModal, setShowLevelModal] = useState(false);
 const [showCalendar, setShowCalendar] = useState(false);
@@ -174,6 +175,8 @@ const [gpsEnabled, setGpsEnabled] = useState(true);
 const [regionSource, setRegionSource] = useState('gps');
 
 const [locationBounds, setLocationBounds] = useState(null);
+
+const [isSelectingSuggestion, setIsSelectingSuggestion] = useState(false);
 
 const [showLongPressHint, setShowLongPressHint] = useState(false);
 const hasLongPressed = useRef(false);
@@ -320,75 +323,64 @@ useEffect(() => {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
       fetchSessions();
     })
-    .subscribe();
+    .subscribe((status) => {
+  if (status === 'SUBSCRIBED') {
+    console.log('Realtime sessions connecté');
+  }
+});
 
   return () => { supabase.removeChannel(channel); };
 }, [fetchSessions]);
 
 // --- Autocomplete robuste ---
 useEffect(() => {
+  if (!searchQuery || searchQuery.trim().length < 2) {
+    setSuggestions([]);
+    return;
+  }
+
   const run = async () => {
-    if (!search || search.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
     try {
-      const encoded = encodeURIComponent(search.trim());
+      const encoded = encodeURIComponent(searchQuery.trim());
       const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encoded}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
       const res = await fetch(url);
       const data = await res.json();
       setSuggestions(Array.isArray(data?.predictions) ? data.predictions : []);
-    } catch (err) {
-      console.error('Autocomplete error:', err);
+    } catch {
       setSuggestions([]);
     }
   };
+
   run();
-}, [search]);
+}, [searchQuery]);
 
 const handleSuggestionPress = async (placeId, description) => {
   try {
     Keyboard.dismiss();
     setSuggestions([]);
-    setSearch(description);
+
+    // 🔒 met à jour l’input MAIS PAS la query autocomplete
+    setInputValue(description);
+    setSearchQuery(''); // ⛔ stop net l’autocomplete
 
     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
     const res = await fetch(url);
     const data = await res.json();
 
     const geometry = data?.result?.geometry;
-    const components = data?.result?.address_components;
-
-    if (!geometry?.location || !geometry?.viewport || !components) return;
+    if (!geometry?.location || !geometry?.viewport) return;
 
     const { lat, lng } = geometry.location;
     const { northeast, southwest } = geometry.viewport;
 
-    const countryComponent = components.find(c =>
-      c.types.includes('country')
-    );
-    const countryCode = countryComponent?.short_name;
-
-    const isDomTom = ['GP', 'MQ', 'RE', 'GF', 'YT', 'PF', 'NC', 'PM', 'WF']
-      .includes(countryCode);
-
-    const lower = description.toLowerCase();
-    const isLargeArea =
-      lower.includes('région') ||
-      lower.includes('pays') ||
-      lower.includes('département');
-
-const latDelta = Math.abs(northeast.lat - southwest.lat);
-const lngDelta = Math.abs(northeast.lng - southwest.lng);
-
-// marge de confort pour éviter un zoom trop serré
-const paddingFactor = 1.2;
+const latDelta = Math.abs(northeast.lat - southwest.lat) * 1.2;
+const lngDelta = Math.abs(northeast.lng - southwest.lng) * 1.2;
 
 setRegion({
   latitude: lat,
   longitude: lng,
-  latitudeDelta: latDelta * paddingFactor,
-  longitudeDelta: lngDelta * paddingFactor,
+  latitudeDelta: Math.min(Math.max(latDelta, 0.02), 0.8),
+  longitudeDelta: Math.min(Math.max(lngDelta, 0.02), 0.8),
 });
 
     setLocationBounds({
@@ -400,7 +392,7 @@ setRegion({
 
     setRegionSource('manual');
   } catch (e) {
-    console.error('Place details error:', e);
+    console.error(e);
   }
 };
 
@@ -471,7 +463,8 @@ const clearFilters = async () => {
   setSelectedSport('');
   setSelectedLevel('');
   setSelectedDate(null);
-  setSearch('');
+  setInputValue('');
+  setSearchQuery('');
   setSuggestions([]);
   setLocationBounds(null);
 
@@ -662,7 +655,6 @@ useEffect(() => {
   }
 }, [route.params?.showCongrats, navigation]);
 
-
 const formatDateLabel = (dateStr) => {
 if (!dateStr) return 'Date';
 const d = new Date(dateStr);
@@ -685,8 +677,9 @@ return (
 <View style={{ flex: 1, backgroundColor: "#fff" }}>
   {/* 🗺️ 1. LA CARTE — TOUJOURS RENDUE */}
 {region && (
-  <MapViewUnite
-    region={region}
+<MapViewUnite
+  key={`${region.latitude}-${region.longitude}-${region.latitudeDelta}`}
+  region={region}
     sessions={normalizedSessions.map(s => ({
       ...s,
       icon: sportIcons[s.sport]?.icon || sportIcons.Autres.icon,
@@ -758,7 +751,7 @@ return (
       source={require('../assets/UniteLogo.png')}
       resizeMode="contain"
       style={{
-        height: 60,
+        height: 120,
         width: 100,
         transform: [{ translateY: Platform.OS === 'ios' ? -1.5 : 0 }],
       }}
@@ -804,8 +797,11 @@ return (
   {/* Champ texte */}
   <TextInput
     placeholder="Où voulez-vous bouger ?"
-    value={search}
-    onChangeText={setSearch}
+  value={inputValue}
+  onChangeText={(text) => {
+    setInputValue(text);
+    setSearchQuery(text); // 🔥 autocomplete UNIQUEMENT ici
+  }}
     style={{
       flex: 1,
       fontSize: wp('3.8%'),
@@ -816,23 +812,41 @@ return (
   />
 
   {/* ❌ Petite croix pour effacer le champ */}
-  {search.length > 0 && (
-    <TouchableOpacity
-      onPress={() => {
-        setSearch('');
-        setSuggestions([]);
-        clearFilters(); // 👈 recentre aussi la carte proprement
-      }}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      style={{ marginLeft: wp('1.5%') }}
-      activeOpacity={0.6}
-    >
-      <AntDesign name="closecircle" size={wp('4.3%')} color="#999" />
-    </TouchableOpacity>
+  {inputValue.length > 0 && (
+<TouchableOpacity
+  onPress={() => {
+    setInputValue('');
+    setSearchQuery('');
+    setSuggestions([]);
+    clearFilters();
+    Keyboard.dismiss();
+  }}
+  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+  style={{ marginLeft: wp('1.5%') }}
+  activeOpacity={0.6}
+>
+  <AntDesign name="closecircle" size={wp('4.3%')} color="#999" />
+</TouchableOpacity>
   )}
 </View>
 </View>
 
+{suggestions.length > 0 && (
+  <Pressable
+    style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 998, // juste sous les suggestions
+    }}
+    onPress={() => {
+      Keyboard.dismiss();
+      setSuggestions([]);
+    }}
+  />
+)}
     {/* Suggestions */}
 {suggestions.length > 0 && (
  <View style={{
@@ -1096,7 +1110,7 @@ if (item.group_id) {
       <MaterialCommunityIcons
         name="map-search-outline"
         size={wp('6%')}
-        color="#3F4FFF"
+        color="#FE5D02"
         style={{ marginBottom: hp('0.6%') }}
       />
 
@@ -1108,14 +1122,11 @@ if (item.group_id) {
         activeOpacity={0.85}
         onPress={clearFilters}
       >
-        <LinearGradient
-          colors={['#3F4FFF', '#7A5CFF']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.noSessionButtonGradientFixed}
+        <View
+          style={[styles.noSessionButtonGradientFixed, {backgroundColor: '#FE5D02'}]}
         >
           <Text style={styles.noSessionButtonTextFixed}>Effacer tous les filtres</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     </LinearGradient>
   </View>
@@ -1243,14 +1254,13 @@ if (item.group_id) {
         setPressedPoint(null);
       }}
     >
-      <LinearGradient
-        colors={['#3F4FFF', '#7A5CFF']}
-        style={styles.createFromMapButton}
+      <View
+        style={[styles.createFromMapButton, {backgroundColor: '#FE5D02'}]}
       >
         <Text style={styles.createFromMapButtonText}>
           Créer une session
         </Text>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   </View>
 )}

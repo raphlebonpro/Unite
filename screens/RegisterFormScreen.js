@@ -7,7 +7,6 @@ import {
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabaseClient';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as FileSystem from 'expo-file-system';
@@ -78,6 +77,16 @@ async function uploadAvatar(uri, userId) {
 
  return urlData.publicUrl;
 }
+
+const RequiredFieldWrapper = ({ children }) => {
+  return (
+    <View style={styles.requiredFieldContainer}>
+      {children}
+      <Text style={styles.requiredStar}>*</Text>
+    </View>
+  );
+};
+
 export default function SignUpScreen({ navigation }) {
  const [avatar, setAvatar] = useState(null);
  const [email, setEmail] = useState('');
@@ -255,27 +264,22 @@ if (pseudoExists) {
    >
      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
        <View style={{ flex: 1 }}>
-         {Platform.OS === 'android' ? (
-           <View style={{ height: StatusBar.currentHeight ?? 0 }} />
-         ) : null}
 
-         <View style={styles.appBar}>
-           <View style={styles.appBarSide}>
-             <TouchableOpacity
-               onPress={() => navigation.goBack()}
-               style={styles.backButton}
-               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-             >
-               <Ionicons name="arrow-back" size={26} color="#222" />
-             </TouchableOpacity>
-           </View>
-           <View style={styles.appBarCenter}>
-             <Text style={styles.appBarTitle} numberOfLines={1}>
-               Créer un compte
-             </Text>
-           </View>
-           <View style={styles.appBarSide} />
-         </View>
+<View style={styles.appBar}>
+  <TouchableOpacity
+    onPress={() => navigation.goBack()}
+    style={styles.closeButton}
+    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+  >
+    <Ionicons name="close" size={20} color="#111" />
+  </TouchableOpacity>
+
+  <Text style={styles.appBarTitle} numberOfLines={1}>
+    Créer un compte
+  </Text>
+
+  <View style={{ width: 30 }} />
+</View>
 
          <ScrollView
            contentContainerStyle={styles.container}
@@ -293,23 +297,24 @@ if (pseudoExists) {
                <Image source={{ uri: avatar }} style={styles.avatar} />
              ) : (
                <View style={styles.avatarPlaceholder}>
-                 <Ionicons name="person" size={60} color="#bbb" />
+                 <Ionicons name="person" size={40} color="#bbb" />
                </View>
              )}
              <Text style={styles.importText}>Importer une photo</Text>
            </TouchableOpacity>
            {/* Inputs */}
-           <TextInput
-             style={styles.input}
-             placeholder="Email"
-             autoCapitalize="none"
-             keyboardType="email-address"
-             value={email}
-             onChangeText={setEmail}
-             maxFontSizeMultiplier={1.1}
-           />
-
+<RequiredFieldWrapper>
+  <TextInput
+    style={styles.input}
+    placeholder="Email"
+    autoCapitalize="none"
+    keyboardType="email-address"
+    value={email}
+    onChangeText={setEmail}
+  />
+</RequiredFieldWrapper>
            <View style={styles.passwordContainer}>
+            <RequiredFieldWrapper>
              <TextInput
                style={[styles.input, { flex: 1, marginBottom: 0 }]}
                placeholder="Mot de passe"
@@ -318,25 +323,31 @@ if (pseudoExists) {
                onChangeText={setPassword}
                maxFontSizeMultiplier={1.1}
              />
+             </RequiredFieldWrapper>
              <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
                <Feather name={showPassword ? "eye" : "eye-off"} size={21} color="#888" />
              </TouchableOpacity>
            </View>
 
-           <View style={styles.passwordContainer}>
-             <TextInput
-               style={[styles.input, { flex: 1, marginBottom: 0 }]}
-               placeholder="Confirmer le mot de passe"
-               secureTextEntry={!showConfirmPassword}
-               value={confirmPassword}
-               onChangeText={setConfirmPassword}
-               maxFontSizeMultiplier={1.1}
-             />
-             <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowConfirmPassword((prev) => !prev)}>
-               <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={21} color="#888" />
-             </TouchableOpacity>
-           </View>
+<RequiredFieldWrapper>
+  <View style={styles.passwordContainer}>
+    <TextInput
+      style={[styles.input, { flex: 1, marginBottom: 0 }]}
+      placeholder="Confirmer le mot de passe"
+      secureTextEntry={!showConfirmPassword}
+      value={confirmPassword}
+      onChangeText={setConfirmPassword}
+    />
+    <TouchableOpacity
+      style={styles.eyeIcon}
+      onPress={() => setShowConfirmPassword(prev => !prev)}
+    >
+      <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={21} color="#888" />
+    </TouchableOpacity>
+  </View>
+</RequiredFieldWrapper>
 
+          <RequiredFieldWrapper>
            <TextInput
              style={styles.input}
              placeholder="Pseudo"
@@ -344,8 +355,10 @@ if (pseudoExists) {
              onChangeText={setPseudo}
              maxFontSizeMultiplier={1.1}
            />
+           </RequiredFieldWrapper>
 
            {/* Date de naissance */}
+           <RequiredFieldWrapper>
            <TouchableOpacity
              style={styles.input}
              onPress={() => {
@@ -354,7 +367,7 @@ if (pseudoExists) {
              }}
              activeOpacity={0.9}
            >
-             <Text style={{ color: birthdate ? '#222' : '#aaa', fontSize: 16, paddingVertical: 2 }}>
+             <Text style={{ color: birthdate ? '#222' : '#aaa', fontSize: 15, paddingVertical: 2 }}>
                {birthdate
                  ? new Date(birthdate).toLocaleDateString('fr-FR', {
                      day: '2-digit',
@@ -364,22 +377,25 @@ if (pseudoExists) {
                  : 'Date de naissance'}
              </Text>
            </TouchableOpacity>
+           </RequiredFieldWrapper>
 
            {/* Genre */}
+           <RequiredFieldWrapper>
            <TouchableOpacity
              style={styles.input}
              onPress={() => setShowGenderModal(true)}
              activeOpacity={0.9}
            >
-             <Text style={{ color: gender ? '#222' : '#aaa', fontSize: 16, paddingVertical: 2 }}>
+             <Text style={{ color: gender ? '#222' : '#aaa', fontSize: 15, paddingVertical: 2 }}>
                {gender ? gender : 'Genre'}
              </Text>
            </TouchableOpacity>
+           </RequiredFieldWrapper>
 
            {/* Description */}
            <TextInput
              style={[styles.input, styles.descriptionInput]}
-             placeholder="Parle un peu de toi !"
+             placeholder="Toujours chaud pour une session de running, peu importe le niveau."
              value={description}
              onChangeText={setDescription}
              multiline
@@ -416,11 +432,8 @@ if (pseudoExists) {
              activeOpacity={0.85}
              style={styles.signUpButtonContainer}
            >
-             <LinearGradient
-               colors={['#FF6A00', '#FF2D55']}
-               start={{ x: 0, y: 0 }}
-               end={{ x: 1, y: 0 }}
-               style={styles.signUpButtonGradient}
+             <View
+               style={[styles.signUpButtonGradient, {backgroundColor: '#FE5D02'}]}
              >
                {loading ? (
                  <ActivityIndicator color="#fff" />
@@ -429,7 +442,7 @@ if (pseudoExists) {
                    S'inscrire
                  </Text>
                )}
-             </LinearGradient>
+             </View>
            </TouchableOpacity>
          </ScrollView>
 
@@ -532,26 +545,33 @@ if (pseudoExists) {
 
 /* ==== TES STYLES ORIGINAUX (iOS conserve) ==== */
 const styles = StyleSheet.create({
-  appBar: {
-    height: hp('7%'),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    marginBottom: hp('0.8%'),
-    paddingHorizontal: 0,
-  },
-  appBarSide: { width: wp('13%'), alignItems: 'flex-start', justifyContent: 'center' },
-  backButton: { paddingLeft: wp('4%'), paddingVertical: hp('1.2%') },
-  appBarCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  appBarTitle: {
-    fontSize: hp('2.4%'),
-    fontWeight: "600",
-    color: "#1a1a1a",
-    textAlign: 'center'
-  },
+appBar: {
+  height: hp('6%'),
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingHorizontal: 20,
+  backgroundColor: '#FFFFFF',
+  shadowColor: '#000',
+  shadowOpacity: 0.04,
+  shadowRadius: 15,
+  shadowOffset: { width: 0, height: 5 },
+  elevation: 6,
+},
+closeButton: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: '#F3F4F6',   // gris doux premium
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+appBarTitle: {
+  fontSize: 20,
+  fontWeight: '700',
+  color: '#111',
+  letterSpacing: 0.2,
+},
   container: {
     alignItems: 'center',
     padding: wp('5%'),
@@ -563,14 +583,14 @@ const styles = StyleSheet.create({
     marginBottom: hp('2.3%'),
   },
   avatar: {
-    width: wp('21%'),
-    height: wp('21%'),
+    width: wp('18%'),
+    height: wp('18%'),
     borderRadius: wp('10.5%'),
     marginBottom: hp('0.8%'),
   },
   avatarPlaceholder: {
-    width: wp('21%'),
-    height: wp('21%'),
+    width: wp('18%'),
+    height: wp('18%'),
     borderRadius: wp('10.5%'),
     backgroundColor: '#eee',
     alignItems: 'center',
@@ -589,7 +609,7 @@ const styles = StyleSheet.create({
     borderRadius: wp('3.2%'),
     padding: hp('1.4%'),
     marginBottom: hp('1.6%'),
-    fontSize: hp('1.9%'),
+    fontSize: hp('1.8%'),
     backgroundColor: '#fafbff',
   },
   passwordContainer: {
@@ -603,27 +623,23 @@ const styles = StyleSheet.create({
   signUpButtonContainer: {
     width: '80%',
     alignSelf: 'center',
-    marginTop: hp('2.2%'),
+    marginTop: hp('1.2%'),
     marginBottom: hp('2.8%'),
     borderRadius: wp('5%'),
     overflow: 'hidden',
   },
   signUpButtonGradient: {
     width: '100%',
-    paddingVertical: hp('1.5%'),
+    paddingVertical: hp('1.3%'),
     borderRadius: wp('3%'),
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#ff5e62',
-    shadowOpacity: 0.10,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 9,
     elevation: 2,
   },
   signUpButtonText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: hp('2.1%'),
+    fontSize: hp('1.8%'),
     letterSpacing: 0.18,
   },
   pickerModalOverlay: {
@@ -728,7 +744,7 @@ primaryModalBtnText: {
   letterSpacing: 0.3,
 },
 legalText: {
-  width: '92%',
+  width: '100%',
   textAlign: 'center',
   color: '#aaa',               // plus discret
   fontSize: hp('1.25%'),       // plus petit
@@ -736,21 +752,33 @@ legalText: {
   marginTop: hp('0.4%'),
   marginBottom: hp('1%'),
 },
-
 legalLink: {
   color: '#5A4BFF',            // bleu-violet
   textDecorationLine: 'underline',
   fontWeight: '400',
 },
+requiredFieldContainer: {
+  position: 'relative',
+  width: '100%',
+},
+requiredStar: {
+  position: 'absolute',
+  top: 5,
+  right: 5,
+  color: '#FF2D55',
+  fontSize: 14,
+  fontWeight: '700',
+  zIndex: 50,
+},
 });
 
 /* ==== ANDROID OVERRIDES UNIQUEMENT ==== */
 const stylesA = StyleSheet.create({
-  appBar: {
-  height: 56,
-  paddingVertical: 0,
+appBar: {
+  height: 56 + (StatusBar.currentHeight ?? 0),
+  paddingTop: StatusBar.currentHeight ?? 0,
   marginBottom: 8,
-  },
+},
   appBarTitle: { fontSize: 20 },
   container: {
     padding: 16,
@@ -832,10 +860,22 @@ legalText: {
   marginTop: hp('0.4%'),
   marginBottom: hp('1%'),
 },
-
 legalLink: {
   color: '#5A4BFF',            // bleu-violet
   textDecorationLine: 'underline',
   fontWeight: '400',
+},
+requiredFieldContainer: {
+  position: 'relative',
+  width: '100%',
+},
+requiredStar: {
+  position: 'absolute',
+  top: 8,
+  right: 14,
+  color: '#FF2D55',
+  fontSize: 14,
+  fontWeight: '700',
+  zIndex: 10,
 },
 });

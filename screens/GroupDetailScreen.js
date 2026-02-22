@@ -22,6 +22,29 @@ import {
   notifyGroupExclusion,
 } from "../helpers/notifications";
 
+const LETTER_COLORS = [
+  '#4A90E2',
+  '#50E3C2',
+  '#F5A623',
+  '#9013FE',
+  '#D0021B',
+  '#7ED321',
+  '#F8E71C',
+  '#B8E986',
+  '#417505',
+  '#BD10E0',
+  '#FF3366',
+  '#00BCD4',
+  '#FF9800',
+];
+
+function getColorFromUsername(username = '') {
+  if (!username) return '#4A90E2';
+  const firstLetter = username.charAt(0).toUpperCase();
+  const index = (firstLetter.charCodeAt(0) - 65) % LETTER_COLORS.length;
+  return LETTER_COLORS[index];
+}
+
 const getGroupRecurrenceLabel = (sessions) => {
   if (!sessions || sessions.length < 2) return null;
 
@@ -121,7 +144,7 @@ useEffect(() => {
 
   // --- 2️⃣ Canal Realtime ---
   const channel = supabase
-    .channel("sessions-group-realtime")
+    .channel(`sessions-group-${groupId}`)
     .on(
       "postgres_changes",
       {
@@ -529,14 +552,33 @@ const handleLeave = async () => {
             activeOpacity={0.8}
             onPress={() => nav.navigate("UserProfile", { userId: m.id })}
           >
-            <Image
-              source={
-                m.avatar
-                  ? { uri: m.avatar }
-                  : require("../assets/avatar-placeholder.png")
-              }
-              style={styles.memberAvatar}
-            />
+{m.avatar ? (
+  <Image
+    source={{ uri: m.avatar }}
+    style={styles.memberAvatar}
+  />
+) : (
+  <View
+    style={[
+      styles.memberAvatar,
+      {
+        backgroundColor: getColorFromUsername(m.username),
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+    ]}
+  >
+    <Text
+      style={{
+        color: '#fff',
+        fontWeight: '700',
+        fontSize: 16,
+      }}
+    >
+      {m.username?.charAt(0)?.toUpperCase() || 'U'}
+    </Text>
+  </View>
+)}
             <Text numberOfLines={1} style={styles.memberName}>
               {m.username}
             </Text>
@@ -709,17 +751,14 @@ onPress: async () => {
           onPress={() => nav.navigate("CreateSession", { groupId })}
           activeOpacity={0.9}
         >
-          <LinearGradient
-            colors={["#FF9D3C", "#FF6C4A", "#FF375E"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.gradientInner}
+          <View
+            style={[styles.gradientInner, {backgroundColor: '#FE5D02'}]}
           >
             <Feather name="plus-circle" size={17} color="#fff" />
             <Text style={styles.gradientText}>
               Créer un Rendez-vous de groupe
             </Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       )}
     </>
@@ -740,15 +779,12 @@ onPress: async () => {
         onPress={() => nav.navigate("GroupChat", { groupId })}
         activeOpacity={0.85}
       >
-        <LinearGradient
-          colors={["#1877F2", "#549BFF"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.gradientInner}
+        <View
+          style={[styles.gradientInner, {backgroundColor: '#001242'}]} 
         >
           <Feather name="message-square" size={17} color="#fff" />
           <Text style={styles.gradientText}>Discussion du groupe</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
 
       {/* --- Modifier le groupe --- */}
@@ -757,15 +793,12 @@ onPress: async () => {
         onPress={() => nav.navigate("EditGroup", { groupId })}
         activeOpacity={0.85}
       >
-        <LinearGradient
-          colors={["#4E65FF", "#7C83FD"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.gradientInner}
+        <View
+          style={[styles.gradientInner, {backgroundColor: '#F62DAE'}]}
         >
           <Feather name="edit-3" size={17} color="#fff" />
           <Text style={styles.gradientText}>Modifier le groupe</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     </>
   ) : isMember ? (
@@ -774,17 +807,14 @@ onPress: async () => {
       <TouchableOpacity
         style={styles.gradientBtn}
         onPress={() => nav.navigate("GroupChat", { groupId })}
-        activeOpacity={0.85}
+        activeOpacity={0.90}
       >
-        <LinearGradient
-          colors={["#1877F2", "#549BFF"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.gradientInner}
+        <View
+          style={[styles.gradientInner, {backgroundColor: '#F62DAE'}]}
         >
           <Feather name="message-square" size={17} color="#fff" />
           <Text style={styles.gradientText}>Discussion du groupe</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
 
       {/* --- Quitter le groupe --- */}
@@ -810,15 +840,12 @@ onPress: async () => {
       onPress={handleJoin}
       activeOpacity={0.85}
     >
-      <LinearGradient
-        colors={["#FF9D3C", "#FF6C4A", "#FF375E"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.gradientInner}
+      <View
+        style={[styles.gradientInner, {backgroundColor: '#FE5D02'}]}
       >
-        <Feather name="user-plus" size={17} color="#fff" />
+        <Feather name="user-plus" size={16} color="#fff" />
         <Text style={styles.gradientText}>Rejoindre le groupe</Text>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   )}
 </View>
@@ -865,9 +892,6 @@ metaContainer: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     gap: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
     elevation: 2,
   },
   metaText: {
@@ -917,12 +941,13 @@ descContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
-    paddingVertical: 13,
+    borderRadius: 20,
+    paddingVertical: 12,
+    marginHorizontal: 15,
   },
   gradientText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     marginLeft: 8,
   },
@@ -1001,9 +1026,6 @@ nextSessionCardAlt: {
   marginTop: 12,
   borderWidth: 1,
   borderColor: "#EAEAEA",
-  shadowColor: "#000",
-  shadowOpacity: 0.08,
-  shadowRadius: 5,
   elevation: 2,
 },
 nextSessionHeader: {
@@ -1051,50 +1073,40 @@ groupSessionCard: {
   marginTop: 14,
   borderWidth: 1,
   borderColor: "#EAEAEA",
-  shadowColor: "#000",
-  shadowOpacity: 0.06,
-  shadowRadius: 4,
   elevation: 2,
 },
-
 groupSessionHeader: {
   flexDirection: "row",
   justifyContent: "space-between",
   alignItems: "baseline",
 },
-
 groupSessionDay: {
   fontSize: 16,
   fontWeight: "700",
   color: "#FF375E",
 },
-
 groupSessionHour: {
   fontSize: 18,
   fontWeight: "700",
   color: "#111",
 },
-
 groupSessionTitle: {
   marginTop: 6,
   fontSize: 16.5,
   fontWeight: "800",
   color: "#111",
 },
-
 groupSessionLocationRow: {
   flexDirection: "row",
   alignItems: "center",
   gap: 6,
   marginTop: 4,
 },
-
 groupSessionLocation: {
   fontSize: 13.5,
   color: "#666",
   flex: 1,
 },
-
 groupSessionFooter: {
   flexDirection: "row",
   alignItems: "center",

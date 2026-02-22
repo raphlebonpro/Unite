@@ -208,14 +208,10 @@ async function sendInvite(friend) {
               <Image source={{ uri: item.avatar }} style={styles.avatar} />
               <Text style={styles.username}>{item.username}</Text>
               <TouchableOpacity onPress={() => inviteFriend(item)} activeOpacity={0.85}>
-                <LinearGradient
-                  colors={['#FF9A6C', '#FF5E62']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.inviteBtn}
-                >
+                <View
+                  style={[styles.inviteBtn]} >
                   <Text style={styles.inviteTxt}>Inviter</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
           )}
@@ -242,6 +238,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 7,
     paddingHorizontal: 14,
+    backgroundColor: '#FE5D02'
   },
   inviteTxt: { color: '#fff', fontWeight: 'bold' },
   infoBox: {

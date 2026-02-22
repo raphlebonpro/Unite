@@ -12,27 +12,13 @@ export default function MapViewUnite({
   gpsEnabled,
   userLocation,
 }) {
-  const mapRef = useRef(null);
+
+  const [isReady, setIsReady] = React.useState(false);
 
   // 🚫 garde absolue
   if (!region) {
     return <View style={StyleSheet.absoluteFill} />;
   }
-
-  // 🧭 animation région (safe)
-  useEffect(() => {
-    if (!mapRef.current || !region) return;
-
-    mapRef.current.animateToRegion(
-      {
-        latitude: region.latitude,
-        longitude: region.longitude,
-        latitudeDelta: region.latitudeDelta ?? 0.05,
-        longitudeDelta: region.longitudeDelta ?? 0.05,
-      },
-      500
-    );
-  }, [region]);
 
   const handleSessionPress = (session) => {
     // 🔥 ANDROID SAFE
@@ -43,22 +29,21 @@ export default function MapViewUnite({
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={{
-          latitude: region.latitude,
-          longitude: region.longitude,
-          latitudeDelta: region.latitudeDelta ?? 0.05,
-          longitudeDelta: region.longitudeDelta ?? 0.05,
-        }}
-        onMapReady={onMapReady}
-        onLongPress={(e) => {
-          const { latitude, longitude } = e.nativeEvent.coordinate;
-          onLongPress?.({ latitude, longitude });
-        }}
-      >
+<MapView
+  style={StyleSheet.absoluteFill}
+  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+  region={{
+    latitude: region.latitude,
+    longitude: region.longitude,
+    latitudeDelta: region.latitudeDelta ?? 0.05,
+    longitudeDelta: region.longitudeDelta ?? 0.05,
+  }}
+  onMapReady={onMapReady}
+  onLongPress={(e) => {
+    const { latitude, longitude } = e.nativeEvent.coordinate;
+    onLongPress?.({ latitude, longitude });
+  }}
+>
         {/* 📍 SESSIONS */}
         {sessions.map((session) => {
           if (

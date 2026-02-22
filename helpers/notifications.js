@@ -928,3 +928,14 @@ export async function notifyPaymentSuccess({ userId }) {
   });
 }
 
+export async function notifyAppUpdate({ userId }) {
+  await notifyUser({
+    user_id: userId,
+    title: 'Nouvelle version disponible',
+    body: 'Une nouvelle version de Unite est disponible. Mets l’app à jour pour profiter des améliorations.',
+    type: 'app_update',
+    push: true,
+  });
+}
+
+

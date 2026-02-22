@@ -131,14 +131,11 @@ export default function EditReviewScreen() {
         />
 
         <TouchableOpacity activeOpacity={0.87} onPress={handleUpdate} disabled={loading}>
-          <LinearGradient
-            colors={['#ff9966', '#ff5e62']}
-            start={{ x: 0.1, y: 0 }}
-            end={{ x: 1, y: 0.8 }}
-            style={styles.button}
+          <View
+            style={[styles.button, {backgroundColor: '#FE5D02'}]}
           >
             <Text style={styles.buttonText}>{loading ? 'Envoi...' : 'Enregistrer'}</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -174,18 +171,15 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   button: {
-    borderRadius: wp('3%'),
-    paddingVertical: hp('1.8%'),
+    borderRadius: wp('5%'),
+    paddingVertical: hp('1.5%'),
     alignItems: 'center',
-    shadowColor: '#ff5e62',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    marginHorizontal: 20,
     elevation: 3,
   },
   buttonText: {
     color: '#fff',
-    fontSize: wp('4.5%'),
+    fontSize: wp('4%'),
     fontWeight: '700',
     letterSpacing: 0.5,
   },

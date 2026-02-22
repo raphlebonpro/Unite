@@ -34,17 +34,17 @@ const MiniAppBar = ({
   title,
   centerComponent,
   onNotificationsPress,
-  onLeaderboardPress,
-  showLeaderboard = false,
 }) => {
   const navigation = useNavigation();
   const { notifUnseen } = useNotificationRefresh();
 
-  // Hauteurs fixes
   const BASE_H = Platform.OS === 'ios' ? 45 : 52;
 
-  // Correction : NE PAS appliquer le safe area ici (SafeTop le fait déjà)
-  const topInset = 0;
+  // 🔥 Nouveau calibrage
+  const iconSizeGroup = Platform.OS === 'ios' ? 28 : 26;
+  const iconSizeBell = Platform.OS === 'ios' ? 22 : 21;
+  const iconScale = Platform.OS === 'android' ? 0.98 : 1;
+  const containerSize = Platform.OS === 'ios' ? 40 : 38;
 
   const notifLabel =
     notifUnseen > 99 ? '99+' :
@@ -55,8 +55,7 @@ const MiniAppBar = ({
     <View style={{ backgroundColor: '#fff', zIndex: 20 }}>
       <View
         style={{
-          height: BASE_H,          // Hauteur fixe, stable
-          paddingTop: topInset,    // Ne doit jamais bouger
+          height: BASE_H,
           backgroundColor: '#fff',
           borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
           borderBottomColor: '#EEE',
@@ -69,7 +68,6 @@ const MiniAppBar = ({
           elevation: Platform.OS === 'android' ? 3 : 0,
         }}
       >
-        {/* Ligne principale */}
         <View
           style={{
             flexDirection: 'row',
@@ -78,44 +76,31 @@ const MiniAppBar = ({
             height: BASE_H,
           }}
         >
-          {/* Groups */}
+          {/* Groupe */}
           <TouchableItem
             onPress={() => navigation.navigate('Groups')}
             style={{
-              width: 40,
-              height: 40,
+              width: containerSize,
+              height: containerSize,
               alignItems: 'center',
               justifyContent: 'center',
               marginLeft: 8,
             }}
           >
-            <GradientIcon name="people-outline" size={26} type="Ionicons" />
+            <GradientIcon
+              name="people-outline"
+              size={iconSizeGroup}
+              type="Ionicons"
+              style={{ transform: [{ scale: iconScale }] }}
+            />
           </TouchableItem>
-
-          {/* Leaderboard */}
-          {showLeaderboard && (
-            <TouchableItem
-              onPress={
-                onLeaderboardPress || (() => navigation.navigate('Leaderboard'))
-              }
-              style={{
-                width: 40,
-                height: 40,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginLeft: 6,
-              }}
-            >
-              <GradientIcon name="trophy" size={22} type="Ionicons" />
-            </TouchableItem>
-          )}
 
           {/* Notifications */}
           <TouchableItem
             onPress={onNotificationsPress}
             style={{
-              width: 40,
-              height: 40,
+              width: containerSize,
+              height: containerSize,
               alignItems: 'center',
               justifyContent: 'center',
               marginRight: 8,
@@ -123,7 +108,11 @@ const MiniAppBar = ({
           >
             <View style={{ position: 'relative' }}>
               <View style={{ borderRadius: 20, overflow: 'hidden' }}>
-                <GradientIcon name="bell" size={20} />
+                <GradientIcon
+                  name="bell"
+                  size={iconSizeBell}
+                  style={{ transform: [{ scale: iconScale }] }}
+                />
               </View>
 
               {notifUnseen > 0 && (
@@ -159,30 +148,30 @@ const MiniAppBar = ({
           </TouchableItem>
         </View>
 
-{/* Centre : titre OU composant custom */}
-<View
-  style={{
-    position: 'absolute',
-    left: 56,        // espace icônes gauche
-    right: 56,       // espace icônes droite
-    top: 0,
-    height: BASE_H,
-    justifyContent: 'center',
-    alignItems: 'center',
-    pointerEvents: 'none',
-  }}
->
-  {centerComponent ? (
-    centerComponent
-  ) : (
-    <GradientTitle
-      style={{ fontWeight: 'bold', fontSize: 19 }}
-      numberOfLines={1}
-    >
-      {title}
-    </GradientTitle>
-  )}
-</View>
+        {/* Centre */}
+        <View
+          style={{
+            position: 'absolute',
+            left: 56,
+            right: 56,
+            top: 0,
+            height: BASE_H,
+            justifyContent: 'center',
+            alignItems: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          {centerComponent ? (
+            centerComponent
+          ) : (
+            <GradientTitle
+              style={{ fontWeight: 'bold', fontSize: 19 }}
+              numberOfLines={1}
+            >
+              {title}
+            </GradientTitle>
+          )}
+        </View>
       </View>
     </View>
   );

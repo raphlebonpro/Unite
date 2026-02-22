@@ -504,7 +504,7 @@ const handleCancelSession = async () => {
     <Ionicons
       name="fitness" 
       size={18}
-      color="#5B5FFF"
+      color="#8C8C8C"
       style={{ marginRight: 8 }}
     />
   )}
@@ -606,7 +606,7 @@ const handleCancelSession = async () => {
   <Ionicons
     name="location-outline"
     size={18}
-    color="#5B5FFF"
+    color="#8C8C8C"
     style={{ marginRight: 8 }}
   />
 
@@ -690,14 +690,14 @@ const handleCancelSession = async () => {
 <View style={{ marginTop: 5 }}>
   <View style={styles.rowTwoCols}>
  <TouchableOpacity
-   style={[styles.inlineInput, {  flex: 2, flexDirection: 'row', alignItems: 'center' }]}
+   style={[styles.inlineInput1, {  flex: 2, flexDirection: 'row', alignItems: 'center' }]}
    activeOpacity={0.85}
    onPress={() => setShowCalendar(true)}
  >
   <Ionicons
     name="calendar-outline"
     size={18}
-    color="#5B5FFF"
+    color="#8C8C8C"
     style={{ marginRight: 8 }}
   />
 
@@ -720,7 +720,7 @@ style={[styles.inlineInput,{flex: 1, flexDirection: 'row', alignItems: 'center',
 onPress={showTimePicker}
 activeOpacity={0.85}
 >
-  <Ionicons name="time-outline" size={18} color="#5B5FFF" />
+  <Ionicons name="time-outline" size={18} color="#8C8C8C" />
   <Text style={styles.timeText}>
     {selectedHour
       ? `${selectedHour.getHours().toString().padStart(2, '0')}:${selectedHour
@@ -829,7 +829,7 @@ activeOpacity={0.85}
 )}
            {/* Niveau (modal) */}
            <TouchableOpacity style={[styles.input, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => setLevelPickerVisible(true)}>
-                <Ionicons name="trending-up-outline" size={18} color="#5B5FFF" />
+                <Ionicons name="trending-up-outline" size={18} color="#8C8C8C" />
              <Text style={styles.levelText}>
                {selectedLevel || "Niveau"}
              </Text>
@@ -873,7 +873,7 @@ activeOpacity={0.85}
   <Ionicons
     name="people-outline"
     size={18}
-    color="#5B5FFF"
+    color="#8C8C8C"
     style={{ marginRight: 8 }}
   />
   
@@ -972,14 +972,11 @@ activeOpacity={0.85}
              onPress={handleEditSession}
              disabled={loading}
            >
-             <LinearGradient
-               colors={['#6dd5ed', '#2193b0']}
-               start={{ x: 0, y: 0 }}
-               end={{ x: 1, y: 1 }}
-               style={styles.buttonGradient}
+             <View
+               style={[styles.buttonGradient, {backgroundColor: '#FE5D02'}]}
              >
                <Text style={styles.buttonText}>{loading ? '...' : 'Modifier la session'}</Text>
-             </LinearGradient>
+             </View>
            </TouchableOpacity>
 
 
@@ -994,16 +991,13 @@ activeOpacity={0.85}
   disabled={loading}
   activeOpacity={0.86}
 >
-  <LinearGradient
-    colors={['#FF5E62', '#FF5E62']}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 1 }}
-    style={styles.buttonGradient}
+  <View
+    style={[styles.buttonGradient, {backgroundColor: '#EB1E1E'}]}
   >
     <Text style={[styles.buttonText, { color: '#fff', fontWeight: 'bold' }]}>
       {loading ? '...' : 'Annuler la session'}
     </Text>
-       </LinearGradient>
+       </View>
       </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1046,11 +1040,12 @@ const styles = StyleSheet.create({
    height: 45,
    alignItems: 'center',
    justifyContent: 'center',
-   borderRadius: 14,
+   borderRadius: 20,
+   marginHorizontal: 20,
  },
  buttonText: {
    color: '#fff',
-   fontSize: 16,
+   fontSize: 15,
    fontWeight: '700',
    fontFamily: FONT,
  },
@@ -1217,6 +1212,16 @@ inlineInput: {
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'center',
+},
+inlineInput1: {
+  flex: 1,
+  height: 52,
+  borderWidth: 1,
+  borderColor: '#E7E7ED',
+  borderRadius: 12,
+  paddingHorizontal: 14,
+  backgroundColor: '#fff',
+  flexDirection: 'row',
 },
 });
 
