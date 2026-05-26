@@ -22,6 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Animated, TouchableWithoutFeedback } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking, Platform } from 'react-native';
+import { useAppForeground } from '../context/AppForegroundContext';
 
 // ---------- Icônes par type
 const ICONS = {
@@ -99,6 +100,7 @@ group_member_left: { name: 'exit-to-app', color: '#ffb300' },
 group_excluded_self: { name: 'account-cancel', color: '#d32f2f' },
 group_exclusion_done: { name: 'account-remove', color: '#d32f2f' },
 group_excluded_others: { name: 'account-cancel', color: '#d32f2f' },
+group_request_received: { name: "account-clock", color: "#F5A623" },
 
 // Paiement
 payment_success: { name: 'credit-card-check-outline', color: '#27ae60' },
@@ -112,8 +114,16 @@ payment_success: { name: 'credit-card-check-outline', color: '#27ae60' },
  //Mise à jour
  app_update: { name: 'update', color: '#3f4fff' },
 
-};
+group_request_accepted:         { name: "account-check",          color: "#27ae60" },
+group_request_accepted_creator: { name: "account-check-outline",  color: "#27ae60" },
+group_request_rejected:         { name: "account-remove",         color: "#d32f2f" },
+friend_removed_sender:          { name: 'account-minus',          color: '#607d8b' },
+friend_removed_receiver:        { name: 'account-minus-outline',  color: '#607d8b' },
+group_session_created:          { name: 'calendar-plus',          color: '#00B8D9' },
+group_session_joined:           { name: 'account-check',          color: '#00B8D9' },
+friend_invited_session:         { name: 'account-arrow-right',    color: '#42a5f5' },
 
+};
 
 // ---------- Thèmes par type
 const TYPE_THEME = {
@@ -151,6 +161,7 @@ const TYPE_MAP = {
   excluded_from_session: 'danger',
   excluded_participant: 'danger',
   exclude_user: 'danger',
+  group_request_received: "group",
 
   // 💬 Messages
   new_message: 'message',
@@ -212,14 +223,21 @@ const TYPE_MAP = {
 
   //Mise à jour
   app_update: 'profile',
-};
 
+  group_request_accepted:         "friend",   // vert — bonne nouvelle
+  group_request_accepted_creator: "group",    // turquoise — confirmation
+  group_request_rejected:         "danger",   // rouge — refus
+
+friend_removed_sender:   'neutral',
+friend_removed_receiver: 'neutral',
+group_session_joined:    'group',
+friend_invited_session:  'friend',
+};
 
 function themeFor(type) {
  const key = TYPE_MAP[type] || 'neutral';
  return TYPE_THEME[key] || TYPE_THEME.neutral;
 }
-
 
 // ---------- Helpers de grouping (Aujourd’hui / Hier / Cette semaine / Plus ancien)
 function sectionLabel(dateISO) {
@@ -398,6 +416,8 @@ useFocusEffect(
   }, [fetchNotifications, triggerRefreshNotifs])
 );
 
+useAppForeground(() => fetchNotifications({ spinner: false }));
+
  // Utils
  async function getToken() {
    const { data: { session } } = await supabase.auth.getSession();
@@ -481,12 +501,6 @@ if (notif.type === 'review_received') {
       return;
     }
 
-    // ⭐ Avis reçu
-    if (notif.type === 'review_received' && notif.sender_id) {
-      navigation.navigate('UserProfile', { userId: notif.sender_id });
-      return;
-    }
-
     // 💥 Ami a rejoint une session
 if (notif.type === 'friend_joined_session' && notif.session_id) {
   navigation.navigate('SessionDetail', {
@@ -534,6 +548,10 @@ const groupTypes = [
   'group_excluded_self',
   'group_exclusion_done',
   'group_excluded_others',
+  'group_request_accepted',
+  'group_request_accepted_creator',
+  'group_request_rejected',
+  'group_request_received',
 ];
 
 if (groupTypes.includes(notif.type)) {
@@ -564,6 +582,15 @@ if (groupTypes.includes(notif.type)) {
       return;
     }
 
+    if (notif.type === 'friend_request_sent') return;
+
+if (notif.type === 'app_update') return;
+
+if (['friend_removed_sender', 'friend_removed_receiver'].includes(notif.type)) {
+  navigation.navigate('MainTabs', { screen: 'Profile' });
+  return;
+}
+
 // 🔥 Tous les types liés à une session
 const sessionTypes = [
   'session_created',
@@ -586,6 +613,7 @@ const sessionTypes = [
   'new_session_nearby',
   'friend_invited_session',
   'friend_joined_session',
+  'group_session_created',
   'group_session_created_self',
   'group_session_updated',
   'group_session_joined',
@@ -915,8 +943,6 @@ time: {
    color: '#3A4152',
    lineHeight: hp('2.5%'),
  },
-
-
  chip: {
    alignSelf: 'flex-start',
    marginTop: 8,
@@ -926,11 +952,7 @@ time: {
    borderWidth: 1,
  },
  chipText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
-
-
  trailing: { paddingLeft: 6, paddingTop: 2, alignSelf: 'flex-start' },
-
-
  // État vide
  emptyBox: { alignItems: 'center', marginTop: hp('10.2%') },
  emptyText: { color: '#8a8c96', fontSize: wp('4.2%'), marginTop: hp('2.3%'), fontWeight: '500' },

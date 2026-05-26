@@ -1,4 +1,4 @@
-import React, { useLayoutEffect } from 'react';
+import React from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -8,14 +8,106 @@ import {
   Alert,
   StyleSheet,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Feather, AntDesign, Entypo, FontAwesome } from '@expo/vector-icons';
+import { Feather, AntDesign, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import { Share } from 'react-native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { Clipboard } from 'react-native';
 
+// ─── Config des sections ──────────────────────────────────────────────────────
+// Chaque item a une couleur d'icône et un fond associé pour une lecture immédiate
+const SECTIONS = [
+  {
+    title: 'Mon compte',
+    items: [
+      {
+        key: 'profile',
+        label: 'Modifier le profil',
+        sub: 'Pseudo, photo, bio',
+        icon: 'person-outline',
+        lib: 'ion',
+        iconColor: '#3888FF',
+        iconBg: '#EBF2FF',
+        route: 'EditProfile',
+      },
+      {
+        key: 'location',
+        label: 'Localisation',
+        sub: 'Géolocalisation et zone',
+        icon: 'location-outline',
+        lib: 'ion',
+        iconColor: '#2ECC71',
+        iconBg: '#EDFBF3',
+        route: 'Location',
+      },
+      {
+        key: 'notifs',
+        label: 'Notifications',
+        sub: 'Alertes et rappels',
+        icon: 'notifications-outline',
+        lib: 'ion',
+        iconColor: '#FFA726',
+        iconBg: '#FFF5E5',
+        route: 'AutorisationNotifications',
+      },
+    ],
+  },
+  {
+    title: 'Informations',
+    items: [
+      {
+        key: 'privacy',
+        label: 'Politique de confidentialité',
+        icon: 'shield-checkmark-outline',
+        lib: 'ion',
+        iconColor: '#7367F0',
+        iconBg: '#F3F1FF',
+        route: 'PrivacyPolicy',
+      },
+      {
+        key: 'terms',
+        label: 'Conditions générales',
+        icon: 'document-text-outline',
+        lib: 'ion',
+        iconColor: '#3CD6E6',
+        iconBg: '#E5FAFA',
+        route: 'Terms',
+      },
+      {
+        key: 'legal',
+        label: 'Mentions légales',
+        icon: 'information-circle-outline',
+        lib: 'ion',
+        iconColor: '#888',
+        iconBg: '#F2F2F2',
+        route: 'MentionsLegales',
+      },
+      {
+  key: 'faq',
+  label: 'FAQ & Aide',
+  sub: 'Questions fréquentes',
+  icon: 'help-circle-outline',
+  lib: 'ion',
+  iconColor: '#FE5D02',
+  iconBg: '#FFF3EE',
+  route: 'FAQ',
+},
+      {
+        key: 'feedback',
+        label: 'Retour et Signalement',
+        icon: 'chatbubble-outline',
+        lib: 'ion',
+        iconColor: '#E9436D',
+        iconBg: '#FFF0F4',
+        route: 'FeedbackAndReport',
+      },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 const SettingsScreen = () => {
   const navigation = useNavigation();
 
@@ -26,285 +118,270 @@ const SettingsScreen = () => {
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Oui',
+          text: 'Se déconnecter',
+          style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.auth.signOut();
-            if (error) {
-              Alert.alert('Erreur', error.message);
-            }
+            if (error) Alert.alert('Erreur', error.message);
           },
-          style: 'destructive',
         },
       ]
     );
   };
 
-const handleDeleteAccount = () => {
-  Alert.alert(
-    'Supprimer le compte',
-    "Attention, cette action est irréversible.\n\nConfirmer la suppression du compte ?",
-    [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const { data: userData, error: userError } = await supabase.auth.getUser();
-            if (userError || !userData?.user) {
-              Alert.alert('Erreur', "Impossible de récupérer l'utilisateur.");
-              return;
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer le compte',
+      'Cette action est irréversible. Toutes tes données seront supprimées définitivement.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: userData, error: userError } = await supabase.auth.getUser();
+              if (userError || !userData?.user) {
+                Alert.alert('Erreur', "Impossible de récupérer l'utilisateur.");
+                return;
+              }
+              const user_id = userData.user.id;
+              const { data: sessionData } = await supabase.auth.getSession();
+              const access_token = sessionData?.session?.access_token;
+              if (!access_token) { Alert.alert('Erreur', "Token d'accès introuvable."); return; }
+
+              const response = await fetch(
+                'https://vznufgpbrunadydudbix.supabase.co/functions/v1/delete-user',
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+                  body: JSON.stringify({ user_id }),
+                }
+              );
+              const result = await response.json();
+              if (!response.ok) { Alert.alert('Erreur', result.error || 'Erreur inconnue'); return; }
+
+              await supabase.auth.signOut();
+              navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+            } catch (err) {
+              Alert.alert('Erreur', err.message || 'Erreur inconnue');
             }
-
-            const user_id = userData.user.id;
-            const { data: sessionData } = await supabase.auth.getSession();
-            const access_token = sessionData?.session?.access_token;
-            if (!access_token) {
-              Alert.alert("Erreur", "Token d'accès introuvable.");
-              return;
-            }
-
-            const response = await fetch('https://vznufgpbrunadydudbix.supabase.co/functions/v1/delete-user', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${access_token}`,
-              },
-              body: JSON.stringify({ user_id }),
-            });
-
-            const result = await response.json();
-            if (!response.ok) {
-              Alert.alert('Erreur', result.error || 'Erreur inconnue');
-              return;
-            }
-
-            await supabase.auth.signOut();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            });
-          } catch (err) {
-            Alert.alert('Erreur', err.message || 'Erreur inconnue');
-          }
+          },
         },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
 
+// Sans expo-clipboard du tout
 const handleShareApp = async () => {
   const shareText =
-    "Le sport est fait pour être partagé. Rejoins Unite, la nouvelle app qui connecte les sportifs autour de toi. Le collectif t’attend → https://www.uniteapp.fr";
+    "Le sport est fait pour être partagé. Rejoins Unite, la nouvelle app qui connecte les sportifs autour de toi. Le collectif t'attend → https://www.uniteapp.fr";
 
-  if (Platform.OS === "android") {
-    await Clipboard.setString(shareText);
-    Alert.alert("Copié !", "Le lien a été copié dans le presse-papier");
-  } else {
-    await Share.share({ message: shareText });
-  }
+  await Share.share({ message: shareText });
 };
+
+  // ── Item de settings ────────────────────────────────────────────────────
+  const SettingsItem = ({ item, isLast }) => (
+    <>
+      <TouchableOpacity
+        style={styles.item}
+        activeOpacity={0.6}
+        onPress={() => navigation.navigate(item.route)}
+      >
+        <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
+          <Ionicons name={item.icon} size={19} color={item.iconColor} />
+        </View>
+
+        <View style={styles.itemTexts}>
+          <Text style={styles.itemLabel}>{item.label}</Text>
+          {item.sub ? <Text style={styles.itemSub}>{item.sub}</Text> : null}
+        </View>
+
+        <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+      </TouchableOpacity>
+
+      {!isLast && <View style={styles.separator} />}
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
+      <StatusBar barStyle="dark-content" backgroundColor="#F6F7FA" />
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        bounces={true}
+        bounces
       >
-        <Text style={styles.sectionHeader}>Compte</Text>
+
+        {/* ── Sections ──────────────────────────────────────────────────── */}
+        {SECTIONS.map(section => (
+          <View key={section.title}>
+            <Text style={styles.sectionLabel}>{section.title}</Text>
+            <View style={styles.card}>
+              {section.items.map((item, idx) => (
+                <SettingsItem
+                  key={item.key}
+                  item={item}
+                  isLast={idx === section.items.length - 1}
+                />
+              ))}
+            </View>
+          </View>
+        ))}
+
+        {/* ── Partager Unite — mise en avant ────────────────────────────── */}
+        <TouchableOpacity
+          style={styles.shareCard}
+          onPress={handleShareApp}
+          activeOpacity={0.88}
+        >
+          <View style={[styles.iconBox, { backgroundColor: '#FFF0F8' }]}>
+            <Ionicons name="share-social-outline" size={19} color="#F62DAE" />
+          </View>
+          <View style={styles.itemTexts}>
+            <Text style={[styles.itemLabel, { color: '#000' }]}>Partager Unite</Text>
+            <Text style={styles.itemSub}>Invite tes coéquipiers à rejoindre</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#F62DAE" style={{ opacity: 0.4 }} />
+        </TouchableOpacity>
+
+        {/* ── Zone danger ────────────────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>Compte</Text>
         <View style={styles.card}>
-          <SettingsItem
-            icon={<AntDesign name="user" size={21} color="#888" />}
-            label="Modifier le profil"
-            onPress={() => navigation.navigate('EditProfile')}
-          />
-          <ItemSeparator />
-          <SettingsItem
-            icon={<Entypo name="location-pin" size={21} color="#888" />}
-            label="Localisation"
-            onPress={() => navigation.navigate('Location')}
-          />
-          <ItemSeparator />
-          <SettingsItem
-            icon={<Feather name="bell" size={21} color="#888" />}
-            label="Notifications"
-            onPress={() => navigation.navigate('AutorisationNotifications')}
-          />
+
+          {/* Déconnexion */}
+          <TouchableOpacity style={styles.item} activeOpacity={0.6} onPress={handleLogout}>
+            <View style={[styles.iconBox, { backgroundColor: '#F2F2F2' }]}>
+              <Ionicons name="log-out-outline" size={19} color="#555" />
+            </View>
+            <View style={styles.itemTexts}>
+              <Text style={styles.itemLabel}>Se déconnecter</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+          </TouchableOpacity>
+
+          <View style={styles.separator} />
+
+          {/* Supprimer */}
+          <TouchableOpacity style={styles.item} activeOpacity={0.6} onPress={handleDeleteAccount}>
+            <View style={[styles.iconBox, { backgroundColor: '#FFF0F0' }]}>
+              <Ionicons name="trash-outline" size={19} color="#EB1E1E" />
+            </View>
+            <View style={styles.itemTexts}>
+              <Text style={[styles.itemLabel, { color: '#EB1E1E' }]}>Supprimer le compte</Text>
+              <Text style={styles.itemSub}>Action irréversible</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#EB1E1E" style={{ opacity: 0.3 }} />
+          </TouchableOpacity>
+
         </View>
 
-        <Text style={styles.sectionHeader}>Général</Text>
-        <View style={styles.card}>
-          <SettingsItem
-            icon={<AntDesign name="questioncircleo" size={21} color="#888" />}
-            label="Politique de confidentialité"
-            onPress={() => navigation.navigate('PrivacyPolicy')}
-          />
-          <ItemSeparator />
-          <SettingsItem
-            icon={<FontAwesome name="shield" size={21} color="#888" />}
-            label="Conditions générales"
-            onPress={() => navigation.navigate('Terms')}
-          />
-          <ItemSeparator />
-          <SettingsItem
-            icon={<AntDesign name="filetext1" size={21} color="#888" />}
-            label="Mentions légales"
-            onPress={() => navigation.navigate('MentionsLegales')}
-          />
-          <ItemSeparator />
-          <SettingsItem
-           icon={<Feather name="message-square" size={21} color="#888" />}
-           label="Retour et Signalement"
-           onPress={() => navigation.navigate('FeedbackAndReport')}
-          />
-          <ItemSeparator />
-          <SettingsItem
-            icon={<Feather name="share" size={21} color="#1976d2" />}
-            label="Partager Unite"
-            onPress={handleShareApp}
-          />
-         </View>
+        {/* ── Version ────────────────────────────────────────────────────── */}
+        <Text style={styles.version}>Unite · v1.0.7</Text>
 
-        <View style={styles.cardAction}>
-          <TouchableOpacity
-            style={styles.logoutBtn}
-            activeOpacity={0.8}
-            onPress={handleLogout}
-          >
-            <Feather name="log-out" size={18} color="#fff" />
-            <Text style={styles.logoutText}>Se déconnecter</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            activeOpacity={0.8}
-            onPress={handleDeleteAccount}
-          >
-            <Feather name="trash-2" size={18} color="#fff" />
-            <Text style={styles.deleteText}>Supprimer le compte</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-const ItemSeparator = () => (
-  <View style={{ height: 1, backgroundColor: '#f0f0f3', marginLeft: 54 }} />
-);
+export default SettingsScreen;
 
-const SettingsItem = ({ icon, label, onPress }) => (
-  <TouchableOpacity
-    style={styles.item}
-    activeOpacity={0.6}
-    onPress={onPress}
-  >
-    <View style={styles.iconBox}>{icon}</View>
-    <Text style={styles.itemText}>{label}</Text>
-    <AntDesign name="right" size={16} color="#bbb" />
-  </TouchableOpacity>
-);
-
+// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
-    backgroundColor: '#f6f7fa',
+    backgroundColor: '#F6F7FA',
   },
-  scrollContainer: {
-    padding: wp('4.7%'),
-    paddingBottom: hp('2.2%'),
-    flexGrow: 1,
-    justifyContent: 'flex-start',
+  scroll: {
+    paddingHorizontal: wp('4.5%'),
+    paddingTop: hp('1.5%'),
+    paddingBottom: hp('4%'),
   },
-  sectionHeader: {
-    fontSize: wp('3.2%'),
+
+  // ── Section label ─────────────────────────────────────────────────────────
+  sectionLabel: {
+    fontSize: wp('3%'),
     fontWeight: '700',
-    marginLeft: wp('1.5%'),
-    marginTop: hp('1.1%'),
-    marginBottom: hp('1.2%'),
-    letterSpacing: 0.2,
-    color: '#555',
+    color: '#ABABAB',
     textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginLeft: wp('1.5%'),
+    marginTop: hp('2%'),
+    marginBottom: hp('1%'),
   },
+
+  // ── Card ──────────────────────────────────────────────────────────────────
   card: {
     backgroundColor: '#fff',
-    borderRadius: wp('5%'),
-    paddingVertical: hp('0.45%'),
-    shadowColor: '#191A20',
-    shadowOffset: { width: 0, height: hp('0.25%') },
-    shadowOpacity: 0.08,
-    shadowRadius: wp('2.1%'),
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
-    marginBottom: hp('2.5%'),
   },
-  cardAction: {
-    backgroundColor: '#fff',
-    borderRadius: wp('5%'),
-    paddingVertical: hp('1.5%'),
-    paddingHorizontal: wp('4%'),
-    marginTop: hp('1.3%'),
-    shadowColor: '#191A20',
-    shadowOffset: { width: 0, height: hp('0.25%') },
-    shadowOpacity: 0.07,
-    shadowRadius: wp('1.9%'),
-    elevation: 1,
-  },
+
+  // ── Item ──────────────────────────────────────────────────────────────────
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: hp('2%'),
-    paddingHorizontal: wp('3.5%'),
+    paddingVertical: hp('1.8%'),
+    paddingHorizontal: wp('4%'),
   },
   iconBox: {
-    width: wp('8.3%'),
-    height: wp('8.3%'),
-    borderRadius: wp('4.65%'),
-    backgroundColor: '#f1f4f9',
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: wp('3.6%'),
+    marginRight: wp('3.5%'),
+    flexShrink: 0,
   },
-  itemText: {
+  itemTexts: {
     flex: 1,
+    gap: 2,
+  },
+  itemLabel: {
     fontSize: wp('3.9%'),
-    color: '#222',
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  itemSub: {
+    fontSize: wp('3.2%'),
+    color: '#BBBBBB',
+    fontWeight: '400',
+  },
+
+  // ── Séparateur indenté ────────────────────────────────────────────────────
+  separator: {
+    height: 1,
+    backgroundColor: '#F5F5F7',
+    marginLeft: wp('4%') + 38 + wp('3.5%'),  // aligne avec le texte
+  },
+
+  // ── Share card (standalone) ───────────────────────────────────────────────
+  shareCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    paddingVertical: hp('1.8%'),
+    paddingHorizontal: wp('4%'),
+    marginTop: hp('2%'),
+    borderWidth: 1.5,
+    borderColor: '#d3d3d3',
+    elevation: 2,
+  },
+
+  // ── Version ───────────────────────────────────────────────────────────────
+  version: {
+    textAlign: 'center',
+    fontSize: wp('3.2%'),
+    color: '#CCCCCC',
     fontWeight: '500',
-  },
-  logoutBtn: {
-    backgroundColor: '#383838',
-    borderRadius: wp('3.3%'),
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: hp('1.7%'),
-    marginBottom: hp('1.1%'),
-    marginHorizontal: 10,
-  },
-  logoutText: {
-    color: '#fff',
-    fontWeight: '600',
-    marginLeft: wp('1.7%'),
-    fontSize: wp('3.5%'),
-    letterSpacing: 0.1,
-  },
-  deleteBtn: {
-    backgroundColor: '#EB1E1E',
-    borderRadius: wp('3.3%'),
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: hp('1.7%'),
-    marginTop: hp('0.5%'),
-    marginHorizontal: 10,
-  },
-  deleteText: {
-    color: '#fff',
-    fontWeight: '600',
-    marginLeft: wp('1.7%'),
-    fontSize: wp('3.5%'),
-    letterSpacing: 0.1,
+    marginTop: hp('3%'),
   },
 });
-
-export default SettingsScreen;

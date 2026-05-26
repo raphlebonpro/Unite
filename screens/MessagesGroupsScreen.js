@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,501 +13,482 @@ import {
   Platform,
   RefreshControl,
   Pressable,
+  Animated,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import MiniAppBar from '../components/MiniAppBar';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// ─── Sport meta ───────────────────────────────────────────────────────────────
+const sportMeta = {
+  Football:          { bg: '#EBF2FF', color: '#3888FF', icon: 'futbol',            lib: 'fa5' },
+  Basketball:        { bg: '#FFF5E5', color: '#FFA726', icon: 'basketball',         lib: 'mci' },
+  Tennis:            { bg: '#EDFBF3', color: '#2ECC71', icon: 'tennis',             lib: 'mci' },
+  Padel:             { bg: '#FFFDE5', color: '#C8A800', icon: 'tennis',             lib: 'mci' },
+  Running:           { bg: '#FFF0F4', color: '#E9436D', icon: 'run-fast',           lib: 'mci' },
+  Cyclisme:          { bg: '#E5FAFA', color: '#3CD6E6', icon: 'bike',               lib: 'mci' },
+  Natation:          { bg: '#E5F0FB', color: '#1469B9', icon: 'swim',               lib: 'mci' },
+  Musculation:       { bg: '#F3F1FF', color: '#7367F0', icon: 'dumbbell',           lib: 'mci' },
+  Fitness:           { bg: '#F3F0FF', color: '#7C4DFF', icon: 'weight-lifter',      lib: 'mci' },
+  'Randonnée/Trail': { bg: '#EDFBF3', color: '#43A047', icon: 'hiking',             lib: 'mci' },
+  Yoga:              { bg: '#F4EFFE', color: '#A259F7', icon: 'yoga',               lib: 'mci' },
+  Danse:             { bg: '#FFF0F6', color: '#F48FB1', icon: 'human-female-dance', lib: 'mci' },
+  CrossFit:          { bg: '#ECEDFF', color: '#536DFE', icon: 'dumbbell',           lib: 'mci' },
+  Surf:              { bg: '#E5FAFA', color: '#26C6DA', icon: 'surfing',            lib: 'mci' },
+  Escalade:          { bg: '#EDFBF3', color: '#689F38', icon: 'terrain',            lib: 'mci' },
+  'Arts Martiaux':   { bg: '#FFF0EC', color: '#FF3D00', icon: 'boxing-glove',       lib: 'mci' },
+};
+
+const getSportMeta = (sport) =>
+  sportMeta[sport] || { bg: '#F2F2F2', color: '#999', icon: 'dots-horizontal', lib: 'mci' };
+
+const SportIcon = ({ sport, size = 20 }) => {
+  const meta = getSportMeta(sport);
+  if (meta.lib === 'fa5') return <FontAwesome5 name={meta.icon} size={size} color={meta.color} />;
+  return <MaterialCommunityIcons name={meta.icon} size={size} color={meta.color} />;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 const MessagesGroupsScreen = () => {
   const navigation = useNavigation();
   const { user } = useUser();
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
 
-  const insets = useSafeAreaInsets();
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [activeTab, setActiveTab] = useState('sessions');
-
-  const [groups, setGroups] = useState([]);
+  const [sessions, setSessions]           = useState([]);
+  const [groups, setGroups]               = useState([]);
+  const [loading, setLoading]             = useState(true);
   const [loadingGroups, setLoadingGroups] = useState(true);
+  const [refreshing, setRefreshing]       = useState(false);
+  const [search, setSearch]               = useState('');
+  const [activeTab, setActiveTab]         = useState('sessions');
 
-const onRefresh = async () => {
-  setRefreshing(true);
-  await fetchSessions();           // re-fetch list
-  setRefreshing(false);
-};
+  // ── Tab indicator animé ────────────────────────────────────────────────────
+  const tabAnim = useRef(new Animated.Value(0)).current;
+  const switchTab = (tab) => {
+    setActiveTab(tab);
+    setSearch('');
+    Animated.spring(tabAnim, {
+      toValue: tab === 'sessions' ? 0 : 1,
+      useNativeDriver: false,
+      tension: 80,
+      friction: 12,
+    }).start();
+  };
 
-const handleDeleteAllGroups = () => {
-  Alert.alert(
-    'Tout effacer',
-    'Es-tu sûr de vouloir supprimer tous tes groupes de messages ?',
-    [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Effacer',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase
-            .from('session_participants')
-            .delete()
-            .eq('user_id', user.id);
-
-          if (error) {
-            Alert.alert('Erreur', 'Impossible de supprimer tous les groupes.');
-          } else {
-            setSessions([]);
-          }
-        },
-      },
-    ]
-  );
-};
-
-  // sessions visibles après filtre
+  // ── Filtres ────────────────────────────────────────────────────────────────
   const filteredSessions = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter(s => s.title.toLowerCase().includes(q));
+    return q ? sessions.filter(s => s.title.toLowerCase().includes(q)) : sessions;
   }, [sessions, search]);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    fetchGroups();
-  }, [user?.id]);
+  const filteredGroups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? groups.filter(g => g.name.toLowerCase().includes(q)) : groups;
+  }, [groups, search]);
 
-const fetchSessions = async () => {
-  try {
-    setLoading(true);
+  // ── Fetch sessions ─────────────────────────────────────────────────────────
+  const fetchSessions = async () => {
+    try {
+      setLoading(true);
 
-    // 1️⃣ sessions de l’utilisateur
-    const { data: sessionsData, error } = await supabase
-      .from('session_participants')
-      .select('session_id, sessions(id, title, sport, date, time)')
-      .eq('user_id', user.id);
+      const { data: sessionsData, error } = await supabase
+        .from('session_participants')
+        .select('session_id, sessions(id, title, sport, date, time)')
+        .eq('user_id', user.id);
+      if (error) throw error;
 
-    if (error) throw error;
+      const { data: lastMessages } = await supabase
+        .from('messages')
+        .select('session_id, created_at, sender_id, content')
+        .order('created_at', { ascending: false });
 
-// ✅ 1️⃣ Récupère TOUS les derniers messages (1 requête)
-const { data: lastMessages } = await supabase
-  .from('messages')
-  .select('session_id, created_at, sender_id')
-  .order('created_at', { ascending: false });
+      // Dernier message par session
+      const lastMessageMap = {};
+      lastMessages?.forEach(msg => {
+        if (!lastMessageMap[msg.session_id]) lastMessageMap[msg.session_id] = msg;
+      });
 
-// Map : session_id → dernier message
-const lastMessageMap = {};
-lastMessages?.forEach(msg => {
-  if (!lastMessageMap[msg.session_id]) {
-    lastMessageMap[msg.session_id] = msg;
-  }
-});
+      // last_seen par session (AsyncStorage)
+      const keys = (sessionsData || [])
+        .filter(i => i.sessions)
+        .map(i => `last_seen_${i.sessions.id}`);
+      const seenPairs = await AsyncStorage.multiGet(keys);
+      const lastSeenMap = {};
+      seenPairs.forEach(([key, value]) => {
+        if (value) lastSeenMap[key.replace('last_seen_', '')] = value;
+      });
 
-    const now = new Date();
+      const now = new Date();
+      const cleanSessions = (sessionsData || [])
+        .filter(i => i.sessions)
+        .map(item => {
+          const startDate = new Date(`${item.sessions.date}T${item.sessions.time}`);
+          const lastMsg   = lastMessageMap[item.sessions.id];
+          const lastSeen  = lastSeenMap[item.sessions.id];
 
-    // ✅ 2️⃣ Récupère tous les last_seen en une fois
-const keys = (sessionsData || [])
-  .filter(item => item.sessions)
-  .map(item => `last_seen_${item.sessions.id}`);
+          // ── Logique non-lus simplifiée (booléen) — à affiner selon tes besoins
+          const hasUnread =
+            lastMsg &&
+            lastMsg.sender_id !== user.id &&
+            (!lastSeen || new Date(lastMsg.created_at) > new Date(lastSeen));
 
-const seenPairs = await AsyncStorage.multiGet(keys);
+          return {
+            id:            item.sessions.id,
+            title:         item.sessions.title,
+            sport:         item.sessions.sport,
+            date:          item.sessions.date,
+            time:          item.sessions.time,
+            startDate,
+            status:        startDate < now ? 'terminated' : 'active',
+            lastMessage:   lastMsg?.content  || null,
+            lastMessageAt: lastMsg?.created_at || null,
+            hasUnread:     !!hasUnread,
+          };
+        });
 
-// Map : session_id → lastSeen
-const lastSeenMap = {};
-seenPairs.forEach(([key, value]) => {
-  if (value) {
-    const sessionId = key.replace('last_seen_', '');
-    lastSeenMap[sessionId] = value;
-  }
-});
+      cleanSessions.sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+        return a.status === 'active'
+          ? a.startDate - b.startDate
+          : b.startDate - a.startDate;
+      });
 
-const cleanSessions = (sessionsData || [])
-    .filter(item => item.sessions)
-.map(item => {
-  const startDate = new Date(
-    `${item.sessions.date}T${item.sessions.time}`
-  );
-
-  const isPast = startDate < now;
-
-  const lastMsg = lastMessageMap[item.sessions.id];
-  const lastSeen = lastSeenMap[item.sessions.id];
-
-  const hasUnread =
-    lastMsg &&
-    lastMsg.sender_id !== user.id &&
-    (!lastSeen || new Date(lastMsg.created_at) > new Date(lastSeen));
-
-  return {
-    id: item.sessions.id,
-    title: item.sessions.title,
-    sport: item.sessions.sport,
-    date: item.sessions.date,
-    time: item.sessions.time,
-    startDate,
-    status: isPast ? 'terminated' : 'active',
-    hasUnread,
+      setSessions(cleanSessions);
+      setLoading(false);
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
   };
-});
 
-    // 3️⃣ TRI
-    cleanSessions.sort((a, b) => {
-      if (a.status !== b.status) {
-        return a.status === 'active' ? -1 : 1;
-      }
-      if (a.status === 'active') {
-        return a.startDate - b.startDate;
-      }
-      return b.startDate - a.startDate;
-    });
+  useFocusEffect(useCallback(() => { if (user?.id) fetchSessions(); }, [user?.id]));
 
-    setSessions(cleanSessions);
-
-    setLoading(false);
-  } catch (e) {
-    console.error(e);
-    setLoading(false);
-  }
-};
-
-useFocusEffect(
-  useCallback(() => {
-    if (user?.id) {
-      fetchSessions();
-    }
-  }, [user?.id])
-);
-
+  // ── Fetch groups ───────────────────────────────────────────────────────────
   const fetchGroups = async () => {
-  try {
-    setLoadingGroups(true);
-    const { data, error } = await supabase
-      .from("group_members")
-      .select(`
-        group_id,
-        groups (
-          id,
-          name,
-          sport,
-          city,
-          cover_url
-        )
-      `)
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("Erreur fetchGroups:", error);
-      setGroups([]);
+    try {
+      setLoadingGroups(true);
+      const { data, error } = await supabase
+        .from('group_members')
+        .select('group_id, groups(id, name, sport, city, cover_url)')
+        .eq('user_id', user.id);
+      if (error) { setGroups([]); setLoadingGroups(false); return; }
+      setGroups((data || []).filter(i => i.groups).map(i => ({ ...i.groups })));
       setLoadingGroups(false);
-      return;
-    }
+    } catch { setLoadingGroups(false); }
+  };
 
-    // Nettoyage des données
-const cleanGroups = (data || [])
-  .filter(item => item.groups)
-  .map(item => ({
-    id: item.groups.id,
-    name: item.groups.name,
-    sport: item.groups.sport,
-    city: item.groups.city,
-    cover_url: item.groups.cover_url,
-  }));
+  useEffect(() => { if (user?.id) fetchGroups(); }, [user?.id]);
 
-    setGroups(cleanGroups);
-    setLoadingGroups(false);
-  } catch (err) {
-    console.error("Erreur globale fetchGroups:", err);
-    setLoadingGroups(false);
-  }
-};
+  // ── Actions ────────────────────────────────────────────────────────────────
+  const onRefresh = async () => { setRefreshing(true); await fetchSessions(); setRefreshing(false); };
 
-const handleGroupPress = async (sessionId) => {
-  const now = new Date().toISOString();
+  const handleGroupPress = async (sessionId) => {
+    await AsyncStorage.setItem(`last_seen_${sessionId}`, new Date().toISOString());
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, hasUnread: false } : s));
+    navigation.navigate('SessionMessages', { sessionId });
+  };
 
-  // ✅ on enregistre la lecture
-  await AsyncStorage.setItem(
-    `last_seen_${sessionId}`,
-    now
-  );
-
-  navigation.navigate('SessionMessages', { sessionId });
-};
-
-  const handleDeleteGroup = (sessionId, sessionTitle) => {
+  const handleDeleteGroup = (sessionId, title) => {
     Alert.alert(
-      'Supprimer le groupe',
-      `Tu es sur le point de supprimer le groupe "${sessionTitle}". Cette action est irréversible. Continuer ?`,
+      'Quitter le groupe',
+      `Quitter "${title}" ? Tu n'auras plus accès aux messages.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: 'Quitter',
           style: 'destructive',
-          onPress: () => deleteGroup(sessionId),
+          onPress: async () => {
+            const { error } = await supabase
+              .from('session_participants').delete()
+              .eq('user_id', user.id).eq('session_id', sessionId);
+            if (!error) setSessions(prev => prev.filter(s => s.id !== sessionId));
+          },
         },
       ]
     );
   };
 
-  const deleteGroup = async (sessionId) => {
-    setLoading(true);
-    const { error } = await supabase
-      .from('session_participants')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('session_id', sessionId);
-
-    if (error) {
-      Alert.alert('Erreur', 'Impossible de supprimer ce groupe.');
-    } else {
-      // retire du state + pastille
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-    }
-    setLoading(false);
+  const handleDeleteAll = () => {
+    Alert.alert(
+      'Tout effacer',
+      'Supprimer tous tes groupes de messages ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Effacer',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('session_participants').delete().eq('user_id', user.id);
+            if (!error) setSessions([]);
+          },
+        },
+      ]
+    );
   };
 
-return (
-  <View style={{ flex: 1, backgroundColor: '#fff' }}>
-    {/* ✅ Supprime les doubles SafeArea + StatusBar fixe */}
-<StatusBar
-  translucent={false}
-  backgroundColor="#fff"
-  barStyle="dark-content"
-/>
+  // ── Helper horodatage ──────────────────────────────────────────────────────
+  const formatTime = (isoStr) => {
+    if (!isoStr) return '';
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return 'maintenant';
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(diff / 3600000);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(diff / 86400000);
+    if (d < 7)  return `${d}j`;
+    return new Date(isoStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  };
 
-    {/* ✅ MiniAppBar stabilisée */}
-    <MiniAppBar
-      title="Messages"
-      onNotificationsPress={() => navigation.navigate('Notifications')}
-      onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
-      showLeaderboard={false}
-    />
+  // ── Search bar ─────────────────────────────────────────────────────────────
+  const SearchBar = ({ placeholder }) => (
+    <View style={styles.searchWrap}>
+      <Ionicons name="search-outline" size={17} color="#C0C0C0" />
+      <TextInput
+        style={styles.searchInput}
+        placeholder={placeholder}
+        placeholderTextColor="#C0C0C0"
+        value={search}
+        onChangeText={setSearch}
+        returnKeyType="search"
+      />
+      {search.length > 0 && (
+        <TouchableOpacity
+          onPress={() => setSearch('')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="close-circle" size={17} color="#CCC" />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 
-    {/* ✅ Espace compensateur pour ne pas que le contenu passe sous la barre */}
-    <View style={{ flex: 1, paddingTop: Platform.OS === 'android' ? 0 : 0 }}>
-      {/* 🔹 Toggle Sessions / Groupes */}
-      <View style={styles.tabContainer}>
-        {['sessions', 'groups'].map((tab) => {
-          const isActive = activeTab === tab;
-          return (
-<Pressable
-  key={tab}
-  onPress={() => setActiveTab(tab)}
-  style={({ pressed }) => [
-    styles.tabButton,
-    isActive && styles.tabWrapperActive,
-    pressed && { opacity: 0.85 },
-  ]}
->
-  <Text
-    style={[
-      styles.tabText,
-      isActive && styles.tabTextActive,
-    ]}
-  >
-    {tab === 'sessions' ? 'Sessions' : 'Groupes'}
-  </Text>
-</Pressable>
-          );
-        })}
-      </View>
+  // ── Session row ────────────────────────────────────────────────────────────
+  const SessionItem = ({ item }) => {
+    const meta     = getSportMeta(item.sport);
+    const isActive = item.status === 'active';
 
-        {/* 🔹 Bouton “Effacer tous les groupes” */}
-        {sessions.length > 0 && (
-          <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 4 }}>
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 20,
-                backgroundColor: '#FDECEC',
-              }}
-              onPress={handleDeleteAllGroups}
-              activeOpacity={0.84}
-            >
-              <Feather name="trash-2" size={17} color="#D83C3C" style={{ marginRight: 7 }} />
-              <Text style={{ color: '#D83C3C', fontWeight: '600' }}>
-                Effacer tous les groupes
-              </Text>
-            </TouchableOpacity>
+    return (
+      <View style={[styles.row, item.hasUnread && styles.rowUnread]}>
+        <TouchableOpacity
+          style={styles.rowTouchable}
+          activeOpacity={0.72}
+          onPress={() => handleGroupPress(item.id)}
+        >
+          {/* Avatar */}
+          <View style={[styles.avatar, { backgroundColor: meta.bg }]}>
+            <SportIcon sport={item.sport} size={22} />
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: isActive ? '#2ECC71' : '#C0C0C0' },
+            ]} />
           </View>
-        )}
 
-        {/* 🔹 Contenu principal */}
-        {activeTab === 'sessions' ? (
-          <>
-            {/* Barre de recherche */}
-            {sessions.length > 0 && (
-              <View style={styles.searchContainer}>
-                <Ionicons name="search-outline" size={22} color="#B8B8B8" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Chercher un groupe de session"
-                  placeholderTextColor="#B8B8B8"
-                  value={search}
-                  onChangeText={setSearch}
-                />
-              </View>
-            )}
+          {/* Textes */}
+          <View style={styles.rowContent}>
+            <View style={styles.rowTop}>
+              <Text
+                style={[styles.rowTitle, item.hasUnread && styles.rowTitleBold]}
+                numberOfLines={1}
+              >
+                {item.title}
+              </Text>
+              <Text style={[styles.rowTime, item.hasUnread && styles.rowTimeOrange]}>
+                {formatTime(item.lastMessageAt)}
+              </Text>
+            </View>
 
-            {/* Liste des sessions */}
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator
-                  size={Platform.OS === 'ios' ? 'large' : 50}
-                  color="#FF6B3C"
-                />
-              </View>
-            ) : filteredSessions.length === 0 ? (
-              <FlatList
-                data={[]}
-                keyExtractor={() => 'empty'}
-                ListEmptyComponent={
-                  <View style={styles.emptyBox}>
-                    <MaterialCommunityIcons
-                      name="message-text-outline"
-                      size={68}
-                      color="#bbb"
-                    />
-                    <Text style={styles.emptyText}>Aucun groupe trouvé</Text>
-                  </View>
-                }
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={onRefresh}
-                    colors={['#5B4EFF']}
-                    tintColor="#5B4EFF"
-                    progressBackgroundColor="#fff"
-                  />
-                }
-              />
-            ) : (
-              <FlatList
-                data={filteredSessions}
-                keyExtractor={(item) => String(item.id)}
-                renderItem={({ item }) => {
-                  const hasUnread = item.hasUnread;
-                  return (
-                    <View style={styles.groupRow}>
-                      <TouchableOpacity
-                        style={styles.groupTouchable}
-                        activeOpacity={0.7}
-                        onPress={() => handleGroupPress(item.id)}
-                      >
-                        <View style={styles.avatarCircle}>
-                          <Text style={styles.avatarLetter}>
-                            {item.title.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
+            <View style={styles.rowBottom}>
+              <Text
+                style={[styles.rowPreview, item.hasUnread && styles.rowPreviewBold]}
+                numberOfLines={1}
+              >
+                {item.lastMessage || (isActive ? item.sport : 'Session terminée')}
+              </Text>
 
-<View style={styles.infoContainer}>
-  <View style={styles.titleRow}>
-    <Text style={styles.groupTitle} numberOfLines={1}>
-      {item.title}
-    </Text>
+              {/* ── Badge non-lus ── simple point orange */}
+              {item.hasUnread && <View style={styles.unreadDot} />}
+            </View>
+          </View>
+        </TouchableOpacity>
 
-    {hasUnread && <View style={styles.unreadDot} />}
-  </View>
+        {/* Poubelle — toujours visible, gris discret */}
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={() => handleDeleteGroup(item.id, item.title)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Feather name="trash-2" size={18} color="#D0D0D0" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
-  <Text style={styles.groupSport} numberOfLines={1}>
-    {item.sport}
-  </Text>
-</View>
+  // ── Group row ──────────────────────────────────────────────────────────────
+  const GroupItem = ({ item }) => {
+    const meta = getSportMeta(item.sport);
+    return (
+      <TouchableOpacity
+        style={styles.row}
+        activeOpacity={0.72}
+        onPress={() => navigation.navigate('GroupChat', { groupId: item.id })}
+      >
+        <View style={[styles.avatar, { backgroundColor: meta.bg }]}>
+          {item.cover_url
+            ? <Image source={{ uri: item.cover_url }} style={styles.avatarImg} />
+            : <SportIcon sport={item.sport} size={22} />
+          }
+        </View>
 
-</TouchableOpacity>
-<View style={styles.statusRow}>
-    <View
-      style={[
-        styles.statusDot,
-        { backgroundColor: item.status === 'active' ? '#2ECC71' : '#B0B0B0' },
-      ]}
-    />
-    <Text style={styles.statusText}>
-      {item.status === 'active' ? 'En cours' : 'Terminée'}
-    </Text>
-  </View>
+        <View style={styles.rowContent}>
+          <View style={styles.rowTop}>
+            <Text style={styles.rowTitle} numberOfLines={1}>{item.name}</Text>
+            <View style={[styles.sportTag, { backgroundColor: meta.bg }]}>
+              <Text style={[styles.sportTagText, { color: meta.color }]}>{item.sport}</Text>
+            </View>
+          </View>
+          <View style={styles.rowBottom}>
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              size={12}
+              color="#C0C0C0"
+              style={{ marginRight: 3 }}
+            />
+            <Text style={styles.rowPreview} numberOfLines={1}>{item.city || 'Groupe'}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDeleteGroup(item.id, item.title)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Feather name="trash-2" size={22} color="#D83C3C" />
-                      </TouchableOpacity>
+  // ── Empty state ────────────────────────────────────────────────────────────
+  const EmptyState = ({ icon, title, subtitle }) => (
+    <View style={styles.emptyWrap}>
+      <View style={styles.emptyIconBox}>
+        <MaterialCommunityIcons name={icon} size={34} color="#D8D8D8" />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.emptySub}>{subtitle}</Text> : null}
+    </View>
+  );
+
+  // ── Tab indicator ──────────────────────────────────────────────────────────
+  const indicatorLeft = tabAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['2%', '52%'],
+  });
+  const unreadCount = sessions.filter(s => s.hasUnread).length;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <StatusBar translucent={false} backgroundColor="#fff" barStyle="dark-content" />
+
+      <MiniAppBar
+        title="Messages"
+        onNotificationsPress={() => navigation.navigate('Notifications')}
+        onLeaderboardPress={() => navigation.navigate('LeaderBoard')}
+        showLeaderboard={false}
+      />
+
+      <View style={{ flex: 1 }}>
+
+        {/* ── Tabs ──────────────────────────────────────────────────────── */}
+        <View style={styles.tabContainer}>
+          <Animated.View style={[styles.tabIndicator, { left: indicatorLeft }]} />
+
+          {[
+            { key: 'sessions', label: 'Sessions', badge: unreadCount },
+            { key: 'groups',   label: 'Groupes',  badge: 0 },
+          ].map(({ key, label, badge }) => {
+            const isActive = activeTab === key;
+            return (
+              <Pressable key={key} onPress={() => switchTab(key)} style={styles.tabBtn}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                    {label}
+                  </Text>
+                  {badge > 0 && (
+                    <View style={styles.tabBadge}>
+                      <Text style={styles.tabBadgeText}>{badge}</Text>
                     </View>
-                  );
-                }}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={onRefresh}
-                    colors={['#5B4EFF']}
-                    tintColor="#5B4EFF"
-                    progressBackgroundColor="#fff"
-                  />
-                }
-                contentContainerStyle={{
-                  paddingBottom: 8,
-                  backgroundColor: '#fff',
-                }}
-              />
-            )}
-          </>
-        ) : (
-          // 🔹 Liste des groupes
-          loadingGroups ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator
-                size={Platform.OS === 'ios' ? 'large' : 50}
-                color="#FF6B3C"
-              />
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* ── Search ────────────────────────────────────────────────────── */}
+        <SearchBar
+          placeholder={
+            activeTab === 'sessions' ? 'Rechercher une session…' : 'Rechercher un groupe…'
+          }
+        />
+
+        {/* ── Contenu sessions ──────────────────────────────────────────── */}
+        {activeTab === 'sessions' ? (
+          loading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size={Platform.OS === 'ios' ? 'large' : 50} color="#FE5D02" />
             </View>
-          ) : groups.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <MaterialCommunityIcons
-                name="account-group-outline"
-                size={68}
-                color="#bbb"
-              />
-              <Text style={styles.emptyText}>Aucun groupe rejoint pour le moment</Text>
-            </View>
+          ) : filteredSessions.length === 0 ? (
+            <EmptyState
+              icon="message-text-outline"
+              title={search ? 'Aucune session trouvée' : 'Aucun groupe de session'}
+              subtitle={!search ? 'Rejoins une session pour tchatter avec tes coéquipiers' : undefined}
+            />
           ) : (
             <FlatList
-              data={groups}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.groupRow}
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate("GroupChat", { groupId: item.id })}
-                >
-                  <View style={styles.avatarCircle}>
-                    {item.cover_url ? (
-                      <Image
-                        source={{ uri: item.cover_url }}
-                        style={{ width: 50, height: 50, borderRadius: 25 }}
-                      />
-                    ) : (
-                      <Text style={styles.avatarLetter}>
-                        {item.name.charAt(0).toUpperCase()}
-                      </Text>
-                    )}
+              data={filteredSessions}
+              keyExtractor={item => String(item.id)}
+              renderItem={({ item }) => <SessionItem item={item} />}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#FE5D02']}
+                  tintColor="#FE5D02"
+                />
+              }
+              contentContainerStyle={{ paddingBottom: 24 }}
+              ListFooterComponent={
+                sessions.length > 0 ? (
+                  <View style={{ alignItems: 'center', paddingTop: 14 }}>
+                    <TouchableOpacity
+                      style={styles.deleteAllBtn}
+                      onPress={handleDeleteAll}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="trash-2" size={13} color="#D83C3C" style={{ marginRight: 5 }} />
+                      <Text style={styles.deleteAllText}>Tout effacer</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.infoContainer}>
-                    <Text style={styles.groupTitle}>{item.name}</Text>
-                    <Text style={styles.groupSport}>
-                      {item.sport} • {item.city}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+                ) : null
+              }
+            />
+          )
+        ) : (
+          /* ── Contenu groupes ────────────────────────────────────────── */
+          loadingGroups ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size={Platform.OS === 'ios' ? 'large' : 50} color="#FE5D02" />
+            </View>
+          ) : filteredGroups.length === 0 ? (
+            <EmptyState
+              icon="account-group-outline"
+              title={search ? 'Aucun groupe trouvé' : 'Aucun groupe rejoint'}
+              subtitle={!search ? 'Rejoins un groupe pour retrouver tes coéquipiers réguliers' : undefined}
+            />
+          ) : (
+            <FlatList
+              data={filteredGroups}
+              keyExtractor={item => String(item.id)}
+              renderItem={({ item }) => <GroupItem item={item} />}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -516,179 +497,276 @@ return (
                     await fetchGroups();
                     setRefreshing(false);
                   }}
-                  colors={['#FF6C4A']}
-                  tintColor="#FF6C4A"
+                  colors={['#FE5D02']}
+                  tintColor="#FE5D02"
                 />
               }
-              contentContainerStyle={{
-                paddingBottom: 8,
-                backgroundColor: "#fff",
-              }}
+              contentContainerStyle={{ paddingBottom: 24 }}
             />
           )
         )}
       </View>
-  </View>
-)};
+    </View>
+  );
+};
 
+export default MessagesGroupsScreen;
+
+// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  searchContainer: {
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: wp('4.5%'),
+    marginTop: 14,
+    marginBottom: 10,
+    height: hp('5%'),
+    backgroundColor: '#F4F4F6',
+    borderRadius: 14,
+    position: 'relative',
+    padding: 3,
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 3,
+    width: '46%',
+    height: hp('5%') - 6,
+    backgroundColor: '#fff',
+    borderRadius: 11,
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  tabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  tabText: {
+    fontSize: hp('1.85%'),
+    color: '#999',
+    fontWeight: '600',
+  },
+  tabTextActive: {
+    color: '#FE5D02',
+    fontWeight: '700',
+  },
+  tabBadge: {
+    backgroundColor: '#FE5D02',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  tabBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F6F6F7',
+    backgroundColor: '#F7F7F9',
     marginHorizontal: wp('4.5%'),
-    borderRadius: wp('3.2%'),
-    paddingHorizontal: wp('3.7%'),
-    height: hp('5.3%'),
-    marginTop: hp('0.7%'),
-    marginBottom: hp('0.4%'),
+    borderRadius: 12,
+    paddingHorizontal: wp('3.5%'),
+    height: hp('5.2%'),
+    marginBottom: hp('0.6%'),
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
   },
   searchInput: {
     flex: 1,
-    fontSize: hp('2%'),
+    fontSize: hp('1.9%'),
     marginLeft: wp('2%'),
     color: '#222',
+    paddingVertical: 0,
   },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  groupRow: {
+  // ── Row ───────────────────────────────────────────────────────────────────
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: hp('1.5%'),
-    paddingHorizontal: wp('3.2%'),
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F2',
+    paddingVertical: hp('1.55%'),
+    paddingHorizontal: wp('4.5%'),
     backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F7',
   },
-  groupTouchable: {
+  rowUnread: {
+    backgroundColor: '#FFFAF8',
+  },
+  rowTouchable: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
 
-  avatarCircle: {
-    width: wp('12%'),
-    height: wp('12%'),
-    borderRadius: wp('6%'),
-    backgroundColor: '#E8EAF6',
+  // ── Avatar ────────────────────────────────────────────────────────────────
+  avatar: {
+    width: wp('13%'),
+    height: wp('13%'),
+    borderRadius: wp('3.8%'),
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: wp('4%'),
+    marginRight: wp('3.5%'),
+    flexShrink: 0,
+    position: 'relative',
   },
-  avatarLetter: {
-    fontSize: hp('2.7%'),
-    color: '#2EB47B',
-    fontWeight: '700',
-    letterSpacing: 1,
+  avatarImg: {
+    width: wp('13%'),
+    height: wp('13%'),
+    borderRadius: wp('3.8%'),
+  },
+  statusBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
 
-  infoContainer: { flex: 1, flexDirection: 'column', justifyContent: 'center' },
-
-  titleRow: { flexDirection: 'row', alignItems: 'center' },
-  groupTitle: {
-    fontSize: hp('2.1%'),
-    fontWeight: '700',
-    color: '#232323',
-    letterSpacing: 0,
-    flexShrink: 1,
-    maxWidth: '92%',
+  // ── Row content ───────────────────────────────────────────────────────────
+  rowContent: {
+    flex: 1,
+    gap: 4,
   },
-  unreadBadge: {
-    marginLeft: 6,
+  rowTop: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-
-  groupSport: {
-    fontSize: hp('1.6%'),
-    color: '#A0A4A8',
+  rowTitle: {
+    fontSize: hp('2%'),
+    fontWeight: '600',
+    color: '#1A1A1A',
+    flex: 1,
+    marginRight: 8,
+  },
+  rowTitleBold: {
+    fontWeight: '800',
+    color: '#111',
+  },
+  rowTime: {
+    fontSize: hp('1.55%'),
+    color: '#C8C8C8',
     fontWeight: '500',
-    marginTop: hp('0.13%'),
+    flexShrink: 0,
+  },
+  rowTimeOrange: {
+    color: '#FE5D02',
+    fontWeight: '700',
+  },
+  rowBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rowPreview: {
+    fontSize: hp('1.7%'),
+    color: '#B8B8B8',
+    fontWeight: '400',
+    flex: 1,
+    marginRight: 8,
+  },
+  rowPreviewBold: {
+    color: '#555',
+    fontWeight: '500',
   },
 
-  deleteButton: {
-    marginLeft: wp('2.7%'),
+  // ── Non-lus — point orange simple ─────────────────────────────────────────
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FE5D02',
+    flexShrink: 0,
+  },
+
+  // ── Poubelle ──────────────────────────────────────────────────────────────
+  deleteBtn: {
+    marginLeft: wp('2.5%'),
+    padding: wp('1.5%'),
     alignItems: 'center',
     justifyContent: 'center',
-    padding: wp('1%'),
   },
-  emptyBox: {
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginTop: 30, // ajuste si besoin pour bien centrer
-},
-emptyText: {
-  marginTop: 12,
-  fontSize: 17,
-  fontWeight: '500',
-  color: '#aaa',
-},
-tabContainer: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  backgroundColor: '#F2F2F0',
-  borderRadius: 30,
-  marginHorizontal: wp('5%'),
-  marginTop: 12,
-  marginBottom: 8,
-  padding: 4,
-},
-tabButton: {
-  flex: 1,
-  height: hp('4.6%'),
-  borderRadius: 25,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-tabWrapperActive: {
-  backgroundColor: '#FFF4F2',
-},
-tabText: {
-  fontSize: 15,
-  color: '#5F5F5F',
-  fontWeight: '600',
-  textAlign: 'center',
-  includeFontPadding: false,
-},
-tabTextActive: {
-  color: '#FE5D02',
-  fontWeight: '700',
-},
-titleRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  position: 'relative',
-},
-unreadDot: {
-  width: 10,
-  height: 10,
-  borderRadius: 5,
-  backgroundColor: '#FF375E',
-  marginLeft: 8,
-  marginTop: Platform.OS === 'android' ? 2 : 0,
-},
-unreadText: {
-  color: '#fff',
-  fontSize: 12,
-  fontWeight: '700',
-},
-statusRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginTop: 4,
-},
-statusDot: {
-  width: 8,
-  height: 8,
-  borderRadius: 4,
-  marginRight: 6,
-},
-statusText: {
-  fontSize: hp('1.5%'),
-  color: '#777',
-  fontWeight: '500',
-},
-});
 
-export default MessagesGroupsScreen;
+  // ── Sport tag (groupes) ───────────────────────────────────────────────────
+  sportTag: {
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    flexShrink: 0,
+  },
+  sportTagText: {
+    fontSize: hp('1.5%'),
+    fontWeight: '700',
+  },
+
+  // ── Loading ───────────────────────────────────────────────────────────────
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  emptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: hp('10%'),
+    paddingHorizontal: wp('10%'),
+  },
+  emptyIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: '#F7F7F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: hp('2%'),
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  emptySub: {
+    fontSize: hp('1.7%'),
+    color: '#B8B8B8',
+    textAlign: 'center',
+    lineHeight: hp('2.4%'),
+  },
+
+  // ── Delete all ────────────────────────────────────────────────────────────
+  deleteAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#FFF0F0',
+    borderWidth: 1,
+    borderColor: '#FFD6D6',
+  },
+  deleteAllText: {
+    color: '#D83C3C',
+    fontWeight: '600',
+    fontSize: hp('1.75%'),
+  },
+});

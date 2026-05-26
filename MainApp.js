@@ -13,10 +13,10 @@ import SafeTop from './components/SafeTop';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { navigate } from './navigation/navigationRef';
 import { useChatActivity } from './context/ChatActivityContext';
-import { AppState } from 'react-native';
 import * as Application from 'expo-application';
 import * as Linking from 'expo-linking';
 import * as IntentLauncher from 'expo-intent-launcher';
+import { Settings, AppEventsLogger } from 'react-native-fbsdk-next';
 
 console.log("MAINAPP VERSION TEST STORE V3");
 
@@ -108,6 +108,16 @@ export default function MainApp() {
   }, [user]);
 
   // 🎧 Réception & réponse aux notifs
+
+  useEffect(() => {
+  try {
+    Settings.initializeSDK();
+    AppEventsLogger.logEvent('fb_mobile_activate_app');
+    console.log('Meta SDK initialisé');
+  } catch (e) {
+    console.warn('Meta SDK init error:', e.message);
+  }
+}, []);
 
 useEffect(() => {
   Notifications.setNotificationHandler({
@@ -216,30 +226,6 @@ useEffect(() => {
   return () => responseListener.current?.remove();
 }, []);
 
-useEffect(() => {
-  let currentState = AppState.currentState;
-
-  const subscription = AppState.addEventListener('change', async (nextState) => {
-    if (currentState.match(/inactive|background/) && nextState === 'active') {
-      console.log('🔁 App revenue au premier plan → reconnexion');
-
-      try {
-if (supabase.getChannels().length === 0) {
-  // reconnect seulement si nécessaire
-}
-      } catch (e) {
-        console.warn('⚠️ Reconnexion Supabase échouée', e.message);
-      
-      }
-    }
-
-    console.log('🟡 AppState change →', nextState);
-
-    currentState = nextState;
-  });
-
-  return () => subscription.remove();
-}, []);
 
 useEffect(() => {
   const checkAppVersion = async () => {

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Image, SafeAreaView, ActivityIndicator, StyleSheet, Platform, Dimensions, ScrollView} from 'react-native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAppForeground } from '../context/AppForegroundContext';
 
 const LETTER_COLORS = [
   '#4A90E2', // A-B
@@ -230,8 +230,9 @@ const goToProfile = (uid) => {
   navigation.navigate('UserProfile', { userId: uid });
 };
 
-const fetchLeaderboard = async () => {
-  setLoading(true);
+const fetchLeaderboard = async (silent = false) => {
+  if (!silent) setLoading(true);
+
   const monthStart = getMonthStartDate();
 
   // 1️⃣ TOP 30 – affichage du classement
@@ -294,6 +295,8 @@ useFocusEffect(
     fetchLeaderboard();
   }, [selectedTab])
 );
+
+useAppForeground(() => fetchLeaderboard(true));
 
   // ==== Podium extraction (places 1 à 3) ====
   const podium = [

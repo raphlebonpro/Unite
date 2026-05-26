@@ -92,8 +92,8 @@ android {
         applicationId 'com.uniteapp.collectif'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 80
-        versionName "1.1.6"
+        versionCode 84
+        versionName "1.1.7"
     }
     signingConfigs {
         debug {

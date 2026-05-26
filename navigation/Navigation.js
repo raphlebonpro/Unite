@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
+import { navigationRef } from './navigationRef';
 
 import OnboardingScreen from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
@@ -16,6 +17,19 @@ const Stack = createNativeStackNavigator();
 export default function Navigation() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const linking = {
+  prefixes: ['unite://', 'https://uniteapp.fr'],
+  config: {
+    screens: {
+      Main: {
+        screens: {
+          SessionDetail: 'session/:sessionId',
+        },
+      },
+    },
+  },
+}
 
   useEffect(() => {
     const getSession = async () => {
@@ -52,7 +66,7 @@ export default function Navigation() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking} ref={navigationRef}>
       {session ? (
         // 🔐 Stack privé
         <Stack.Navigator screenOptions={{ headerShown: false }}>

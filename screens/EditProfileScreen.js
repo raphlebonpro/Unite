@@ -3,7 +3,7 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  TouchableOpacity, 
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -11,107 +11,69 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabaseClient';
 import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer';
 import { useUser } from '../context/UserContext';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { FontAwesome5, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
-if (typeof global !== "undefined") global.Buffer = Buffer;
+if (typeof global !== 'undefined') global.Buffer = Buffer;
 
+// ─── Modération ───────────────────────────────────────────────────────────────
 const BAD_WORDS = [
- 'pd', 'pédé', 'fdp', 'enculé', 'ntm', 'nique ta mère', 'sale negre', 'negro', 'batard', 'tg', 'connard', 'sale noir',
- 'pute', 'salope', 'bougnoule', 'youpin', 'encule', 'encu', 'nègre', 'negro', 'juif', 'negre', 'arabe',
- 'nique', 'sale', 'n3gre', 'negr3', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'pute', 'baise', 'foudroyeur', 'renoi', 'bougnoul',
+  'pd', 'pédé', 'fdp', 'enculé', 'ntm', 'nique ta mère', 'sale negre', 'negro',
+  'batard', 'tg', 'connard', 'sale noir', 'pute', 'salope', 'bougnoule', 'youpin',
+  'encule', 'encu', 'nègre', 'negro', 'juif', 'negre', 'arabe', 'nique', 'sale',
+  'n3gre', 'negr3', 'nik', 'negr0', 'nazi', 'bz', 'race', 'noirs', 'tana', 'baise',
+  'foudroyeur', 'renoi', 'bougnoul',
 ];
-
 function containsBadWord(text) {
-  const lower = text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  const lower = text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
   return BAD_WORDS.some(word => lower.includes(word));
 }
 
-const sportIcons = {
-  Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
-  Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
-  Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
-  Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
-  Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
-  Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
-  Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
-  Fitness: { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#7C4DFF" />, color: '#7C4DFF' },
-  Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />,color: '#999',},
-
-  Yoga: { icon: <MaterialCommunityIcons name="yoga" size={18} color="#A259F7" />, color: '#A259F7' },
-  Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
-  Pilates: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
-
-  Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
-  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
-
-  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
-  'Ski de randonnée': { icon: <MaterialCommunityIcons name="ski-cross-country" size={18} color="#4FC3F7" />, color: '#4FC3F7' },
-  'Ski/Snow': { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
-
-  VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
-  Marche: { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
-  Kayak: { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
-
-  Surf: { icon: <MaterialCommunityIcons name="wave" size={18} color="#26C6DA" />, color: '#26C6DA' },
-  Kitesurf: { icon: <MaterialCommunityIcons name="kitesurfing" size={18} color="#29B6F6" />, color: '#29B6F6' },
-  Windsurf: { icon: <MaterialCommunityIcons name="wind" size={18} color="#42A5F5" />, color: '#42A5F5' },
-  SUP: { icon: <MaterialCommunityIcons name="surfing" size={18} color="#26A69A" />, color: '#26A69A' },
-
-  Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
-  Roller: { icon: <MaterialCommunityIcons name="roller-skate" size={18} color="#FF8A65" />, color: '#FF8A65' },
-
-  Escalade: { icon: <MaterialCommunityIcons name="hiking" size={18} color="#689F38" />, color: '#689F38' },
-  Parapente: { icon: <MaterialCommunityIcons name="parachute" size={18} color="#1976D2" />, color: '#1976D2' },
-
-  CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
-  Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
-
-  'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
-
-  Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
+// ─── Sport meta ───────────────────────────────────────────────────────────────
+const sportMeta = {
+  Football:          { bg: '#EBF2FF', color: '#3888FF', icon: 'futbol',            lib: 'fa5' },
+  Basketball:        { bg: '#FFF5E5', color: '#FFA726', icon: 'basketball',         lib: 'mci' },
+  Tennis:            { bg: '#EDFBF3', color: '#2ECC71', icon: 'tennis',             lib: 'mci' },
+  Padel:             { bg: '#FFFDE5', color: '#C8A800', icon: 'tennis',             lib: 'mci' },
+  Running:           { bg: '#FFF0F4', color: '#E9436D', icon: 'run-fast',           lib: 'mci' },
+  Cyclisme:          { bg: '#E5FAFA', color: '#3CD6E6', icon: 'bike',               lib: 'mci' },
+  Natation:          { bg: '#E5F0FB', color: '#1469B9', icon: 'swim',               lib: 'mci' },
+  Musculation:       { bg: '#F3F1FF', color: '#7367F0', icon: 'dumbbell',           lib: 'mci' },
+  Fitness:           { bg: '#F3F0FF', color: '#7C4DFF', icon: 'weight-lifter',      lib: 'mci' },
+  'Randonnée/Trail': { bg: '#EDFBF3', color: '#43A047', icon: 'hiking',             lib: 'mci' },
+  Yoga:              { bg: '#F4EFFE', color: '#A259F7', icon: 'yoga',               lib: 'mci' },
+  Danse:             { bg: '#FFF0F6', color: '#F48FB1', icon: 'human-female-dance', lib: 'mci' },
+  Pilates:           { bg: '#F4EFFE', color: '#BA68C8', icon: 'meditation',         lib: 'mci' },
+  CrossFit:          { bg: '#ECEDFF', color: '#536DFE', icon: 'dumbbell',           lib: 'mci' },
+  Surf:              { bg: '#E5FAFA', color: '#26C6DA', icon: 'surfing',            lib: 'mci' },
+  Escalade:          { bg: '#EDFBF3', color: '#689F38', icon: 'terrain',            lib: 'mci' },
+  'Arts Martiaux':   { bg: '#FFF0EC', color: '#FF3D00', icon: 'boxing-glove',       lib: 'mci' },
+  Skate:             { bg: '#FFF5E5', color: '#EB984E', icon: 'skateboard',         lib: 'mci' },
+  VTT:               { bg: '#EDFBF3', color: '#009688', icon: 'bike',               lib: 'mci' },
+  Marche:            { bg: '#EDFBF3', color: '#00A676', icon: 'walk',               lib: 'mci' },
+  Kayak:             { bg: '#E5F0FB', color: '#0277BD', icon: 'kayaking',           lib: 'mci' },
+  Callisthénie:      { bg: '#E5FAFA', color: '#26A69A', icon: 'arm-flex',           lib: 'mci' },
+  'Tennis de table': { bg: '#E5FAFA', color: '#00B8D4', icon: 'table-tennis',       lib: 'mci' },
+  'Ski/Snow':        { bg: '#E5F6FF', color: '#32C5FF', icon: 'ski',               lib: 'mci' },
+  Roller:            { bg: '#FFF5E5', color: '#FF8A65', icon: 'roller-skate',       lib: 'mci' },
+  Autres:            { bg: '#F2F2F2', color: '#999',    icon: 'dots-horizontal',    lib: 'mci' },
 };
 
-const SPORTS_OPTIONS = Object.keys(sportIcons).filter(s => s !== '+ de sports');
+const SPORTS_OPTIONS = Object.keys(sportMeta).filter(s => s !== 'Autres');
 
-const Chip = ({ label, selected, onPress, gradient, disabled }) => {
-  if (gradient && selected) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.78}>
-        <View
-          style={[styles.chip, styles.chipSelectedGradient, {backgroundColor: '#F62DAE'}]}
-        >
-          <Text style={[styles.chipText, { color: '#fff' }]}>{label}</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  }
-  return (
-    <TouchableOpacity
-      onPress={disabled ? null : onPress}
-      activeOpacity={0.7}
-      style={[styles.chip, selected && styles.chipSelected, disabled && styles.chipDisabled]}
-      disabled={disabled}
-    >
-      <Text style={[
-        styles.chipText,
-        selected && { color: '#fff' },
-        disabled && { color: '#aaa' }
-      ]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
+const SportChipIcon = ({ sport, size = 15 }) => {
+  const meta = sportMeta[sport] || sportMeta['Autres'];
+  if (meta.lib === 'fa5') return <FontAwesome5 name={meta.icon} size={size} color={meta.color} />;
+  return <MaterialCommunityIcons name={meta.icon} size={size} color={meta.color} />;
 };
 
 function getAgeFromBirthdate(birthdate) {
-  if (!birthdate) return '';
+  if (!birthdate) return null;
   const birth = new Date(birthdate);
   const today = new Date();
   let age = today.getFullYear() - birth.getFullYear();
@@ -120,494 +82,589 @@ function getAgeFromBirthdate(birthdate) {
   return age;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 const EditProfileScreen = ({ navigation }) => {
   const { refreshUser } = useUser();
-  const [avatar, setAvatar] = useState(null);
-  const [username, setUsername] = useState('');
-  const [birthdate, setBirthdate] = useState('');
-  const [gender, setGender] = useState('');
-  const [email, setEmail] = useState('');
+  const [avatar, setAvatar]               = useState(null);
+  const [username, setUsername]           = useState('');
+  const [birthdate, setBirthdate]         = useState('');
+  const [gender, setGender]               = useState('');
+  const [email, setEmail]                 = useState('');
   const [favoriteSports, setFavoriteSports] = useState([]);
-  const [bio, setBio] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [bio, setBio]                     = useState('');
+  const [saving, setSaving]               = useState(false);
   const [initialProfile, setInitialProfile] = useState(null);
   const [usernameError, setUsernameError] = useState('');
-  const [bioError, setBioError] = useState('');
+  const [bioError, setBioError]           = useState('');
+
+  const BIO_MAX = 160;
 
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      const { data, error } = await supabase.from('users').select('*').eq('id', user.id).single();
       if (error || !data) return;
+
       setUsername(data.username || '');
       setEmail(data.email || user.email || '');
       setAvatar(data.profile_photo || null);
       setBirthdate(data.birthdate || '');
       setGender(data.gender || '');
       setBio(data.bio || '');
-      const allowedSports = SPORTS_OPTIONS;
-const cleanedFavorites = Array.isArray(data.favorite_sports)
-  ? data.favorite_sports.filter(sport => allowedSports.includes(sport))
-  : [];
-setFavoriteSports(cleanedFavorites.slice(0, 3));
-setInitialProfile({
-  username: data.username || '',
-  birthdate: data.birthdate || '',
-  gender: data.gender || '',
-  bio: data.bio || '',
-  avatar: data.profile_photo || null,
-  favoriteSports: cleanedFavorites.slice(0, 3),
-});
+
+      const clean = Array.isArray(data.favorite_sports)
+        ? data.favorite_sports.filter(s => SPORTS_OPTIONS.includes(s)).slice(0, 3)
+        : [];
+      setFavoriteSports(clean);
+      setInitialProfile({
+        username: data.username || '', birthdate: data.birthdate || '',
+        gender: data.gender || '', bio: data.bio || '',
+        avatar: data.profile_photo || null, favoriteSports: clean,
+      });
     };
     fetchUser();
   }, []);
 
+  // ── Photo ────────────────────────────────────────────────────────────────
   const pickAvatar = async () => {
-    let permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission requise', 'Autorisez l’accès à la galerie pour changer votre photo de profil.');
+      Alert.alert('Permission requise', 'Autorisez l\'accès à la galerie pour changer votre photo.');
       return;
     }
-    let result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: true,
-      aspect: [1, 1]
+      quality: 0.7, allowsEditing: true, aspect: [1, 1],
     });
-
-    if (!result.canceled && result.assets && result.assets[0].uri) {
+    if (!result.canceled && result.assets?.[0].uri) {
       const uri = result.assets[0].uri;
-
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Utilisateur non trouvé.");
-
+        if (!user) throw new Error('Utilisateur non trouvé.');
         const fileExt = uri.split('.').pop();
         const fileName = `${user.id}_${Date.now()}.${fileExt || 'jpg'}`;
-
         const fileBase64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
         const fileBuffer = Buffer.from(fileBase64, 'base64');
-
-        let { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(fileName, fileBuffer, {
-            contentType: 'image/jpeg',
-            upsert: true
-          });
-
+        const { error: uploadError } = await supabase.storage
+          .from('avatars').upload(fileName, fileBuffer, { contentType: 'image/jpeg', upsert: true });
         if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase
-          .storage
-          .from('avatars')
-          .getPublicUrl(fileName);
-
-        const publicUrl = publicUrlData.publicUrl;
-        setAvatar(publicUrl);
-
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ profile_photo: publicUrl })
-          .eq('id', user.id);
-
-        if (updateError) {
-          Alert.alert('Erreur MAJ base', updateError.message);
-        } else {
-          await refreshUser();
-          Alert.alert('Succès', 'Photo de profil mise à jour !');
-        }
-      } catch (e) {
-        Alert.alert('Erreur upload avatar', e.message);
-      }
+        const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        setAvatar(publicUrlData.publicUrl);
+        const { error: updateError } = await supabase.from('users')
+          .update({ profile_photo: publicUrlData.publicUrl }).eq('id', user.id);
+        if (updateError) Alert.alert('Erreur', updateError.message);
+        else { await refreshUser(); }
+      } catch (e) { Alert.alert('Erreur upload', e.message); }
     }
   };
 
-const hasChanges = () => {
-  if (!initialProfile) return false;
+  // ── Sports ───────────────────────────────────────────────────────────────
+  const toggleSport = (sport) => {
+    if (favoriteSports.includes(sport)) {
+      setFavoriteSports(favoriteSports.filter(s => s !== sport));
+    } else {
+      if (favoriteSports.length >= 3) {
+        Alert.alert('Limite atteinte', 'Tu peux choisir au maximum 3 sports favoris.');
+        return;
+      }
+      setFavoriteSports([...favoriteSports, sport]);
+    }
+  };
 
-  return (
-    username !== initialProfile.username ||
-    birthdate !== initialProfile.birthdate ||
-    gender !== initialProfile.gender ||
-    bio !== initialProfile.bio ||
-    avatar !== initialProfile.avatar ||
-    JSON.stringify(favoriteSports) !== JSON.stringify(initialProfile.favoriteSports)
-  );
-};
+  // ── Validation ────────────────────────────────────────────────────────────
+  const hasChanges = () => {
+    if (!initialProfile) return false;
+    return (
+      username !== initialProfile.username ||
+      birthdate !== initialProfile.birthdate ||
+      gender !== initialProfile.gender ||
+      bio !== initialProfile.bio ||
+      avatar !== initialProfile.avatar ||
+      JSON.stringify(favoriteSports) !== JSON.stringify(initialProfile.favoriteSports)
+    );
+  };
 
-const toggleSport = (sport) => {
-  if (favoriteSports.includes(sport)) {
-    // On retire si déjà sélectionné
-    setFavoriteSports(favoriteSports.filter(s => s !== sport));
-  } else {
-    // On bloque si déjà 3 sports sélectionnés
-    if (favoriteSports.length >= 3) {
-      Alert.alert("Limite atteinte", "Tu peux choisir au maximum 3 sports favoris.");
+  const handleSave = async () => {
+    if (containsBadWord(username)) {
+      Alert.alert('Pseudo refusé', 'Ton pseudo contient des mots inappropriés.');
       return;
     }
-    setFavoriteSports([...favoriteSports, sport]);
-  }
-};
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
 
-const handleSave = async () => {
-  if (containsBadWord(username)) {
-    Alert.alert("Pseudo refusé", "Ton pseudo contient des mots inappropriés. Merci d'en choisir un autre.");
-    return;
-  }
+    const { data: allUsers } = await supabase.from('users').select('id, username');
+    const pseudoExists = allUsers?.some(
+      u => u.id !== user.id && u.username?.trim().toLowerCase() === username.trim().toLowerCase()
+    );
+    if (pseudoExists) {
+      Alert.alert('Pseudo déjà pris', 'Choisissez un autre pseudo.');
+      setSaving(false); return;
+    }
 
-  setSaving(true);
+    const { error } = await supabase.from('users').update({
+      username: username.trim(), birthdate, gender, bio,
+      favorite_sports: favoriteSports, profile_photo: avatar || '',
+    }).eq('id', user.id);
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
     setSaving(false);
-    Alert.alert("Erreur", "Impossible de retrouver ton compte.");
-    return;
-  }
-
-  // --- Vérification unicité du pseudo (insensible à la casse, garde la casse d'origine) ---
-  const { data: allUsers, error: allUsersError } = await supabase
-    .from('users')
-    .select('id, username');
-
-  if (allUsersError) {
-    console.error("Erreur vérif pseudo:", allUsersError);
-    Alert.alert("Erreur", "Une erreur est survenue lors de la vérification du pseudo.");
-    setSaving(false);
-    return;
-  }
-
-  // Compare insensiblement à la casse, mais ignore ton propre pseudo
-  const pseudoExists = allUsers?.some(
-    u =>
-      u.id !== user.id &&
-      u.username?.trim().toLowerCase() === username.trim().toLowerCase()
-  );
-
-  if (pseudoExists) {
-    Alert.alert("Pseudo déjà pris", "Impossible, ce pseudo est déjà pris. Choisissez-en un autre.");
-    setSaving(false);
-    return;
-  }
-
-  // --- Mise à jour du profil ---
-  const updates = {
-    username: username.trim(), // on garde la casse de l'utilisateur
-    birthdate,
-    gender,
-    bio,
-    favorite_sports: favoriteSports,
-    profile_photo: avatar || '',
+    if (error) { Alert.alert('Erreur', error.message); return; }
+    await refreshUser();
+    Alert.alert('Profil mis à jour !');
+    navigation.goBack();
   };
 
-  const { error } = await supabase
-    .from('users')
-    .update(updates)
-    .eq('id', user.id);
+  const canSave = hasChanges() && !usernameError && !bioError;
+  const age = getAgeFromBirthdate(birthdate);
 
-  setSaving(false);
+  return (
+    <View style={{ flex: 1, backgroundColor: '#F6F7FA' }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
 
-  if (error) {
-    Alert.alert("Erreur", "La mise à jour a échoué : " + error.message);
-    return;
-  }
-
-  await refreshUser();
-  Alert.alert("Profil mis à jour !");
-  navigation.goBack();
-};
-
-return (
-  <View style={{ flex: 1, backgroundColor: '#f9fafe' }}>
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-      >
-
-        {/* AVATAR */}
-        <View style={styles.avatarWrap}>
-          <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8}>
-            <Image
-              source={
-                avatar
-                  ? { uri: avatar }
-                  : require('../assets/avatar-default.png')
-              }
-              style={styles.avatar}
-            />
-            <View style={styles.avatarCamera}>
-              <Feather name="camera" size={16} color="#fff" />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* PSEUDO */}
-        <Text style={styles.label}>Pseudo</Text>
-<TextInput
-  style={[
-    styles.input,
-    usernameError && { borderWidth: 1, borderColor: '#FF3B30' }
-  ]}
-  placeholder="Votre pseudo"
-  value={username}
-  onChangeText={(text) => {
-    setUsername(text);
-
-    if (text.length < 3) {
-      setUsernameError("Le pseudo doit contenir au moins 3 caractères.");
-    } else if (containsBadWord(text)) {
-      setUsernameError("Pseudo inapproprié.");
-    } else {
-      setUsernameError('');
-    }
-  }}
-  autoCapitalize="none"
-  placeholderTextColor="#aaa"
-/>
-
-        {/* EMAIL */}
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={[styles.input, { color: '#bbb' }]}
-          placeholder="Votre email"
-          value={email}
-          editable={false}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholderTextColor="#aaa"
-        />
-
-        {/* ÂGE */}
-        <Text style={styles.label}>Âge</Text>
-        <View style={styles.ageChipWrap}>
-          <View style={styles.ageChip}>
-            <Text style={styles.ageChipText}>
-              {birthdate ? `${getAgeFromBirthdate(birthdate)} ans` : 'Non renseigné'}
-            </Text>
-          </View>
-        </View>
-
-        {/* GENRE */}
-        <Text style={styles.label}>Genre</Text>
-        <View style={styles.rowWrap}>
-          <Chip label={gender} selected disabled />
-        </View>
-
-        {/* SPORTS FAVORIS */}
-        <Text style={styles.label}>Sports favoris</Text>
-        <View style={styles.rowWrap}>
-          {SPORTS_OPTIONS.map((sport) => (
-            <Chip
-              key={sport}
-              label={sport}
-              selected={favoriteSports.includes(sport)}
-              onPress={() => toggleSport(sport)}
-              gradient
-            />
-          ))}
-        </View>
-
-        {/* BIO */}
-        <Text style={styles.label}>Bio</Text>
-<TextInput
-  style={[
-    styles.input,
-    { height: 86, textAlignVertical: 'top', paddingTop: 14 },
-    bioError && { borderWidth: 1, borderColor: '#FF3B30' }
-  ]}
-  placeholder="Parle un peu de toi !"
-  value={bio}
-  onChangeText={(text) => {
-    setBio(text);
-
-    if (containsBadWord(text)) {
-      setBioError("Description inappropriée.");
-    } else {
-      setBioError('');
-    }
-  }}
-  multiline
-  maxLength={160}
-  placeholderTextColor="#aaa"
-/>
-
-        {/* BOUTON SAVE */}
-        <View style={styles.buttonContainer}>
-          <View
-           style={[styles.buttonGradient,{ backgroundColor: hasChanges() && !usernameError && !bioError ? '#FE5D02': '#ccc'}]}
-          >
-            <TouchableOpacity
-              style={styles.buttonTouchable}
-              onPress={handleSave}
-              activeOpacity={0.85}
-              disabled={saving || !hasChanges() || !!usernameError || !!bioError}
-            >
-              <Text style={styles.buttonText}>
-                {saving ? 'Enregistrement...' : 'Valider profil'}
-              </Text>
+          {/* ── Avatar ──────────────────────────────────────────────────── */}
+          <View style={styles.avatarSection}>
+            <TouchableOpacity onPress={pickAvatar} activeOpacity={0.85} style={styles.avatarTouch}>
+              <Image
+                source={avatar ? { uri: avatar } : require('../assets/avatar-default.png')}
+                style={styles.avatar}
+              />
+              <View style={styles.avatarOverlay}>
+                <Feather name="camera" size={18} color="#fff" />
+                <Text style={styles.avatarOverlayText}>Modifier</Text>
+              </View>
             </TouchableOpacity>
           </View>
-        </View>
 
-        <View style={{ height: 20 }} />
+          {/* ── Section : Identité ──────────────────────────────────────── */}
+          <Text style={styles.sectionLabel}>Identité</Text>
+          <View style={styles.card}>
 
-      </ScrollView>
-    </KeyboardAvoidingView>
-  </View>
-)};
+            {/* Pseudo */}
+            <View style={styles.fieldRow}>
+              <View style={[styles.fieldIcon, { backgroundColor: '#EBF2FF' }]}>
+                <Ionicons name="person-outline" size={17} color="#3888FF" />
+              </View>
+              <View style={styles.fieldBody}>
+                <Text style={styles.fieldLabel}>Pseudo</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Votre pseudo"
+                  value={username}
+                  onChangeText={(text) => {
+                    setUsername(text);
+                    if (text.length < 3) setUsernameError('Minimum 3 caractères');
+                    else if (containsBadWord(text)) setUsernameError('Pseudo inapproprié');
+                    else setUsernameError('');
+                  }}
+                  autoCapitalize="none"
+                  placeholderTextColor="#CCC"
+                />
+                {usernameError ? (
+                  <Text style={styles.errorText}>{usernameError}</Text>
+                ) : null}
+              </View>
+            </View>
 
+            <View style={styles.cardSep} />
+
+            {/* Email — readonly */}
+            <View style={styles.fieldRow}>
+              <View style={[styles.fieldIcon, { backgroundColor: '#F2F2F2' }]}>
+                <Ionicons name="mail-outline" size={17} color="#AAA" />
+              </View>
+              <View style={styles.fieldBody}>
+                <Text style={styles.fieldLabel}>Email</Text>
+                <Text style={styles.fieldReadonly}>{email || '—'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.cardSep} />
+
+            {/* Âge — readonly */}
+            <View style={styles.fieldRow}>
+              <View style={[styles.fieldIcon, { backgroundColor: '#FFF5E5' }]}>
+                <Ionicons name="calendar-outline" size={17} color="#FFA726" />
+              </View>
+              <View style={styles.fieldBody}>
+                <Text style={styles.fieldLabel}>Âge</Text>
+                <Text style={styles.fieldReadonly}>
+                  {age ? `${age} ans` : 'Non renseigné'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.cardSep} />
+
+            {/* Genre — readonly */}
+            <View style={styles.fieldRow}>
+              <View style={[styles.fieldIcon, { backgroundColor: '#F4EFFE' }]}>
+                <Ionicons name="people-outline" size={17} color="#A259F7" />
+              </View>
+              <View style={styles.fieldBody}>
+                <Text style={styles.fieldLabel}>Genre</Text>
+                <Text style={styles.fieldReadonly}>{gender || 'Non renseigné'}</Text>
+              </View>
+            </View>
+
+          </View>
+
+          {/* ── Section : Sports favoris ─────────────────────────────────── */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionLabel}>Sports favoris</Text>
+            <Text style={styles.sectionCounter}>
+              {favoriteSports.length}/3
+            </Text>
+          </View>
+
+          {/* Sports sélectionnés (recap) */}
+          {favoriteSports.length > 0 && (
+            <View style={styles.selectedSportsRow}>
+              {favoriteSports.map(sport => {
+                const meta = sportMeta[sport] || sportMeta['Autres'];
+                return (
+                  <TouchableOpacity
+                    key={sport}
+                    style={[styles.selectedSportPill, { backgroundColor: meta.bg, borderColor: meta.color + '55' }]}
+                    onPress={() => toggleSport(sport)}
+                    activeOpacity={0.8}
+                  >
+                    <SportChipIcon sport={sport} size={14} />
+                    <Text style={[styles.selectedSportText, { color: meta.color }]}>{sport}</Text>
+                    <Ionicons name="close-circle" size={14} color={meta.color} style={{ marginLeft: 2 }} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Grille de sélection */}
+          <View style={styles.card}>
+            <View style={styles.sportsGrid}>
+              {SPORTS_OPTIONS.map(sport => {
+                const meta     = sportMeta[sport] || sportMeta['Autres'];
+                const selected = favoriteSports.includes(sport);
+                const disabled = !selected && favoriteSports.length >= 3;
+                return (
+                  <TouchableOpacity
+                    key={sport}
+                    style={[
+                      styles.sportChip,
+                      selected && { backgroundColor: meta.bg, borderColor: meta.color },
+                      disabled && styles.sportChipDisabled,
+                    ]}
+                    onPress={() => toggleSport(sport)}
+                    activeOpacity={0.75}
+                    disabled={disabled}
+                  >
+                    <SportChipIcon sport={sport} size={14} />
+                    <Text style={[
+                      styles.sportChipText,
+                      selected && { color: meta.color, fontWeight: '700' },
+                      disabled && { color: '#CCC' },
+                    ]}>
+                      {sport}
+                    </Text>
+                    {selected && (
+                      <Ionicons name="checkmark-circle" size={13} color={meta.color} style={{ marginLeft: 2 }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* ── Section : Bio ─────────────────────────────────────────────── */}
+          <Text style={styles.sectionLabel}>À propos</Text>
+          <View style={styles.card}>
+            <View style={styles.bioWrap}>
+              <TextInput
+                style={styles.bioInput}
+                placeholder="Raconte-toi en quelques mots — sport, ambitions, vibe…"
+                value={bio}
+                onChangeText={(text) => {
+                  setBio(text);
+                  setBioError(containsBadWord(text) ? 'Description inappropriée.' : '');
+                }}
+                multiline
+                maxLength={BIO_MAX}
+                placeholderTextColor="#CCC"
+                textAlignVertical="top"
+              />
+              <View style={styles.bioFooter}>
+                {bioError ? (
+                  <Text style={styles.errorText}>{bioError}</Text>
+                ) : <View />}
+                <Text style={[styles.charCount, bio.length > BIO_MAX * 0.9 && { color: '#FE5D02' }]}>
+                  {bio.length}/{BIO_MAX}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+<View style={styles.stickyBar}>
+  <TouchableOpacity
+    style={[styles.ctaBtn, !canSave && styles.ctaBtnDisabled]}
+    onPress={handleSave}
+    activeOpacity={0.85}
+    disabled={saving || !canSave}
+  >
+    {saving ? (
+      <Text style={styles.ctaBtnText}>Enregistrement…</Text>
+    ) : (
+      <>
+        <Ionicons name="checkmark-circle-outline" size={17} color="#fff" style={{ marginRight: 8 }} />
+        <Text style={styles.ctaBtnText}>Enregistrer les modifications</Text>
+      </>
+    )}
+  </TouchableOpacity>
+</View>
+<View style={{ height: 10 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+};
+
+export default EditProfileScreen;
+
+// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    padding: wp('5.5%'),
-    paddingBottom: hp('5.7%'),
-    backgroundColor: '#f9fafe',
+
+  scroll: {
+    paddingHorizontal: wp('4.5%'),
+    paddingTop: hp('1.5%'),
+    paddingBottom: hp('4%'),
   },
-  avatarWrap: {
+
+  // ── Avatar ────────────────────────────────────────────────────────────────
+  avatarSection: {
     alignItems: 'center',
     marginVertical: hp('2%'),
   },
+  avatarTouch: {
+    position: 'relative',
+  },
   avatar: {
-    width: wp('22%'),
-    height: wp('22%'),
-    borderRadius: wp('11%'),
-    backgroundColor: '#e1e7ee',
-    borderWidth: 2.5,
+    width: wp('24%'),
+    height: wp('24%'),
+    borderRadius: wp('6%'),      // carré arrondi cohérent avec le reste de l'app
+    backgroundColor: '#E8EAF6',
+    borderWidth: 3,
     borderColor: '#fff',
   },
-  avatarCamera: {
+  avatarOverlay: {
     position: 'absolute',
-    right: 4,
-    bottom: 4,
-    backgroundColor: '#43b97f',
-    borderRadius: wp('4%'),
-    padding: wp('1%'),
-    borderWidth: 2,
-    borderColor: '#fff',
+    bottom: 0, left: 0, right: 0,
+    height: '40%',
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    borderBottomLeftRadius: wp('6%'),
+    borderBottomRightRadius: wp('6%'),
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 5,
+  },
+  avatarOverlayText: {
+    color: '#fff',
+    fontSize: wp('3%'),
+    fontWeight: '600',
+  },
+
+  // ── Section labels ────────────────────────────────────────────────────────
+  sectionLabel: {
+    fontSize: wp('3%'),
+    fontWeight: '700',
+    color: '#ABABAB',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginLeft: wp('1.5%'),
+    marginTop: hp('2%'),
+    marginBottom: hp('1%'),
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginLeft: wp('1.5%'),
+    marginRight: wp('1.5%'),
+    marginTop: hp('2%'),
+    marginBottom: hp('1%'),
+  },
+  sectionCounter: {
+    fontSize: wp('3.5%'),
+    fontWeight: '700',
+    color: '#FE5D02',
+  },
+
+  // ── Card ──────────────────────────────────────────────────────────────────
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
-  label: {
-    marginBottom: hp('1.5%'),
-    fontWeight: '600',
-    color: '#222',
-    fontSize: wp('3.9%'),
-    marginTop: hp('1.3%'),
-    marginLeft: 2,
-  },
-  input: {
-    backgroundColor: '#f4f5fa',
-    borderRadius: wp('3%'),
-    fontSize: wp('3.8%'),
+
+  // ── Field row (dans la card identité) ─────────────────────────────────────
+  fieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: hp('1.6%'),
     paddingHorizontal: wp('4%'),
-    marginBottom: hp('0.7%'),
-    color: '#000',
-    selectionColor: '#FE5D02',
-    borderWidth: 0,
-    shadowColor: 'rgba(40,50,55,0.03)',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 1,
+    minHeight: hp('7%'),
   },
-  rowWrap: {
+  fieldIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: wp('3.5%'),
+    flexShrink: 0,
+  },
+  fieldBody: {
+    flex: 1,
+  },
+  fieldLabel: {
+    fontSize: wp('3%'),
+    fontWeight: '600',
+    color: '#ABABAB',
+    marginBottom: 3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  fieldInput: {
+    fontSize: wp('4%'),
+    color: '#1A1A1A',
+    fontWeight: '500',
+    padding: 0,
+  },
+  fieldReadonly: {
+    fontSize: wp('4%'),
+    color: '#BBBBBB',
+    fontWeight: '500',
+  },
+  cardSep: {
+    height: 1,
+    backgroundColor: '#F5F5F7',
+    marginLeft: wp('4%') + 36 + wp('3.5%'),
+  },
+
+  // ── Erreur ────────────────────────────────────────────────────────────────
+  errorText: {
+    fontSize: wp('3.1%'),
+    color: '#FF3B30',
+    fontWeight: '500',
+    marginTop: 3,
+  },
+
+  // ── Sports sélectionnés recap ─────────────────────────────────────────────
+  selectedSportsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: hp('0.5%'),
+    gap: 8,
+    marginBottom: hp('1%'),
   },
-  chip: {
-    backgroundColor: '#f0f2f5',
-    borderRadius: wp('6%'),
-    paddingVertical: hp('0.9%'),
-    paddingHorizontal: wp('4.8%'),
-    marginVertical: hp('0.2%'),
-    marginRight: wp('2.1%'),
-  },
-  chipSelected: {
-    backgroundColor: '#1976d2',
-  },
-  chipSelectedGradient: {
-    borderRadius: wp('6%'),
-    paddingVertical: hp('0.9%'),
-    paddingHorizontal: wp('4.8%'),
-    marginVertical: hp('0.2%'),
-    marginRight: wp('2.1%'),
-  },
-  chipDisabled: {
-    backgroundColor: '#f0f0f2',
-    borderColor: '#eee',
-  },
-  chipText: {
-    color: '#444',
-    fontWeight: '600',
-    fontSize: wp('3.6%'),
-  },
-  chipTextSelected: {
-    color: '#fff',
-  },
-  buttonContainer: {
-    width: '88%',
-    alignSelf: 'center',
-    marginTop: hp('3.2%'),
-    marginBottom: hp('0.5%'),
-    borderRadius: wp('5%'),
-    overflow: 'hidden',
-  },
-  buttonGradient: {
-    width: '100%',
-    paddingVertical: hp('1.5%'),
-    marginVertical: 2,
-    borderRadius: wp('6%'),
+  selectedSportPill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1.5,
   },
-  buttonTouchable: {
-    width: '100%',
+  selectedSportText: {
+    fontSize: wp('3.3%'),
+    fontWeight: '700',
+  },
+
+  // ── Sports grid ───────────────────────────────────────────────────────────
+  sportsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: wp('3%'),
+    gap: 7,
+  },
+  sportChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F7',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: wp('3.8%'),
-    letterSpacing: 0.2,
+  sportChipDisabled: {
+    opacity: 0.35,
+  },
+  sportChipText: {
+    fontSize: wp('3.2%'),
+    color: '#555',
+    fontWeight: '500',
+  },
+
+  // ── Bio ───────────────────────────────────────────────────────────────────
+  bioWrap: {
+    padding: wp('4%'),
+  },
+  bioInput: {
+    fontSize: wp('3.9%'),
+    color: '#1A1A1A',
+    lineHeight: wp('6%'),
+    minHeight: hp('10%'),
+    padding: 0,
+  },
+  bioFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
   },
   charCount: {
-    alignSelf: 'flex-end',
-    color: '#aaa',
     fontSize: wp('3.2%'),
-    marginBottom: hp('0.2%'),
-    marginTop: -hp('2.2%'),
-    marginRight: wp('1%'),
+    color: '#CCC',
+    fontWeight: '500',
   },
-  ageChipWrap: {
-    flexDirection: 'row',
-    marginBottom: hp('0.5%'),
-  },
-ageChip: {
-  backgroundColor: '#f0f0f2',
-  borderRadius: wp('6%'),
-  paddingVertical: hp('0.9%'),
-  paddingHorizontal: wp('4.8%'),
+
+  // ── Save button ───────────────────────────────────────────────────────────
+stickyBar: {
+  paddingHorizontal: wp('4%'),
+  borderRadius: 20,
+  marginTop: 10,
+  paddingTop: hp('1%'),
+  paddingBottom: hp('2%'),
+  backgroundColor: '#fff',
+  borderTopWidth: 1,
+  borderTopColor: '#F0F0F2',
 },
-ageChipText: {
-  color: '#aaa',
-  fontWeight: '600',
-  fontSize: wp('3.6%'),
+ctaBtn: {
+  marginTop: 5,
+  height: hp('5%'),
+  backgroundColor: '#FE5D02',
+  borderRadius: 16,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginHorizontal: 20,
+  flexDirection: 'row',
 },
-  helperText: {
-  fontSize: wp('3.3%'),
-  color: '#888',
-  fontStyle: 'italic',
-  marginBottom: hp('0.6%'),
+ctaBtnDisabled: {
+  backgroundColor: '#E0E0E0',
+},
+ctaBtnText: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: wp('4.2%'),
 },
 });
-
-export default EditProfileScreen;

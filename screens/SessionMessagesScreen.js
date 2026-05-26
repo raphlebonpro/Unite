@@ -23,7 +23,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Buffer } from 'buffer';
-import { notifyNewMessage } from '../helpers/notifications';
+import { notifySessionNewMessage } from '../helpers/notifications';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from '@react-navigation/native';
@@ -315,6 +315,17 @@ const sendMessage = async () => {
     return;
   }
 
+  console.log('🚀 CALLING notifySessionNewMessage', sessionId);
+try {
+  await notifySessionNewMessage({
+    sessionId,
+    senderId: user.id,
+    senderName: user?.username ?? 'Utilisateur',
+  });
+} catch (e) {
+  console.error('💥 threw:', e?.message);
+}
+
   // ✅ OPTIMISTIC MESSAGE TEXTE
   const tempId = `tmp-${Date.now()}`;
 
@@ -355,32 +366,15 @@ setMessages(prev =>
   prev.map(m => (m.id === tempId ? inserted : m))
 );
 
+// Analytics
+supabase.from('analytics_events').insert({
+  user_id: user.id,
+  event_name: 'message_sent',
+  properties: { type: 'text', session_id: sessionId },
+  platform: Platform.OS,
+});
+
   // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
-  const { data: participants, error: partErr } = await supabase
-    .from('session_participants')
-    .select('user_id')
-    .eq('session_id', sessionId);
-
-  const senderPseudo = user?.username || "Utilisateur";
-  const messagePreview = trimmed.slice(0, 100);
-
-  if (partErr) {
-    console.error("Erreur récupération participants :", partErr);
-  } else {
-for (const participant of (participants || [])) {
-  if (participant.user_id !== user.id) {
-    await notifyNewMessage({
-      recipientId: participant.user_id,
-      senderId: user.id,
-      senderName: senderPseudo,
-      sessionTitle: session.title,
-      sessionId,
-    });
-  }
-}
-  }
-  setTimeout(() => {
-  }, 100);
 };
 
 // --------- ENVOI MESSAGE IMAGE ---------
@@ -473,31 +467,20 @@ setMessages(prev =>
   prev.map(m => (m.id === tempId ? inserted : m))
 );
 
+// Analytics
+supabase.from('analytics_events').insert({
+  user_id: user.id,
+  event_name: 'message_sent',
+  properties: { type: 'image', session_id: sessionId },
+  platform: Platform.OS,
+});
+
     // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
-    const { data: participants, error: partErr } = await supabase
-      .from('session_participants')
-      .select('user_id')
-      .eq('session_id', sessionId);
-
-    const senderPseudo = user?.username || "Utilisateur";
-
-    if (partErr) {
-      console.error("Erreur récupération participants (image):", partErr);
-    } else {
-for (const participant of (participants || [])) {
-  if (participant.user_id !== user.id) {
-    await notifyNewMessage({
-      recipientId: participant.user_id,
-      senderId: user.id,
-      senderName: senderPseudo,
-      sessionTitle: session.title,
-      sessionId,
-    });
-  }
-}
-    }
-    setTimeout(() => {
-    }, 100);
+await notifySessionNewMessage({
+  sessionId,
+  senderId: user.id,
+  senderName: user?.username ?? 'Utilisateur',
+});
   } catch (err) {
     Alert.alert("Erreur", "Erreur lors de l'envoi de l'image : " + (err.message || err));
   }

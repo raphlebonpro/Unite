@@ -413,6 +413,7 @@ const sendImageMessage = async () => {
 const renderItem = ({ item }) => {
   const isMe = item.sender_id === user.id;
   const timeStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
   // --------- MESSAGE SYSTÈME ---------
 if (!item.sender_id && item.content) {
   return (

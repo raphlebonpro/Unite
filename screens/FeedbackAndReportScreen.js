@@ -141,10 +141,14 @@ const handleNewsletter = async () => {
 
   setNewsletterLoading(false);
 
-  if (error) {
-    console.log("❌ Supabase insert error (newsletter):", error);
-    Alert.alert("Erreur", error.message || "L’inscription a échoué. Réessaye plus tard.");
+if (error) {
+  if (error.code === '23505') {
+    Alert.alert("Déjà inscrit", "Cette adresse email est déjà inscrite à la newsletter Unite.");
   } else {
+    console.log("❌ Supabase insert error (newsletter):", error);
+    Alert.alert("Erreur", "L'inscription a échoué. Réessaye plus tard.");
+  }
+} else {
     // ✅ Envoi notif après succès
     await notifyNewsletterSubscribed({
       userId: user?.id,

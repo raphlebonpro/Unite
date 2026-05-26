@@ -272,17 +272,43 @@ export async function notifyExclusion({ creatorId, excludedId, excludedName, ses
    💬 Messages
    =========================== */
 
-export async function notifyNewMessage({ recipientId, senderId, senderName, sessionTitle, sessionId }) {
-  if (recipientId === senderId) return;
-  await notifyUser({
-    user_id: recipientId,
-    title: 'Nouveau message',
-    body: `${senderName} a écrit dans "${sessionTitle}".`,
-    type: 'new_message',
-    session_id: sessionId,
-    sender_id: senderId,
-    push: true,
-  });
+export async function notifySessionNewMessage({ sessionId, senderId, senderName }) {
+  try {
+    const [{ data: participants, error: pErr }, { data: sessionData, error: sErr }] = await Promise.all([
+      supabase.from('session_participants').select('user_id').eq('session_id', sessionId),
+      supabase.from('sessions').select('title').eq('id', sessionId).single(),
+    ]);
+
+    console.log('👥 participants:', participants, 'error:', pErr);
+    console.log('🏷️ session:', sessionData, 'error:', sErr);
+
+    const recipientIds = (participants || [])
+      .map(p => p.user_id)
+      .filter(uid => uid !== senderId);
+
+    console.log('📬 recipientIds:', recipientIds);
+
+    if (!recipientIds.length) {
+      console.log('⚠️ Aucun destinataire — arrêt');
+      return;
+    }
+
+    await Promise.all(
+      recipientIds.map(uid =>
+        notifyUser({
+          user_id: uid,
+          title: 'Nouveau message',
+          body: `${senderName} a écrit dans "${sessionData?.title ?? 'la session'}".`,
+          type: 'new_message',
+          session_id: sessionId,
+          sender_id: senderId,
+          push: true,
+        })
+      )
+    );
+  } catch (e) {
+    console.warn('❌ notifySessionNewMessage error:', e?.message || e);
+  }
 }
 
 
@@ -341,8 +367,21 @@ export async function notifyFriendRequestAcceptedReceiver({ receiverId, senderNa
     body: `Tu es désormais coéquipier avec ${senderName}.`,
     type: 'friend_request_accepted_self',
     sender_id: null,
-    push: false, // confirmation locale
+    push: true, // confirmation locale
   });
+}
+
+// Ajouter dans la section Amis
+
+export async function notifyFriendCreatedSession({ friendIds = [], creatorName, sessionTitle, sessionId }) {
+  if (!friendIds.length) return;
+  await notifyMany(friendIds, () => ({
+    title: 'Ton coéquipier est actif',
+    body: `${creatorName} vient de créer une session "${sessionTitle}".`,
+    type: 'friend_created_session',
+    session_id: sessionId,
+    push: true,
+  }));
 }
 
 /* ===========================
@@ -697,6 +736,76 @@ export async function notifyGroupExclusion({ excludedId, excludedName, groupName
   }
 }
 
+export async function notifyGroupJoinRequestAccepted({
+  requesterId,
+  requesterName,
+  groupId,
+  groupName,
+  creatorId,
+  otherMemberIds = [],
+}) {
+  if (!requesterId || !groupId) return;
+ 
+  // 1. Notif au demandeur : accepté !
+  await notifyUser({
+    user_id:   requesterId,
+    title:     "Demande acceptée",
+    body:      `Tu as été accepté dans le groupe "${groupName}" ! Bienvenue 🎉`,
+    type:      "group_request_accepted",
+    group_id:  groupId,
+    sender_id: creatorId,
+    push:      true,
+  });
+ 
+  // 2. Confirmation au créateur (locale, pas de push)
+  if (creatorId) {
+    await notifyUser({
+      user_id:   creatorId,
+      title:     "Membre ajouté",
+      body:      `Tu as accepté la demande de ${requesterName} dans "${groupName}".`,
+      type:      "group_request_accepted_creator",
+      group_id:  groupId,
+      sender_id: requesterId,
+      push:      false,
+    });
+  }
+ 
+  // 3. Info aux autres membres (optionnel — peut être mis en false si trop verbeux)
+  if (otherMemberIds.length > 0) {
+    await notifyMany(otherMemberIds, () => ({
+      title:     "Nouveau membre",
+      body:      `${requesterName} a rejoint le groupe "${groupName}".`,
+      type:      "group_member_joined",
+      group_id:  groupId,
+      sender_id: requesterId,
+      push:      true,
+    }));
+  }
+}
+ 
+/**
+ * Notifie le demandeur que sa demande d'adhésion a été REFUSÉE.
+ */
+export async function notifyGroupJoinRequestRejected({
+  requesterId,
+  groupId,
+  groupName,
+  creatorId,
+}) {
+  if (!requesterId || !groupId) return;
+ 
+  // Notif au demandeur : refusé
+  await notifyUser({
+    user_id:   requesterId,
+    title:     "Demande refusée",
+    body:      `Ta demande pour rejoindre "${groupName}" n'a pas été acceptée.`,
+    type:      "group_request_rejected",
+    group_id:  groupId,
+    sender_id: creatorId,
+    push:      true,
+  });
+}
+
 /* ===========================
    👥 Groupes – Sessions
    =========================== */
@@ -938,4 +1047,49 @@ export async function notifyAppUpdate({ userId }) {
   });
 }
 
+export async function notifyGroupJoinRequestReceived({ creatorId, requesterId, requesterName, groupId, groupName }) {
+  if (!creatorId || !groupId) return;
+  await notifyUser({
+    user_id:   creatorId,
+    title:     'Nouvelle demande',
+    body:      `${requesterName} souhaite rejoindre "${groupName}".`,
+    type:      'group_request_received',
+    group_id:  groupId,
+    sender_id: requesterId,
+    push:      true,
+  });
+}
 
+// Ajouter cette fonction après notifyGroupUpdated
+
+export async function notifyGroupUpdatedMembers({ groupId, groupName, editorId }) {
+  if (!groupId) return;
+  try {
+    const { data: members } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId);
+
+    const memberIds = (members || [])
+      .map(m => m.user_id)
+      .filter(uid => uid !== editorId);
+
+    if (!memberIds.length) return;
+
+    await Promise.all(
+      memberIds.map(uid =>
+        notifyUser({
+          user_id: uid,
+          title: 'Groupe mis à jour',
+          body: `Le groupe "${groupName}" a été modifié.`,
+          type: 'group_updated',
+          group_id: groupId,
+          sender_id: editorId,
+          push: true,
+        })
+      )
+    );
+  } catch (e) {
+    console.warn('❌ notifyGroupUpdatedMembers error:', e?.message || e);
+  }
+}

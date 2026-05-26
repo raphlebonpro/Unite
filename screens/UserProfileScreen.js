@@ -1,98 +1,33 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  SafeAreaView,
-  StyleSheet,
-  ScrollView,
-  Text,
-  Image,
-  View,
-  StatusBar,
-  ActivityIndicator,
-  TouchableOpacity,
-  Platform,
-  Alert,
+  SafeAreaView, StyleSheet, ScrollView, Text, Image,
+  View, StatusBar, ActivityIndicator, TouchableOpacity,
+  Platform, Alert,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Feather, Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather, Ionicons, FontAwesome, FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabaseClient';
 import { ReportUserButton } from '../components/ReportUserButton';
 import { BADGES, BADGE_ICONS } from '../constants/badges';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
-import { LinearGradient } from 'expo-linear-gradient';
 import { notifyUser } from '../helpers/notifications';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// === PREMIUM EN VEILLE ===
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+
 const premiumDisabled = true;
 
 const LETTER_COLORS = [
-  '#4A90E2', // A-B
-  '#50E3C2', // C-D
-  '#F5A623', // E-F
-  '#9013FE', // G-H
-  '#D0021B', // I-J
-  '#7ED321', // K-L
-  '#F8E71C', // M-N
-  '#B8E986', // O-P
-  '#417505', // Q-R
-  '#BD10E0', // S-T
-  '#FF3366', // U-V
-  '#00BCD4', // W-X
-  '#FF9800', // Y-Z
+  '#4A90E2','#50E3C2','#F5A623','#9013FE','#D0021B',
+  '#7ED321','#F8E71C','#B8E986','#417505','#BD10E0',
+  '#FF3366','#00BCD4','#FF9800',
 ];
 
 function getColorFromUsername(username = '') {
-  if (!username) return '#4A90E2'; // couleur fallback
-  const firstLetter = username.charAt(0).toUpperCase();
-  const index = (firstLetter.charCodeAt(0) - 65) % LETTER_COLORS.length;
-  return LETTER_COLORS[index];
+  if (!username) return '#4A90E2';
+  return LETTER_COLORS[(username.charCodeAt(0) - 65) % LETTER_COLORS.length];
 }
-
-const Chip = ({ label }) => (
-  <View style={styles.chip}>
-    <Feather name="activity" size={15} color="#FE5D02" style={{ marginRight: 6 }} />
-    <Text style={styles.chipText}>{label}</Text>
-  </View>
-);
-
-const BadgeCard = ({ badge }) => {
-  const iconData = BADGE_ICONS[badge.code];
-  return (
-    <View style={styles.premiumBadgeCard}>
-      <LinearGradient
-        colors={["#f6fafd", "#e6edfa"]}
-        start={[0, 0]}
-        end={[1, 1]}
-        style={styles.premiumBadgeCircle}
-      >
-        {iconData ? (
-          <FontAwesome5
-            name={iconData.icon}
-            size={26}
-            color={iconData.color}
-            solid
-          />
-        ) : (
-          <Text style={styles.premiumBadgeEmoji}>{badge.emoji}</Text>
-        )}
-      </LinearGradient>
-      <Text style={styles.premiumBadgeLabel} numberOfLines={2}>
-        {badge.label}
-      </Text>
-    </View>
-  );
-};
-
-function getUserBadges(stats) {
-  return BADGES.filter((badge) => badge.check(stats));
-}
-
-const Badge = ({ icon, value }) => (
-  <View style={styles.badge}>
-    <Feather name={icon} size={14} color="#256EFF" style={{ marginRight: 6 }} />
-    <Text style={styles.badgeText}>{value}</Text>
-  </View>
-);
 
 function getAgeFromBirthdate(birthdate) {
   if (!birthdate) return '';
@@ -104,1298 +39,652 @@ function getAgeFromBirthdate(birthdate) {
   return age;
 }
 
-const StarDisplay = ({ value = 0, size = 22 }) => (
-  <View style={{ flexDirection: 'row', marginBottom: 1 }}>
+function getUserBadges(stats) {
+  return BADGES.filter(badge => badge.check(stats));
+}
+
+// ─── SOUS-COMPOSANTS ─────────────────────────────────────────────────────────
+
+const Avatar = ({ photo, username, size = 88 }) => {
+  if (photo) return (
+    <Image source={{ uri: photo }} style={{ width: size, height: size, borderRadius: size / 2 }} />
+  );
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: getColorFromUsername(username), alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: size * 0.42 }}>
+        {username?.charAt(0)?.toUpperCase() || '?'}
+      </Text>
+    </View>
+  );
+};
+
+const StarDisplay = ({ value = 0, size = 16 }) => (
+  <View style={{ flexDirection: 'row', gap: 2 }}>
     {[0,1,2,3,4].map(i => {
       const diff = value - i;
-      if (diff >= 1) return <FontAwesome key={i} name="star" size={size} color="#FFD700" />;
-      if (diff >= 0.5) return <FontAwesome key={i} name="star-half-full" size={size} color="#FFD700" />;
-      return <FontAwesome key={i} name="star-o" size={size} color="#C7C7C7" />;
+      const name = diff >= 1 ? 'star' : diff >= 0.5 ? 'star-half-full' : 'star-o';
+      return <FontAwesome key={i} name={name} size={size} color={diff > 0 ? '#FFD700' : '#D8D8D8'} />;
     })}
   </View>
 );
 
-// 🔶 Badge de vérification Unite
-const VerifiedBadge = () => (
-  <LinearGradient
-    colors={['#FF9D3C', '#FF6C4A', '#FF375E']}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 1 }}
-    style={styles.verifiedBadge}
-  >
-    <Text style={styles.verifiedText}>Profil Vérifié</Text>
-  </LinearGradient>
+const BadgeItem = ({ badge }) => {
+  const iconData = BADGE_ICONS[badge.code];
+  return (
+    <View style={styles.badgeItem}>
+      <View style={[
+        styles.badgeItemIcon,
+        { backgroundColor: iconData ? iconData.color + '20' : '#F5F5F8' }
+      ]}>
+        {iconData
+          ? <FontAwesome5 name={iconData.icon} size={20} color={iconData.color} />
+          : <Ionicons name="ribbon-outline" size={20} color="#888" />
+        }
+      </View>
+      <Text style={[styles.badgeItemLabel, iconData && { color: iconData.color }]} numberOfLines={2}>
+        {badge.label}
+      </Text>
+    </View>
+  );
+};
+
+const SportChip = ({ label }) => (
+  <View style={styles.sportChip}>
+    <Ionicons name="fitness-outline" size={13} color="#FE5D02" style={{ marginRight: 5 }} />
+    <Text style={styles.sportChipText}>{label}</Text>
+  </View>
 );
 
-function getUnlockedBadges(stats) {
-  return BADGES.filter((badge) => badge.check(stats));
-}
+const StatBlock = ({ value, label, onPress, accent }) => (
+  <TouchableOpacity
+    style={styles.statBlock}
+    onPress={onPress}
+    activeOpacity={onPress ? 0.75 : 1}
+    disabled={!onPress}
+  >
+    <Text style={[styles.statNum, accent && { color: accent }]}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </TouchableOpacity>
+);
+
+// ─── SCREEN ──────────────────────────────────────────────────────────────────
 
 const UserProfileScreen = () => {
-  const route = useRoute();
+  const route      = useRoute();
   const navigation = useNavigation();
+  const insets     = useSafeAreaInsets();
   const { userId } = route.params;
 
-  const [user, setUser] = useState(null);
-  const [isBlocked, setIsBlocked] = useState(false);
-
-  // Compteurs sessions créées / rejointes
-  const [createdCount, setCreatedCount] = useState(0);
-  const [joinedCount, setJoinedCount] = useState(0);
-
-  // Avis
-  const [avgRating, setAvgRating] = useState(0);
-  const [nbRatings, setNbRatings] = useState(0);
-
-  // Id utilisateur courant
-  const [currentUserId, setCurrentUserId] = useState(null);
-
-  // Amis
-  const [friendsCount, setFriendsCount] = useState(0);
-  const [isFriend, setIsFriend] = useState(false);
+  const [user,                setUser]                = useState(null);
+  const [isBlocked,           setIsBlocked]           = useState(false);
+  const [createdCount,        setCreatedCount]        = useState(0);
+  const [joinedCount,         setJoinedCount]         = useState(0);
+  const [avgRating,           setAvgRating]           = useState(0);
+  const [nbRatings,           setNbRatings]           = useState(0);
+  const [currentUserId,       setCurrentUserId]       = useState(null);
+  const [friendsCount,        setFriendsCount]        = useState(0);
+  const [isFriend,            setIsFriend]            = useState(false);
   const [friendRequestStatus, setFriendRequestStatus] = useState(null);
+  const [pendingRequestId,    setPendingRequestId]    = useState(null);
+  const [loadingFR,           setLoadingFR]           = useState(false);
+  const [optionsVisible,      setOptionsVisible]      = useState(false);
+  const [reportAutoOpen,      setReportAutoOpen]      = useState(false);
 
-  // Demande reçue depuis CE profil (sender = userId, receiver = moi)
-  const [pendingRequestId, setPendingRequestId] = useState(null);
-  const [loadingFR, setLoadingFR] = useState(false);
-
-  const [optionsVisible, setOptionsVisible] = useState(false);
-
-  const [reportAutoOpen, setReportAutoOpen] = useState(false);
-
-const refreshFriendState = useCallback(async () => {
-  if (!currentUserId || !userId || currentUserId === userId) return;
-
-  // Vérifie si une relation existe dans les deux sens
-  const { data: relAB } = await supabase
-    .from('friends')
-    .select('follower_id')
-    .eq('follower_id', currentUserId)
-    .eq('following_id', userId)
-    .maybeSingle();
-
-  const { data: relBA } = await supabase
-    .from('friends')
-    .select('follower_id')
-    .eq('follower_id', userId)
-    .eq('following_id', currentUserId)
-    .maybeSingle();
-
-  if (relAB && relBA) {
-    setIsFriend(true);
-    setFriendRequestStatus('accepted');
-    setPendingRequestId(null);
-    return;
-  }
-
-  // Sinon → regarde s’il existe une demande d’ami
-  const { data: request } = await supabase
-    .from('friend_requests')
-    .select('id, status, sender_id')
-    .or(
-      `and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),` +
-      `and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
-    )
-    .maybeSingle();
-
-  if (request?.status === 'pending') {
-    if (request.sender_id === currentUserId) {
-      setFriendRequestStatus('pending'); // j'ai envoyé une demande
-      setPendingRequestId(null);
-    } else {
-      setFriendRequestStatus(null); // l'autre m'a envoyé une demande
-      setPendingRequestId(request.id);
-    }
-    setIsFriend(false);
-    return;
-  }
-
-  // Sinon → pas d’amis ni demande
-  setIsFriend(false);
-  setFriendRequestStatus(null);
-  setPendingRequestId(null);
-}, [currentUserId, userId]);
-
-  // ─────────────────────────────────────────────────────
-  // HOOKS (toujours avant tout return conditionnel)
-  // ─────────────────────────────────────────────────────
-
-useEffect(() => {
-  const checkBlockStatus = async () => {
-    if (!currentUserId || !userId) return;
-
-    const { data } = await supabase
-      .from("blocked_users")
-      .select("id")
-      .eq("blocker_id", currentUserId)
-      .eq("blocked_id", userId)
+  // ── Refresh état ami ──
+  const refreshFriendState = useCallback(async () => {
+    if (!currentUserId || !userId || currentUserId === userId) return;
+    const { data: relAB } = await supabase.from('friends').select('follower_id').eq('follower_id', currentUserId).eq('following_id', userId).maybeSingle();
+    const { data: relBA } = await supabase.from('friends').select('follower_id').eq('follower_id', userId).eq('following_id', currentUserId).maybeSingle();
+    if (relAB && relBA) { setIsFriend(true); setFriendRequestStatus('accepted'); setPendingRequestId(null); return; }
+    const { data: request } = await supabase.from('friend_requests').select('id, status, sender_id')
+      .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`)
       .maybeSingle();
+    if (request?.status === 'pending') {
+      if (request.sender_id === currentUserId) { setFriendRequestStatus('pending'); setPendingRequestId(null); }
+      else { setFriendRequestStatus(null); setPendingRequestId(request.id); }
+      setIsFriend(false); return;
+    }
+    setIsFriend(false); setFriendRequestStatus(null); setPendingRequestId(null);
+  }, [currentUserId, userId]);
 
-    setIsBlocked(!!data);
-  };
+  // ── Compteur amis ──
+  const fetchFriendsCount = useCallback(async () => {
+    if (!userId) return;
+    const { data: out } = await supabase.from('friends').select('following_id').eq('follower_id', userId);
+    const { data: inc } = await supabase.from('friends').select('follower_id').eq('following_id', userId);
+    const outSet = new Set((out || []).map(r => r.following_id));
+    const incSet = new Set((inc || []).map(r => r.follower_id));
+    let mutual = 0; outSet.forEach(id => { if (incSet.has(id)) mutual++; });
+    setFriendsCount(mutual);
+  }, [userId]);
 
-  checkBlockStatus();
-}, [currentUserId, userId]);
+  // ── Rating ──
+  const fetchAvgRating = useCallback(async () => {
+    if (!userId) return;
+    const { data, error } = await supabase.from('user_ratings').select('rating').eq('rated_id', userId);
+    if (!error && data?.length) { setAvgRating(data.reduce((a, c) => a + c.rating, 0) / data.length); setNbRatings(data.length); }
+    else { setAvgRating(0); setNbRatings(0); }
+  }, [userId]);
 
- useEffect(() => {
-  if (!currentUserId) return;
-  const ch = supabase
-    .channel(`friends_realtime_${currentUserId}`)
-    .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'friends' }, 
-        () => {
-          fetchFriendsCount();   // compteur
-          refreshFriendState();  // état ami / pas ami
-        })
-    .subscribe();
-
-  return () => supabase.removeChannel(ch);
-}, [currentUserId, fetchFriendsCount, refreshFriendState]);
-
+  // ── Init ──
   useEffect(() => {
     (async () => {
-      const {
-        data: { user: current },
-      } = await supabase.auth.getUser();
+      const { data: { user: current } } = await supabase.auth.getUser();
       setCurrentUserId(current?.id || null);
     })();
   }, []);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
-      if (!error) setUser(data);
-    };
-    fetchUserProfile();
+    supabase.from('users').select('*').eq('id', userId).single()
+      .then(({ data, error }) => { if (!error) setUser(data); });
   }, [userId]);
 
-useEffect(() => {
-  const fetchSessionCounters = async () => {
-    if (!userId) return;
-
-    // 🔹 Sessions créées (non annulées)
-    const { data: createdRows, error: createdErr } = await supabase
-      .from('sessions')
-      .select('id')
-      .eq('creator_id', userId)
-      .eq('is_cancelled', false); // ✅ exclut les sessions annulées
-
-    const createdIds = new Set((createdRows ?? []).map(r => r.id));
-    setCreatedCount(createdErr ? 0 : (createdRows?.length ?? 0));
-
-    // 🔹 Participations (sessions non annulées)
-    const { data: joinedRows, error: joinedErr } = await supabase
-      .from('session_participants')
-      .select(`
-        session_id,
-        sessions!inner(is_cancelled)
-      `)
-      .eq('user_id', userId)
-      .eq('sessions.is_cancelled', false); // ✅ exclut les sessions annulées
-
-    if (joinedErr || !joinedRows?.length) {
-      setJoinedCount(0);
-      return;
-    }
-
-    // 🔹 Exclut les sessions que ce user a créées
-    const uniqueJoined = new Set(joinedRows.map(r => r.session_id));
-    let count = 0;
-    for (const sid of uniqueJoined) {
-      if (!createdIds.has(sid)) count++;
-    }
-    setJoinedCount(count);
-  };
-
-  fetchSessionCounters();
-}, [userId]);
-
-const fetchAvgRating = useCallback(async () => {
-  if (!userId) return;
-  const { data, error } = await supabase
-    .from('user_ratings')
-    .select('rating')
-    .eq('rated_id', userId);
-
-  if (!error && data && data.length > 0) {
-    const sum = data.reduce((acc, curr) => acc + curr.rating, 0);
-    setAvgRating(sum / data.length);
-    setNbRatings(data.length);
-  } else {
-    setAvgRating(0);
-    setNbRatings(0);
-  }
-}, [userId]);
-
-const handleUnblockUser = async () => {
-  if (!currentUserId || !userId) return;
-
-  Alert.alert(
-    "Débloquer cet utilisateur",
-    "Il pourra réapparaître dans tes sessions et interactions. Continuer ?",
-    [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Débloquer",
-        style: "default",
-        onPress: async () => {
-          try {
-            const { error } = await supabase
-              .from("blocked_users")
-              .delete()
-              .match({ blocker_id: currentUserId, blocked_id: userId });
-
-            if (error) {
-              Alert.alert("Erreur", "Impossible de débloquer cet utilisateur.");
-              return;
-            }
-
-            setIsBlocked(false);
-            Alert.alert("Utilisateur débloqué", "Cet utilisateur n’est plus bloqué.");
-          } catch (e) {
-            Alert.alert("Erreur", "Une erreur est survenue.");
-          }
-        },
-      },
-    ]
-  );
-};
-
-const handleBlockUser = async () => {
-  if (!currentUserId || !userId) return;
-
-  Alert.alert(
-    "Bloquer cet utilisateur",
-    "Tu ne verras plus ses sessions, messages ou interactions.",
-    [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Bloquer",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // 1️⃣ Ajoute le blocage
-            await supabase
-              .from('blocked_users')
-              .insert([{ blocker_id: currentUserId, blocked_id: userId }]);
-
-            // 2️⃣ Supprime relation amis dans les deux sens
-            await supabase
-              .from('friends')
-              .delete()
-              .or(
-                `and(follower_id.eq.${currentUserId},following_id.eq.${userId}),` +
-                `and(follower_id.eq.${userId},following_id.eq.${currentUserId})`
-              );
-
-            // 3️⃣ Supprime demandes d’amis
-            await supabase
-              .from('friend_requests')
-              .delete()
-              .or(
-                `and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),` +
-                `and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
-              );
-
-            // 4️⃣ Reset états locaux
-            setIsBlocked(true);
-            setIsFriend(false);
-            setFriendRequestStatus(null);
-            setPendingRequestId(null);
-
-          } catch (e) {
-            Alert.alert("Erreur", "Impossible de bloquer cet utilisateur.");
-          }
-        },
-      },
-    ]
-  );
-};
-
-  // Vérifie relation & demandes (amis)
   useEffect(() => {
-    const fetchFriendsData = async () => {
-      if (!userId || !currentUserId || userId === currentUserId) return;
-
-      // Amis mutuels (A->B et B->A)
-      const { data: relAB } = await supabase
-        .from('friends')
-        .select('id')
-        .eq('follower_id', currentUserId)
-        .eq('following_id', userId)
-        .maybeSingle();
-
-      const { data: relBA } = await supabase
-        .from('friends')
-        .select('id')
-        .eq('follower_id', userId)
-        .eq('following_id', currentUserId)
-        .maybeSingle();
-
-      if (relAB && relBA) {
-        setIsFriend(true);
-        setFriendRequestStatus('accepted');
-        return;
-      }
-
-      // Demande envoyée par moi vers ce profil ?
-      const { data: request } = await supabase
-        .from('friend_requests')
-        .select('status')
-        .eq('sender_id', currentUserId)
-        .eq('receiver_id', userId)
-        .maybeSingle();
-
-      if (request) {
-        setFriendRequestStatus(request.status); // 'pending' | 'accepted' | 'rejected'
-      }
+    const fetch = async () => {
+      if (!userId) return;
+      const { data: createdRows, error: cErr } = await supabase.from('sessions').select('id').eq('creator_id', userId).eq('is_cancelled', false);
+      const createdIds = new Set((createdRows ?? []).map(r => r.id));
+      setCreatedCount(cErr ? 0 : (createdRows?.length ?? 0));
+      const { data: joinedRows, error: jErr } = await supabase.from('session_participants')
+        .select('session_id, sessions!inner(is_cancelled)').eq('user_id', userId).eq('sessions.is_cancelled', false);
+      if (jErr || !joinedRows?.length) { setJoinedCount(0); return; }
+      const unique = new Set(joinedRows.map(r => r.session_id));
+      let count = 0; for (const sid of unique) { if (!createdIds.has(sid)) count++; }
+      setJoinedCount(count);
     };
+    fetch();
+  }, [userId]);
 
-    fetchFriendsData();
-  }, [userId, currentUserId]);
-
-  // Y a-t-il une demande PENDING envoyée par CE profil (userId) -> moi (currentUserId) ?
   useEffect(() => {
-    const loadPendingFromProfile = async () => {
-      if (!currentUserId || !userId || currentUserId === userId) return;
-
-      const { data, error } = await supabase
-        .from('friend_requests')
-        .select('id')
-        .eq('sender_id', userId) // CE profil est l’expéditeur
-        .eq('receiver_id', currentUserId) // MOI suis le destinataire
-        .eq('status', 'pending')
-        .maybeSingle();
-
-      setPendingRequestId(!error && data ? data.id : null);
-    };
-    loadPendingFromProfile();
+    if (!currentUserId || !userId) return;
+    supabase.from('blocked_users').select('id').eq('blocker_id', currentUserId).eq('blocked_id', userId).maybeSingle()
+      .then(({ data }) => setIsBlocked(!!data));
   }, [currentUserId, userId]);
 
-  // Compteur d'amis mutuels (A suit B ET B suit A)
-  const fetchFriendsCount = useCallback(async () => {
-    if (!userId) return;
+  useEffect(() => { fetchFriendsCount(); }, [fetchFriendsCount]);
+  useEffect(() => { fetchAvgRating(); }, [fetchAvgRating]);
+  useEffect(() => { refreshFriendState(); }, [refreshFriendState]);
 
-    const { data: out } = await supabase
-      .from('friends')
-      .select('following_id')
-      .eq('follower_id', userId);
-
-    const { data: inc } = await supabase
-      .from('friends')
-      .select('follower_id')
-      .eq('following_id', userId);
-
-    const outSet = new Set((out || []).map((r) => r.following_id));
-    const incSet = new Set((inc || []).map((r) => r.follower_id));
-
-    let mutual = 0;
-    outSet.forEach((id) => {
-      if (incSet.has(id)) mutual++;
-    });
-    setFriendsCount(mutual);
-  }, [userId]);
+  useFocusEffect(useCallback(() => { refreshFriendState(); fetchAvgRating(); }, [refreshFriendState, fetchAvgRating]));
 
   useEffect(() => {
-    fetchFriendsCount();
-  }, [fetchFriendsCount]);
+    if (!currentUserId) return;
+    const ch = supabase.channel(`friends_realtime_${currentUserId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friends' }, () => { fetchFriendsCount(); refreshFriendState(); })
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [currentUserId, fetchFriendsCount, refreshFriendState]);
 
   useEffect(() => {
     if (!userId) return;
-    const ch = supabase
-      .channel(`friends_mutual_${userId}`)
+    const ch = supabase.channel(`friends_mutual_${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friends' }, fetchFriendsCount)
       .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return () => supabase.removeChannel(ch);
   }, [userId, fetchFriendsCount]);
 
-  // Rafraîchit à chaque focus de l’écran
-useFocusEffect(
-  useCallback(() => {
-    refreshFriendState();
-  }, [refreshFriendState])
-);
-
-// Rafraîchit quand l’ID change (nouvel utilisateur ouvert)
-useEffect(() => {
-  refreshFriendState();
-}, [refreshFriendState]);
-
-useEffect(() => {
-  fetchAvgRating();
-}, [fetchAvgRating]);
-
-useFocusEffect(
-  useCallback(() => {
-    fetchAvgRating();
-  }, [fetchAvgRating])
-);
-
-  // ─────────────────────────────────────────────────────
-  // Fonctions (pas des hooks)
-  // ─────────────────────────────────────────────────────
-
-const handleAddFriend = async () => {
-  if (!currentUserId || !userId || currentUserId === userId) return;
-
-  try {
-    // Supprime toute demande existante
-    await supabase
-      .from('friend_requests')
-      .delete()
-      .or(
-        `and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),` +
-        `and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
-      );
-
-    // Nouvelle demande
-    const { error } = await supabase.from('friend_requests').insert({
-      sender_id: currentUserId,
-      receiver_id: userId,
-      status: 'pending',
-    });
-
-    if (error) {
-      console.error("Erreur insert demande d'ami:", error);
-      return;
-    }
-
-    // 🔎 Récupère le pseudo de l’utilisateur courant
-    const { data: me } = await supabase
-      .from('users')
-      .select('username')
-      .eq('id', currentUserId)
-      .maybeSingle();
-
-    const senderName = me?.username || 'Un utilisateur';
-
-    // Notif enrichie
-    await notifyUser({
-      user_id: userId,
-      title: 'Nouvelle demande d’ami',
-      body: `${senderName} t’a envoyé une demande d’ami`,  // ✅ pseudo ajouté
-      type: 'friend_request',
-      sender_id: currentUserId,
-      push: true,
-    });
-
-    setFriendRequestStatus('pending');
-    setPendingRequestId(null);
-
-  } catch (e) {
-    console.error("Erreur handleAddFriend:", e);
-  }
-};
-
-
-const getToken = async () => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session?.access_token || '';
-};
-
-const onAcceptFriend = async () => {
-  if (!pendingRequestId) return;
-  try {
-    setLoadingFR(true);
-    const token = await getToken();
-    await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/friend_request_respond`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender_id: userId, decision: 'accept' }),
-    });
-    await refreshFriendState(); // 🔄 met à jour l'état (isFriend, status…)
-    fetchFriendsCount(); // 🔄 met aussi à jour le compteur
-  } catch (e) {
-    console.error(e);
-  } finally {
-    setLoadingFR(false);
-  }
-};
-
-const onDeclineFriend = async () => {
-  if (!pendingRequestId) return;
-  try {
-    setLoadingFR(true);
-    const token = await getToken();
-    await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/friend_request_respond`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender_id: userId, decision: 'reject' }),
-    });
-    await refreshFriendState(); // 🔄 on rafraîchit l'état après rejet
-  } catch (e) {
-    console.error(e);
-  } finally {
-    setLoadingFR(false);
-  }
-};
-
-  // ✅ Early return APRÈS tous les hooks, AVANT d’accéder à user.*
-if (!user) {
-  return (
-    <ActivityIndicator
-      size={Platform.OS === 'ios' ? 'large' : 50}
-      style={{ flex: 1, justifyContent: 'center' }}
-    />
-  );
-}
-
-  // ─────────────────────────────────────────────────────
-  // Données dérivées
-  // ─────────────────────────────────────────────────────
-
-  let sports = [];
-  if (Array.isArray(user.favorite_sports)) {
-    sports = user.favorite_sports;
-  } else if (typeof user.favorite_sports === 'string') {
-    sports = user.favorite_sports.split(',').map((s) => s.trim());
-  }
-
-  const stats = {
-    createdCount,
-    joinedCount,
-    avgRating,
-    nbRatings,
+  // ── Actions amis ──
+  const handleAddFriend = async () => {
+    if (!currentUserId || !userId || currentUserId === userId) return;
+    await supabase.from('friend_requests').delete()
+      .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`);
+    const { error } = await supabase.from('friend_requests').insert({ sender_id: currentUserId, receiver_id: userId, status: 'pending' });
+    if (error) return;
+    const { data: me } = await supabase.from('users').select('username').eq('id', currentUserId).maybeSingle();
+    await notifyUser({ user_id: userId, title: "Nouvelle demande d'ami", body: `${me?.username || 'Un utilisateur'} t'a envoyé une demande d'ami`, type: 'friend_request', sender_id: currentUserId, push: true });
+    setFriendRequestStatus('pending'); setPendingRequestId(null);
   };
 
+  const getToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || '';
+  };
+
+  const onAcceptFriend = async () => {
+    if (!pendingRequestId) return;
+    setLoadingFR(true);
+    try {
+      const token = await getToken();
+      await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/friend_request_respond`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_id: userId, decision: 'accept' }),
+      });
+      await refreshFriendState(); fetchFriendsCount();
+    } finally { setLoadingFR(false); }
+  };
+
+  const onDeclineFriend = async () => {
+    if (!pendingRequestId) return;
+    setLoadingFR(true);
+    try {
+      const token = await getToken();
+      await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/friend_request_respond`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_id: userId, decision: 'reject' }),
+      });
+      await refreshFriendState();
+    } finally { setLoadingFR(false); }
+  };
+
+  const handleBlockUser = async () => {
+    Alert.alert("Bloquer cet utilisateur", "Tu ne verras plus ses sessions, messages ou interactions.", [
+      { text: "Annuler", style: "cancel" },
+      { text: "Bloquer", style: "destructive", onPress: async () => {
+        await supabase.from('blocked_users').insert([{ blocker_id: currentUserId, blocked_id: userId }]);
+        await supabase.from('friends').delete().or(`and(follower_id.eq.${currentUserId},following_id.eq.${userId}),and(follower_id.eq.${userId},following_id.eq.${currentUserId})`);
+        await supabase.from('friend_requests').delete().or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`);
+        setIsBlocked(true); setIsFriend(false); setFriendRequestStatus(null); setPendingRequestId(null);
+      }},
+    ]);
+  };
+
+  const handleUnblockUser = async () => {
+    Alert.alert("Débloquer cet utilisateur", "Il pourra réapparaître dans tes sessions et interactions.", [
+      { text: "Annuler", style: "cancel" },
+      { text: "Débloquer", onPress: async () => {
+        await supabase.from('blocked_users').delete().match({ blocker_id: currentUserId, blocked_id: userId });
+        setIsBlocked(false);
+        Alert.alert("Utilisateur débloqué", "Cet utilisateur n'est plus bloqué.");
+      }},
+    ]);
+  };
+
+  // ── Loading ──
+  if (!user) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F2F3F7' }}>
+      <ActivityIndicator color="#FE5D02" size="large" />
+    </View>
+  );
+
+  // ── Données dérivées ──
+  let sports = [];
+  if (Array.isArray(user.favorite_sports)) sports = user.favorite_sports;
+  else if (typeof user.favorite_sports === 'string') sports = user.favorite_sports.split(',').map(s => s.trim());
+
+  const stats = {
+  createdCount,
+  joinedCount,
+  avgRating,
+  nbRatings,
+  isPremium: !!user.is_premium,
+  accountAge: user.created_at
+    ? Math.floor((Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24))
+    : 0,
+  createdAt:    user.created_at || null,
+  invitedUsers: user.invited_users || 0,
+  reportsCount: user.reports_count || 0,
+};
   const unlockedBadges = getUserBadges(stats);
+  const isOwnProfile   = currentUserId === userId;
 
-  const openFriendsList = () => {
-  navigation.navigate('FriendsList', { userId });
-};
+  // ─── RENDER ───────────────────────────────────────────────────────────────
+  return (
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="dark-content" />
 
-return (
-  <SafeAreaView style={{ flex: 1, backgroundColor: '#fafbff' }}>
-    <StatusBar barStyle="dark-content" />
-<View style={styles.appBarOnlyBack}>
-  {/* Bouton fermer */}
-  <TouchableOpacity
-    onPress={() => navigation.goBack()}
-    activeOpacity={0.8}
-    style={styles.closeButton}
-  >
-    <Ionicons name="close" size={18} color="#444" />
-  </TouchableOpacity>
-
-  {/* Menu options */}
-  {currentUserId && userId !== currentUserId && (
-    <TouchableOpacity
-      onPress={() => setOptionsVisible(true)}
-      activeOpacity={0.8}
-      style={styles.moreButton}
-    >
-      <Feather name="more-vertical" size={20} color="#444" />
-    </TouchableOpacity>
-  )}
-</View>
-
-    <ScrollView
-      contentContainerStyle={styles.scrollContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      {isBlocked && (
-  <View style={styles.blockBanner}>
-    <Feather name="slash" size={16} color="#c62828" />
-    <Text style={styles.blockBannerText}>
-      Vous avez bloqué cet utilisateur
-    </Text>
-  </View>
-)}
-      <View style={styles.centerContent}>
-        <View style={styles.profileCard}>
-          {/* Avatar */}
-          {user?.profile_photo ? (
-            <Image source={{ uri: user.profile_photo }} style={styles.avatar} />
-          ) : (
-         <View
-          style={[styles.avatar,
-          { backgroundColor: getColorFromUsername(user?.username), justifyContent: 'center', alignItems: 'center',},]}
-         >
-          <Text style={styles.avatarInitial}>
-          {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-          </Text>
-        </View>
-          )}
-
-<View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: hp('1.5%') }}>
-  <Text style={styles.username}>{user?.username || 'Pseudo'}</Text>
-
-            {/* 🔹 Badges alignés en ligne */}
-  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: hp('0.3%'), gap: 6 }}>
-    {user?.is_verified && <VerifiedBadge />}
-
-    {!premiumDisabled && user?.is_premium && (
-      <LinearGradient
-        colors={['#6A11CB', '#2575FC']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 18,
-          paddingVertical: 8,
-          marginTop: 10,
-          marginBottom: 10,
-          borderRadius: 999,
-          gap: 5,
-        }}
-      >
-        <FontAwesome5 name="bolt" size={14} color="#fff" />
-        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>Unite+</Text>
-      </LinearGradient>
-    )}
-  </View>
-
-{/* 💬 Phrase de soutien discrète et élégante */}
-{!premiumDisabled && user?.is_premium && (
-  <Text
-    style={{
-      marginTop: hp('0.7%'),
-      color: '#666',
-      fontSize: 13.5,
-      fontWeight: '500',
-      textAlign: 'center',
-      letterSpacing: 0.3,
-      opacity: 0.8,
-      fontStyle: 'italic',
-    }}
-  >
-    {user?.username || 'Pseudo'} soutient le collectif Unite 🫶
-  </Text>
-)}
-</View>
-
-          {/* Affichage de la moyenne des avis */}
-          <TouchableOpacity
-            style={{ alignItems: 'center', marginTop: 6, marginBottom: 0 }}
-            activeOpacity={nbRatings > 0 ? 0.7 : 1}
-            onPress={() => {
-              if (nbRatings > 0) navigation.navigate('UserReview', { userId });
-            }}
-            disabled={nbRatings === 0}
-          >
-            <StarDisplay value={avgRating} size={22} />
-<Text
-  style={{
-    color: '#666',
-    fontSize: 13,
-    marginTop: 3,
-    textDecorationLine: nbRatings > 0 ? 'underline' : 'none',
-    opacity: nbRatings > 0 ? 1 : 0.7,
-  }}
->
-  {nbRatings > 0
-    ? `${avgRating.toFixed(1)} / 5 (${nbRatings} avis)`
-    : 'Aucun avis pour le moment'}
-</Text>
+      {/* ══ APP BAR (inchangée) ══ */}
+      <View style={styles.appBarOnlyBack}>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.closeButton}>
+          <Ionicons name="close" size={18} color="#444" />
+        </TouchableOpacity>
+        {currentUserId && !isOwnProfile && (
+          <TouchableOpacity onPress={() => setOptionsVisible(true)} activeOpacity={0.8} style={styles.moreButton}>
+            <Feather name="more-vertical" size={20} color="#444" />
           </TouchableOpacity>
-
-          <View style={{ height: 18 }} />
-
-{/* Compteur amis (mutuel) */}
-<View style={styles.counterContainer}>
-  <View style={styles.countersRow}>
-    <TouchableOpacity
-      style={styles.counterBox}
-      activeOpacity={0.8}
-      onPress={openFriendsList}
-      accessibilityRole="button"
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-    >
-      <Text style={styles.counterNumber}>{friendsCount}</Text>
-      <Text style={[styles.counterLabel, { textDecorationLine: 'underline' }]}>
-        Coéquipiers
-      </Text>
-    </TouchableOpacity>
-  </View>
-</View>
-
-          {/* Compteurs sessions */}
-          <View style={styles.counterContainer}>
-            <View style={styles.countersRow}>
-              <View style={styles.counterBox}>
-                <Text style={styles.counterNumber}>{createdCount}</Text>
-                <Text style={styles.counterLabel}>Créées</Text>
-              </View>
-              <View style={styles.counterBox}>
-                <Text style={styles.counterNumber}>{joinedCount}</Text>
-                <Text style={styles.counterLabel}>Rejointes</Text>
-              </View>
-            </View>
-          </View>
-
-{/* Actions d’amitié (compact) */}
-{currentUserId && userId !== currentUserId && !isBlocked && (
-  pendingRequestId ? (
-    // CE PROFIL t'a envoyé une demande -> Accepter / Refuser ici
-    <View style={styles.friendActionsRow}>
-      <TouchableOpacity onPress={onAcceptFriend} activeOpacity={0.85} disabled={loadingFR}>
-        <LinearGradient
-          colors={['#27ae60', '#2ecc71']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          style={styles.friendGradientBtn}
-        >
-          <Text style={styles.friendGradientText}>{loadingFR ? '...' : 'Accepter'}</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={onDeclineFriend} activeOpacity={0.85} disabled={loadingFR}>
-        <LinearGradient
-          colors={['#e53935', '#f44336']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          style={styles.friendGradientBtn}
-        >
-          <Text style={styles.friendGradientText}>{loadingFR ? '...' : 'Refuser'}</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
-  ) : isFriend ? (
-    // Déjà amis
-    <View style={styles.pillMuted}>
-      <Text style={styles.pillMutedText}>Vous êtes déjà coéquipiers</Text>
-    </View>
-  ) : friendRequestStatus === 'pending' ? (
-    // Demande QUE TU AS envoyée
-    <View style={styles.pillMuted}>
-      <Text style={styles.pillMutedText}>En attente</Text>
-    </View>
-  ) : (
-    // Aucune relation
-    <TouchableOpacity onPress={handleAddFriend} activeOpacity={0.85}>
-      <View
-        style={[styles.friendGradientBtn, { backgroundColor: '#F62DAE' }]}>
-        <Text style={styles.friendGradientText}>Devenir coéquipiers</Text>
+        )}
       </View>
-    </TouchableOpacity>
-  )
-)}
 
-{/* =========== BADGES =========== */}
-{unlockedBadges.length > 0 && (
-  <View style={styles.badgesListContainer}>
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{
-        justifyContent: "center",
-        alignItems: "center",
-        flexGrow: 1,
-        paddingHorizontal: 10,
-      }}
-    >
-{[...unlockedBadges].reverse().map((badge) => (
-  <BadgeCard badge={badge} key={badge.code} />
-))}
-    </ScrollView>
-  </View>
-)}
-{/* =========== FIN BADGES =========== */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scroll, { paddingBottom: 10 }]}
+      >
 
-          <View style={{ height: 16 }} />
-
-          <View style={styles.badgesRow}>
-            {user?.birthdate ? (
-              <Badge
-                icon="calendar"
-                value={`${getAgeFromBirthdate(user.birthdate)} ans`}
-              />
-            ) : null}
-            {user?.gender ? <Badge icon="user" value={user.gender} /> : null}
+        {/* ══ BANNIÈRE BLOQUÉ ══ */}
+        {isBlocked && (
+          <View style={styles.blockBanner}>
+            <Ionicons name="ban-outline" size={15} color="#E53935" style={{ marginRight: 7 }} />
+            <Text style={styles.blockBannerText}>Vous avez bloqué cet utilisateur</Text>
           </View>
+        )}
 
-          {/* Sports favoris */}
-          {sports.length > 0 && (
-            <View style={styles.sportsRow}>
-              {sports.map((sport, idx) => (
-                <Chip key={idx} label={sport} />
+        {/* ══ HERO CARD (même structure que ProfileScreen) ══ */}
+        <View style={styles.heroCard}>
+          <LinearGradient
+            colors={['#0D1321', '#162032', '#1A2A40']}
+            style={styles.heroGradient}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.heroDeco1} />
+            <View style={styles.heroDeco2} />
+            <View style={styles.heroDeco3} />
+
+            {/* Avatar */}
+            <View style={styles.heroAvatarSection}>
+              <View style={[styles.avatarRing, isBlocked && { borderColor: '#E53935' }]}>
+                <Avatar photo={user.profile_photo} username={user.username} size={88} />
+              </View>
+
+              {/* Badges */}
+              <View style={styles.heroBadgesRow}>
+                {user.is_verified && (
+                  <LinearGradient colors={['#FF9D3C', '#FF6C4A', '#FF375E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={styles.heroBadgeText}>Vérifié</Text>
+                  </LinearGradient>
+                )}
+                {!premiumDisabled && user.is_premium && (
+                  <LinearGradient colors={['#6A11CB', '#2575FC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroBadge}>
+                    <FontAwesome5 name="bolt" size={10} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={styles.heroBadgeText}>Unite+</Text>
+                  </LinearGradient>
+                )}
+              </View>
+            </View>
+
+            {/* Nom */}
+            <Text style={styles.heroName}>{user.username || 'Pseudo'}</Text>
+
+            {/* Infos secondaires */}
+            <View style={styles.heroMeta}>
+              {user.birthdate && (
+                <View style={styles.heroMetaItem}>
+                  <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.5)" style={{ marginRight: 4 }} />
+                  <Text style={styles.heroMetaText}>{getAgeFromBirthdate(user.birthdate)} ans</Text>
+                </View>
+              )}
+              {user.gender && (
+                <View style={styles.heroMetaItem}>
+                  <Ionicons name="person-outline" size={13} color="rgba(255,255,255,0.5)" style={{ marginRight: 4 }} />
+                  <Text style={styles.heroMetaText}>{user.gender}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Rating */}
+            <TouchableOpacity
+              style={styles.ratingRow}
+              activeOpacity={nbRatings > 0 ? 0.7 : 1}
+              disabled={nbRatings === 0}
+              onPress={() => { if (nbRatings > 0) navigation.navigate('UserReview', { userId }); }}
+            >
+              <StarDisplay value={avgRating} size={16} />
+              <Text style={styles.ratingText}>
+                {nbRatings > 0 ? `${avgRating.toFixed(1)} / 5 · ${nbRatings} avis` : 'Pas encore noté'}
+              </Text>
+              {nbRatings > 0 && <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.4)" style={{ marginLeft: 2 }} />}
+            </TouchableOpacity>
+
+            {/* ══ BOUTON AMI ══ */}
+            {currentUserId && !isOwnProfile && !isBlocked && (
+              <View style={styles.friendSection}>
+                {pendingRequestId ? (
+                  <View style={styles.friendRequestRow}>
+                    <TouchableOpacity style={styles.friendBtnAccept} onPress={onAcceptFriend} disabled={loadingFR} activeOpacity={0.85}>
+                      <Ionicons name="checkmark" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.friendBtnText}>{loadingFR ? '...' : 'Accepter'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.friendBtnDecline} onPress={onDeclineFriend} disabled={loadingFR} activeOpacity={0.85}>
+                      <Ionicons name="close" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.friendBtnText}>{loadingFR ? '...' : 'Refuser'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : isFriend ? (
+                  <View style={styles.friendPill}>
+                    <Ionicons name="people" size={14} color="#2ECC71" style={{ marginRight: 6 }} />
+                    <Text style={[styles.friendPillText, { color: '#2ECC71' }]}>Coéquipiers</Text>
+                  </View>
+                ) : friendRequestStatus === 'pending' ? (
+                  <View style={styles.friendPill}>
+                    <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.5)" style={{ marginRight: 6 }} />
+                    <Text style={styles.friendPillText}>Demande envoyée</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.friendBtnPrimary} onPress={handleAddFriend} activeOpacity={0.85}>
+                    <Ionicons name="person-add-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.friendBtnText}>Devenir coéquipiers</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Soutien Unite+ */}
+            {!premiumDisabled && user.is_premium && (
+              <Text style={styles.premiumSupportText}>{user.username} soutient le collectif Unite</Text>
+            )}
+          </LinearGradient>
+        </View>
+
+        {/* ══ STATS (identique ProfileScreen) ══ */}
+        <View style={styles.statsCard}>
+          <StatBlock
+            value={friendsCount}
+            label="Coéquipiers"
+            onPress={() => navigation.navigate('FriendsList', { userId })}
+            accent="#3888FF"
+          />
+          <View style={styles.statsDivider} />
+          <StatBlock value={createdCount}  label="Créées"    accent="#FE5D02" />
+          <View style={styles.statsDivider} />
+          <StatBlock value={joinedCount}   label="Rejointes" accent="#2ECC71" />
+        </View>
+
+        {/* ══ BIO ══ */}
+        {user.bio ? (
+          <View style={styles.infoCard}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="chatbubble-ellipses-outline" size={15} color="#FE5D02" />
+              </View>
+              <Text style={styles.cardHeaderTitle}>À propos</Text>
+            </View>
+            <Text style={styles.bioText}>{user.bio}</Text>
+          </View>
+        ) : null}
+
+        {/* ══ SPORTS ══ */}
+        {sports.length > 0 && (
+          <View style={styles.infoCard}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="fitness-outline" size={15} color="#FE5D02" />
+              </View>
+              <Text style={styles.cardHeaderTitle}>Sports pratiqués</Text>
+            </View>
+            <View style={styles.sportsWrap}>
+              {sports.map((s, i) => <SportChip key={i} label={s} />)}
+            </View>
+          </View>
+        )}
+
+        {/* ══ BADGES ══ */}
+        {unlockedBadges.length > 0 && (
+          <View style={styles.infoCard}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="ribbon-outline" size={15} color="#FE5D02" />
+              </View>
+              <Text style={styles.cardHeaderTitle}>Badges</Text>
+              <View style={styles.badgeCount}>
+                <Text style={styles.badgeCountText}>{unlockedBadges.length}</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.badgesList}>
+              {[...unlockedBadges].reverse().map(badge => (
+                <BadgeItem badge={badge} key={badge.code} />
               ))}
-            </View>
-          )}
+            </ScrollView>
+          </View>
+        )}
 
-          {/* Description */}
-          {user?.bio ? (
-            <View style={styles.descBox}>
-              <Text style={styles.descText}>{user.bio}</Text>
-            </View>
-          ) : null}
-  </View>
- </View>
-</ScrollView>
-    {optionsVisible && (
-  <View style={styles.overlay}>
-    <TouchableOpacity
-      style={{ flex: 1 }}
-      activeOpacity={1}
-      onPress={() => setOptionsVisible(false)}
-    />
-<View style={styles.bottomSheet}>
-  <Text style={styles.sheetTitle}>Options</Text>
+      </ScrollView>
 
-  {/* Signaler */}
-<TouchableOpacity
-  style={styles.sheetItem}
-  onPress={() => {
-    setOptionsVisible(false);
-    setReportAutoOpen(true);
-  }}
->
-  <Feather name="flag" size={18} color="#FE5D02" />
-  <Text style={styles.sheetText}>Signaler cet utilisateur</Text>
-</TouchableOpacity>
+      {/* ══ BOTTOM SHEET OPTIONS (inchangé logiquement, redessiné) ══ */}
+      {optionsVisible && (
+        <View style={styles.overlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setOptionsVisible(false)} />
+          <View style={styles.bottomSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Options</Text>
 
-  {/* Bloquer / Débloquer */}
-  <TouchableOpacity
-    style={styles.sheetItem}
-    onPress={() => {
-      setOptionsVisible(false);
+            <TouchableOpacity
+              style={styles.sheetItem}
+              onPress={() => { setOptionsVisible(false); setReportAutoOpen(true); }}
+            >
+              <View style={[styles.sheetItemIcon, { backgroundColor: '#FFF4EE' }]}>
+                <Ionicons name="flag-outline" size={17} color="#FE5D02" />
+              </View>
+              <Text style={styles.sheetItemText}>Signaler cet utilisateur</Text>
+              <Ionicons name="chevron-forward" size={16} color="#CCC" />
+            </TouchableOpacity>
 
-      if (isBlocked) {
-        handleUnblockUser();
-      } else {
-        handleBlockUser();
-      }
-    }}
-  >
-    <Feather
-      name={isBlocked ? "unlock" : "slash"}
-      size={18}
-      color="#FE5D02"
-    />
-    <Text style={styles.sheetText}>
-      {isBlocked
-        ? "Débloquer cet utilisateur"
-        : "Bloquer cet utilisateur"}
-    </Text>
-  </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sheetItem}
+              onPress={() => { setOptionsVisible(false); isBlocked ? handleUnblockUser() : handleBlockUser(); }}
+            >
+              <View style={[styles.sheetItemIcon, { backgroundColor: isBlocked ? '#F0FFF4' : '#FFF5F5' }]}>
+                <Ionicons name={isBlocked ? 'lock-open-outline' : 'ban-outline'} size={17} color={isBlocked ? '#2ECC71' : '#E53935'} />
+              </View>
+              <Text style={[styles.sheetItemText, { color: isBlocked ? '#2ECC71' : '#E53935' }]}>
+                {isBlocked ? 'Débloquer cet utilisateur' : 'Bloquer cet utilisateur'}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color="#CCC" />
+            </TouchableOpacity>
 
-  <TouchableOpacity
-    style={styles.cancelBtn}
-    onPress={() => setOptionsVisible(false)}
-  >
-    <Text style={styles.cancelText}>Annuler</Text>
-  </TouchableOpacity>
-</View>
-  </View>
-)}
-<ReportUserButton
-  reportedUserId={userId}
-  currentUserId={currentUserId}
-  autoOpen={reportAutoOpen}
-/>
-  </SafeAreaView>
-);
+            <TouchableOpacity style={styles.sheetCancel} onPress={() => setOptionsVisible(false)}>
+              <Text style={styles.sheetCancelText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <ReportUserButton reportedUserId={userId} currentUserId={currentUserId} autoOpen={reportAutoOpen} />
+    </SafeAreaView>
+  );
 };
+
+// ─── STYLES ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    paddingVertical: hp('1%'),
-    paddingBottom: hp('5%'),
-  },
+  root:   { flex: 1, backgroundColor: '#F2F3F7' },
+  scroll: { paddingTop: 8, paddingHorizontal: 16 },
+
+  // App bar — INCHANGÉE
   appBarOnlyBack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingHorizontal: 0,
-    marginTop: 0,
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'transparent',
-    height: hp('5.4%'),
-    zIndex: 10,
+    height: hp('5.4%'), zIndex: 10,
   },
-  centerContent: {
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    marginTop: hp('0.25%'),
+  closeButton: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#F2F4F7', alignItems: 'center', justifyContent: 'center',
+    marginLeft: 12, borderWidth: 1, borderColor: '#E4E7EC',
   },
-  profileTitleContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: hp('0.3%'),
-    marginTop: 0,
+  moreButton: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#F2F4F7', alignItems: 'center', justifyContent: 'center',
+    marginRight: 12, borderWidth: 1, borderColor: '#E4E7EC',
+    position: 'absolute', right: 0,
   },
-  profileTitle: {
-    fontWeight: 'bold',
-    fontSize: wp('6%'),
-    letterSpacing: 0.1,
-    textAlign: 'center',
-    color: '#ff855a',
-  },
-  profileCard: {
-    width: wp('94%'),
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: wp('7%'),
-    paddingVertical: hp('4%'),
-    paddingHorizontal: wp('4%'),
-    shadowColor: '#1976d2',
-    shadowOffset: { width: 0, height: hp('0.7%') },
-    shadowOpacity: 0.08,
-    shadowRadius: wp('4%'),
-    elevation: 4,
-    marginTop: hp('1.1%'),
-  },
-  avatar: {
-    width: wp('25%'),
-    height: wp('25%'),
-    borderRadius: wp('12.5%'),
-    marginBottom: hp('1.4%'),
-    borderWidth: 3,
-    borderColor: '#fff',
-    backgroundColor: '#eee',
-    shadowColor: '#000',
-    shadowOpacity: 0.13,
-    shadowOffset: { width: 0, height: hp('0.4%') },
-    shadowRadius: wp('2.3%'),
-    elevation: 2,
-  },
-  avatarInitial: {
-    fontSize: wp('10%'),
-    color: '#256EFF',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    lineHeight: wp('25%'),
-  },
-  username: {
-    fontSize: wp('6.2%'),
-    fontWeight: '700',
-    color: '#222',
-    marginTop: hp('0.4%'),
-    marginBottom: hp('1%'),
-    letterSpacing: 0.1,
-    textAlign: 'center',
-  },
-  counterContainer: {
-    backgroundColor: '#f3f7fe',
-    borderRadius: wp('4.2%'),
-    paddingVertical: hp('1.1%'),
-    paddingHorizontal: wp('8.5%'),
-    marginBottom: hp('2%'),
-    marginTop: 0,
-    elevation: 2,
-    alignSelf: 'center',
-    minWidth: wp('38%'),
-    maxWidth: wp('56%'),
-    borderWidth: 1.3,
-    borderColor: '#c6d8f7',
-  },
-  countersRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: wp('7%'),
-  },
-  counterBox: {
-    alignItems: 'center',
-    marginHorizontal: wp('2.1%'),
-  },
-  counterNumber: {
-    fontSize: wp('5.4%'),
-    fontWeight: 'bold',
-    color: '#1877F2',
-    textAlign: 'center',
-    lineHeight: hp('3%'),
-  },
-  counterLabel: {
-    fontSize: wp('3.2%'),
-    color: '#666',
-    marginTop: 1,
-    fontWeight: '600',
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: wp('2.3%'),
-    marginBottom: hp('1.7%'),
-    marginTop: 0,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: wp('4%'),
-    paddingVertical: hp('0.8%'),
-    paddingHorizontal: wp('3.5%'),
-    marginHorizontal: wp('1%'),
-    borderWidth: 1,
-    borderColor: '#256EFF',
-    marginTop: hp('2%'),
-  },
-  badgeText: {
-    color: '#333333',
-    fontWeight: '600',
-    fontSize: wp('4.2%'),
-  },
-  sportsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginVertical: hp('1.2%'),
-    marginBottom: hp('1.7%'),
-    marginTop: hp('1.5%'),
-    gap: wp('1.8%'),
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: wp('5%'),
-    paddingVertical: hp('0.8%'),
-    paddingHorizontal: wp('4%'),
-    marginHorizontal: wp('1%'),
-    marginBottom: hp('0.7%'),
-    borderWidth: 1.1,
-    borderColor: '#FE5D02',
-    elevation: 1,
-  },
-  chipText: {
-    color: '#333333',
-    fontWeight: '600',
-    fontSize: wp('4%'),
-    letterSpacing: 0.1,
-  },
-  descBox: {
-    marginTop: hp('0.5%'),
-    marginBottom: hp('2%'),
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#fff',
-    borderRadius: wp('4.5%'),
-    paddingVertical: hp('1.7%'),
-    paddingHorizontal: wp('4.1%'),
-    borderWidth: 1,
-    borderColor: '#256EFF',
-    elevation: 1,
-    maxWidth: '95%',
-  },
-  descText: {
-    color: '#333333',
-    fontSize: wp('4.2%'),
-    fontStyle: 'italic',
-    fontWeight: '500',
-    flex: 1,
-    flexWrap: 'wrap',
-    lineHeight: hp('2.6%'),
-    textAlign: 'center',
-  },
-  badgesListContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: hp('1.7%'),
-    marginTop: hp('1%'),
-    minHeight: hp('7%'),
-    width: '100%',
-  },
+
+  // Bannière bloqué
   blockBanner: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#ffebee',
-  paddingVertical: 10,
-  marginHorizontal: 16,
-  borderRadius: 12,
-  marginBottom: 10,
-  borderWidth: 1,
-  borderColor: '#ffcdd2',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FFF5F5', borderRadius: 12, padding: 10, marginBottom: 10,
+    borderWidth: 1, borderColor: '#FFCDD2',
   },
-blockBannerText: {
-  marginLeft: 8,
-  color: '#c62828',
-  fontWeight: '600',
-  fontSize: 14,
-},
-  // === NOUVEAUX STYLES PREMIUM BADGES ===
-  premiumBadgeCard: {
-    width: wp("22%"),
-    marginHorizontal: 6,
-    alignItems: "center",
-  },
-  premiumBadgeCircle: {
-    width: wp("18%"),
-    height: wp("18%"),
-    borderRadius: wp("9%"),
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    backgroundColor: "#fff",
-  },
-  premiumBadgeLabel: {
-    fontSize: 12,
-    color: "#333",
-    textAlign: "center",
-    fontWeight: "500",
-  },
-  premiumBadgeEmoji: {
-    fontSize: 22,
-  },
-  friendsCounterRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: wp('12%'),
-    marginTop: hp('1.5%'),
-    marginBottom: hp('2%'),
-  },
-  friendsCounterBox: {
-    alignItems: 'center',
-  },
-  friendGradientBtn: {
-    borderRadius: wp('4%'),
-    paddingVertical: hp('0.85%'),
-    paddingHorizontal: wp('4.5%'),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: hp('1%'),
-    marginBottom: hp('1%'),
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 1,
-    alignSelf: 'center',
-  },
-  friendGradientText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: wp('3.7%'),
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
-  friendActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: wp('2.6%'),
-    marginTop: hp('1%'),
-  },
-  pillMuted: {
-    borderRadius: wp('4%'),
-    paddingVertical: hp('0.7%'),
-    paddingHorizontal: wp('4%'),
-    backgroundColor: '#eef1f6',
-    borderWidth: 1,
-    borderColor: '#d8deea',
-    alignSelf: 'center',
-    marginTop: hp('1%'),
-    marginBottom: 10,
-  },
-  pillMutedText: {
-    color: '#667085',
-    fontWeight: '700',
-    fontSize: wp('3.6%'),
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
-verifiedBadge: {
-  width: wp('30%'),
-  height: hp('3.2%'),
-  borderRadius: hp('1.8%'),
-  alignItems: 'center',
-  justifyContent: 'center',
-  shadowColor: '#FF6C4A',
-  shadowOpacity: 0.3,
-  shadowRadius: 4,
-  shadowOffset: { width: 0, height: 1 },
-  elevation: 3,
-  alignSelf: 'center',
-},
-verifiedText: {
-  color: '#fff',
-  fontWeight: '700',
-  fontSize: wp('3.2%'),
-  letterSpacing: 0.3,
-},
-closeButton: {
-  width: 36,
-  height: 36,
-  borderRadius: 18,
-  backgroundColor: '#F2F4F7',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginLeft: 12,
-  borderWidth: 1,
-  borderColor: '#E4E7EC',
-},
-moreButton: {
-  width: 36,
-  height: 36,
-  borderRadius: 18,
-  backgroundColor: '#F2F4F7',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: 12,
-  borderWidth: 1,
-  borderColor: '#E4E7EC',
-  position: 'absolute',
-  right: 0,
-},
+  blockBannerText: { color: '#E53935', fontWeight: '600', fontSize: 13 },
 
-overlay: {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.3)',
-  justifyContent: 'flex-end',
-},
+  // Hero card — MÊME que ProfileScreen
+  heroCard:     { borderRadius: 24, overflow: 'hidden', marginBottom: 14 },
+  heroGradient: { padding: 24, alignItems: 'center', position: 'relative' },
+  heroDeco1:    { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(254,93,2,0.06)',   top: -80, right: -50 },
+  heroDeco2:    { position: 'absolute', width: 160, height: 160, borderRadius: 80,  backgroundColor: 'rgba(246,45,174,0.05)', bottom: -40, left: -40 },
+  heroDeco3:    { position: 'absolute', width: 120, height: 120, borderRadius: 60,  backgroundColor: 'rgba(56,136,255,0.04)', top: 20, left: 20 },
 
-bottomSheet: {
-  backgroundColor: '#FFFFFF',
-  borderTopLeftRadius: 24,
-  borderTopRightRadius: 24,
-  paddingVertical: 20,
-  paddingHorizontal: 24,
-  shadowColor: '#000',
-  shadowOpacity: 0.15,
-  shadowRadius: 10,
-  elevation: 10,
-},
+  heroAvatarSection: { alignItems: 'center', marginBottom: 14 },
+  avatarRing: {
+    padding: 3, borderRadius: 50, borderWidth: 2.5, borderColor: '#FE5D02',
+    shadowColor: '#FE5D02', shadowOpacity: 0.4, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 8, marginBottom: 12,
+  },
+  heroBadgesRow: { flexDirection: 'row', gap: 8 },
+  heroBadge:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  heroBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
-sheetTitle: {
-  fontSize: 16,
-  fontWeight: '700',
-  color: '#222',
-  marginBottom: 16,
-  textAlign: 'center',
-},
+  heroName:     { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.4, marginBottom: 8 },
+  heroMeta:     { flexDirection: 'row', gap: 14, marginBottom: 12 },
+  heroMetaItem: { flexDirection: 'row', alignItems: 'center' },
+  heroMetaText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
 
-sheetItem: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingVertical: 14,
-  borderBottomWidth: 1,
-  borderBottomColor: '#F0F2F5',
-},
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
+  ratingText: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
 
-sheetText: {
-  marginLeft: 12,
-  fontSize: 15,
-  fontWeight: '600',
-  color: '#333',
-},
+  premiumSupportText: { fontSize: 13, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', textAlign: 'center', marginTop: 8 },
 
-cancelBtn: {
-  marginTop: 16,
-  alignItems: 'center',
-  paddingVertical: 12,
-  borderRadius: 12,
-  backgroundColor: '#F2F4F7',
-},
+  // Boutons ami
+  friendSection:    { alignItems: 'center' },
+  friendRequestRow: { flexDirection: 'row', gap: 10 },
+  friendBtnPrimary: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F62DAE', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 11 },
+  friendBtnAccept:  { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2ECC71', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10 },
+  friendBtnDecline: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E53935', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10 },
+  friendBtnText:    { color: '#fff', fontSize: 14, fontWeight: '700' },
+  friendPill: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+  },
+  friendPillText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
 
-cancelText: {
-  fontSize: 15,
-  fontWeight: '600',
-  color: '#666',
-},
+  // Stats — MÊME que ProfileScreen
+  statsCard: {
+    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 18, marginBottom: 14,
+    borderWidth: 1, borderColor: '#EBEBF0',
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+  },
+  statBlock:    { flex: 1, alignItems: 'center', paddingVertical: 18 },
+  statNum:      { fontSize: 22, fontWeight: '800', color: '#1A1A2E', marginBottom: 3 },
+  statLabel:    { fontSize: 11, color: '#999', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
+  statsDivider: { width: 1, backgroundColor: '#F0F0F5', marginVertical: 12 },
+
+  // Info cards — MÊMES que ProfileScreen
+  infoCard: {
+    backgroundColor: '#fff', borderRadius: 18, padding: 18, marginBottom: 14,
+    borderWidth: 1, borderColor: '#EBEBF0',
+  },
+  cardHeader:     { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  cardHeaderIcon: { width: 26, height: 26, borderRadius: 8, backgroundColor: '#FFF0E8', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  cardHeaderTitle:{ flex: 1, fontSize: 15, fontWeight: '700', color: '#1A1A2E' },
+  bioText:        { fontSize: 14.5, color: '#555', lineHeight: 22 },
+
+  // Badges
+  badgeCount:     { backgroundColor: '#FFF0E8', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeCountText: { fontSize: 11, fontWeight: '700', color: '#FE5D02' },
+  badgesList:     { paddingRight: 4, gap: 12 },
+  badgeItem:      { alignItems: 'center', width: 72 },
+  badgeItemIcon:  { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
+  badgeItemLabel: { fontSize: 11, fontWeight: '600', color: '#555', textAlign: 'center', lineHeight: 14 },
+
+  // Sports
+  sportsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sportChip: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFF4EE', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1, borderColor: 'rgba(254,93,2,0.2)',
+  },
+  sportChipText: { fontSize: 13, fontWeight: '600', color: '#FE5D02' },
+
+  // Bottom sheet options
+  overlay:     { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  bottomSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 32, paddingTop: 12 },
+  sheetHandle: { width: 36, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle:  { fontSize: 16, fontWeight: '700', color: '#1A1A2E', marginBottom: 16, textAlign: 'center' },
+  sheetItem:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F2F5' },
+  sheetItemIcon:{ width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  sheetItemText:{ flex: 1, fontSize: 15, fontWeight: '600', color: '#333' },
+  sheetCancel: { marginTop: 14, paddingVertical: 13, borderRadius: 14, backgroundColor: '#F2F3F7', alignItems: 'center' },
+  sheetCancelText: { fontSize: 15, fontWeight: '600', color: '#666' },
 });
 
 export default UserProfileScreen;

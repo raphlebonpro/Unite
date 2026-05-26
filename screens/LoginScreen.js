@@ -174,6 +174,7 @@ title: {
   fontWeight: '800',
   color: '#111',
   marginBottom: 25,
+  marginHorizontal: 5,
 },
 input: {
   height: 48,
@@ -217,8 +218,8 @@ passwordContainer: {
     fontWeight: '600',
   },
 button: {
-  height: 42,
-  borderRadius: 32,
+  height: 45,
+  borderRadius: 20,
   backgroundColor: '#FE5D02',
   justifyContent: 'center',
   alignItems: 'center',

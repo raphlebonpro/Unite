@@ -39,6 +39,9 @@ import UnitePlusScreen from '../screens/UnitePlusScreen.js';
 import UnitePlusCompareScreen from '../screens/UnitePlusCompareScreen.js';
 import GradientTitle from '../components/GradientTitle';
 import BienvenueScreen from '../screens/BienvenueScreen.js';
+import FAQScreen from '../screens/FAQScreen';
+import RoutineDetailScreen from '../screens/RoutineDetailScreen';
+import CreateRoutineScreen from '../screens/CreateRoutineScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -276,6 +279,21 @@ export default function StackNavigator() {
       name="UnitePlusCompare" 
       component={UnitePlusCompareScreen} 
       options={gradientHeader('Comparer Abonnement')}
+      />
+      <Stack.Screen
+      name="FAQ" 
+      component={FAQScreen}
+      options={gradientHeader('FAQ & Aide')}
+      />
+      <Stack.Screen
+      name="RoutineDetail"
+      component={RoutineDetailScreen}
+      options={gradientHeader('Routine')}
+      />
+      <Stack.Screen
+      name="CreateRoutine"
+      component={CreateRoutineScreen}
+      options={gradientHeader('Nouvelle routine')}
       />
     </Stack.Navigator>
   );

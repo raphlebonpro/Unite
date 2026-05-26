@@ -6,7 +6,7 @@ export default {
     name: "Unite",
     slug: "Unite",
     owner: "raphlebon",
-    version: "1.1.6",
+    version: "1.1.7",
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: false,
@@ -31,9 +31,10 @@ export default {
 
     ios: {
       bundleIdentifier: "com.uniteapp.collectif",
-      buildNumber: "129",
+      buildNumber: "131",
       icon: "./assets/icon1.png",
       supportsTablet: false,
+      associatedDomains: ["applinks:uniteapp.fr"],
       infoPlist: {
         CFBundleDevelopmentRegion: "fr",
         CFBundleLocalizations: ["fr"],
@@ -54,7 +55,7 @@ export default {
 
     android: {
       package: "com.uniteapp.collectif",
-      versionCode: 80,
+      versionCode: 85,
       supportsTablet: false,
       forceDarkAllowed: false,
       blockedDeviceModels: ["*Tab*", "*Pad*", "*Tablet*"],
@@ -77,6 +78,20 @@ config: {
     apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
   },
 },
+intentFilters: [   // ✅ ICI, AVANT la fermeture du bloc android
+    {
+      action: "VIEW",
+      autoVerify: true,
+      data: [
+        {
+          scheme: "https",
+          host: "uniteapp.fr",
+          pathPrefix: "/session"
+        }
+      ],
+      category: ["BROWSABLE", "DEFAULT"]
+    }
+  ],
      },
 
     web: {
@@ -92,6 +107,15 @@ plugins: [
       useNextNotificationsApi: true,
     },
   ],
+  [
+    "react-native-fbsdk-next",
+    {
+      appID: "1182529240410223",
+      clientToken: "3c16f4d1a7b1c9b0a520ee7f36ceeeea",
+      displayName: "Unite",
+      scheme: "fb1182529240410223"
+    }
+  ]
 ],
   
     extra: {
@@ -104,3 +128,4 @@ plugins: [
     },
   },
 };
+

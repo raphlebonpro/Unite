@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=random&name=U';
@@ -184,7 +183,6 @@ async function sendInvite(friend) {
     { cancelable: true }
   );
 }
-
 
   return (
     <View style={styles.container}>

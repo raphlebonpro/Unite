@@ -83,7 +83,7 @@ export default function OnboardingScreen({ navigation }) {
           style={styles.logo}
         />
         <Text style={styles.tagline}>
-          Le sport nous rassemble
+          Trouve tes coéquipiers, maintenant
         </Text>
 
         <TouchableOpacity

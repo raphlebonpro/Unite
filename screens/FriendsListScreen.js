@@ -13,7 +13,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
-import MiniAppBar from '../components/MiniAppBar';
 import {
   notifyFriendRemovedSender,
   notifyFriendRemovedReceiver,
