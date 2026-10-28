@@ -10,7 +10,6 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   ScrollView,
-  KeyboardAvoidingView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabaseClient';
@@ -21,7 +20,6 @@ import {
   notifyFeedbackConfirmation, 
   notifyNewsletterSubscribed 
 } from '../helpers/notifications';
-import Toast from 'react-native-toast-message';
 
 export default function FeedbackScreen({ navigation }) {
   const [rating, setRating] = useState(null);
@@ -48,6 +46,15 @@ const handleSubmit = async () => {
     Alert.alert("Merci de remplir au moins un champ !");
     return;
   }
+
+  Alert.alert(
+    "Envoyer ce retour",
+    "Es-tu sûr de vouloir envoyer ce retour ?",
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Envoyer",
+        onPress: async () => {
 
   // 🔑 Récupère bien l'user avant
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -94,17 +101,18 @@ const handleSubmit = async () => {
       console.error("❌ Erreur envoi email Zoho:", e);
     }
 
-    Toast.show({
-      type: 'success',
-      text1: 'Merci 🙌',
-      text2: "Ton retour a bien été envoyé.",
-      position: 'top',
-      topOffset: 50,
-    });
-
     navigation.goBack();
   }
   await notifyFeedbackConfirmation({ userId: user.id });
+  Alert.alert(
+            "Merci 🙌",
+            "Ton retour a bien été envoyé.",
+            [{ text: "OK", onPress: () => navigation.goBack() }]
+          );
+        },
+      },
+    ]
+  );
 };
 
   // Newsletter handler
@@ -113,6 +121,14 @@ const handleNewsletter = async () => {
     Alert.alert('Erreur', "Veuillez saisir une adresse e-mail valide.");
     return;
   }
+  Alert.alert(
+    "S’inscrire à la newsletter",
+    `Souhaites-tu t’inscrire à la newsletter avec cette adresse ?\n\n${newsletterEmail}`,
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "S’inscrire",
+        onPress: async () => {
   setNewsletterLoading(true);
 
   // 🔑 Récupère aussi l'user si dispo
@@ -125,25 +141,29 @@ const handleNewsletter = async () => {
 
   setNewsletterLoading(false);
 
-  if (error) {
-    console.log("❌ Supabase insert error (newsletter):", error);
-    Alert.alert("Erreur", error.message || "L’inscription a échoué. Réessaye plus tard.");
+if (error) {
+  if (error.code === '23505') {
+    Alert.alert("Déjà inscrit", "Cette adresse email est déjà inscrite à la newsletter Unite.");
   } else {
+    console.log("❌ Supabase insert error (newsletter):", error);
+    Alert.alert("Erreur", "L'inscription a échoué. Réessaye plus tard.");
+  }
+} else {
     // ✅ Envoi notif après succès
     await notifyNewsletterSubscribed({
       userId: user?.id,
       email: newsletterEmail,
     });
-
-    Toast.show({
-      type: 'success',
-      text1: 'Inscription réussie 🎉',
-      text2: "Tu es inscrit(e) à la newsletter Unite !",
-      position: 'top',
-      topOffset: 50,
-    });
     setNewsletterEmail('');
-  }
+Alert.alert(
+            "Inscription réussie",
+            "Tu es bien inscrit(e) à la newsletter Unite."
+          );
+        }
+        },
+      },
+    ]
+  );
 };
 
   return (
@@ -263,14 +283,11 @@ const handleNewsletter = async () => {
     activeOpacity={0.90}
     onPress={handleSubmit}
   >
-    <LinearGradient
-      colors={['#FF914D', '#FE6D8E']}
-      start={{ x: 0, y: 0.4 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.fullWidthGradientBtn}
+    <View
+      style={[styles.fullWidthGradientBtn, {backgroundColor: '#FE5D02'}]}
     >
       <Text style={styles.fullWidthGradientBtnText}>Envoyer mon retour</Text>
-    </LinearGradient>
+    </View>
   </TouchableOpacity>
 </View>
 
@@ -286,7 +303,7 @@ const handleNewsletter = async () => {
       <Ionicons name="mail-unread-outline" size={38} color="#fff" style={{ marginBottom: 4 }} />
     </View>
     <Text style={styles.newsletterTitleV2}>
-      <Text style={{ color: '#FFB97D', fontWeight: 'bold' }}>Recevez toutes les actus de Unite</Text>
+      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Recevez toutes les actus de Unite</Text>
     </Text>
     <Text style={styles.newsletterSubtitleV2}>
       Inscrivez-vous à la newsletter pour être au courant des nouveautés, évènements et évolutions de l’appli.
@@ -311,16 +328,13 @@ const handleNewsletter = async () => {
         disabled={newsletterLoading}
         activeOpacity={0.9}
       >
-        <LinearGradient
-          colors={['#FF914D', '#FE6D8E']}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.newsletterBtnGradientV2}
+        <View
+          style={[styles.newsletterBtnGradientV2, {backgroundColor:'#FE5D02'}]}
         >
           <Text style={styles.newsletterBtnTextV2}>
             {newsletterLoading ? "..." : "M’inscrire"}
           </Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     </View>
   </LinearGradient>
@@ -446,15 +460,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fullWidthGradientBtn: {
-    width: '100%',
+    width: '90%',
     alignItems: 'center',
     paddingVertical: hp('1.5%'),
-    borderRadius: wp('4%'),
+    borderRadius: wp('5%'),
+    marginHorizontal: 15,
   },
   fullWidthGradientBtnText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: wp('4.2%'),
+    fontSize: wp('4%'),
     letterSpacing: 0.10,
   },
   newsletterGradient: {

@@ -11,9 +11,7 @@ import {
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
 
 const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=random&name=U';
 
@@ -88,52 +86,53 @@ export default function InviteFriendsToSession() {
     setLoading(false);
   }
 
-  async function inviteFriend(friend) {
-    try {
-      if (!user) return;
+async function sendInvite(friend) {
+  try {
+    if (!user) return;
 
-      // 1️⃣ Vérifier si déjà invité
-      const { data: existing } = await supabase
-        .from('session_invitations')
-        .select('id')
-        .eq('session_id', sessionId)
-        .eq('invited_id', friend.id)
-        .maybeSingle();
+    // 1️⃣ Vérifier si déjà invité
+    const { data: existing } = await supabase
+      .from('session_invitations')
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('invited_id', friend.id)
+      .maybeSingle();
 
-      if (existing) {
-        Alert.alert('Info', `${friend.username} est déjà invité à cette session.`);
-        return;
-      }
+    if (existing) {
+      Alert.alert('Info', `${friend.username} est déjà invité à cette session.`);
+      return;
+    }
 
-      // 2️⃣ Enregistrement de l’invitation
-      const { error: insertErr } = await supabase
-        .from('session_invitations')
-        .insert({
-          session_id: sessionId,
-          inviter_id: user.id,
-          invited_id: friend.id,
-        });
+    // 2️⃣ Enregistrement de l’invitation
+    const { error: insertErr } = await supabase
+      .from('session_invitations')
+      .insert({
+        session_id: sessionId,
+        inviter_id: user.id,
+        invited_id: friend.id,
+      });
 
-      if (insertErr) {
-        Alert.alert('Erreur', insertErr.message);
-        return;
-      }
+    if (insertErr) {
+      Alert.alert('Erreur', insertErr.message);
+      return;
+    }
 
-      // 3️⃣ Récupérer un token utilisateur pour appeler l’edge function
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      const token = authSession?.access_token;
+    // 3️⃣ Token
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const token = authSession?.access_token;
+    if (!token) {
+      Alert.alert("Erreur", "Impossible de récupérer le token utilisateur.");
+      return;
+    }
 
-      if (!token) {
-        Alert.alert("Erreur", "Impossible de récupérer le token utilisateur.");
-        return;
-      }
-
-      // 4️⃣ Envoi d'une notif via l’edge function
-      const res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send_notifications`, {
+    // 4️⃣ Notification
+    await fetch(
+      `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send_notifications`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // ✅ correct
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           user_id: friend.id,
@@ -144,28 +143,22 @@ export default function InviteFriendsToSession() {
           message: `${user.user_metadata?.username || 'Un coéquipier'} t’a invité à rejoindre la session "${session?.title}"`,
           push: true,
         }),
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error("❌ Erreur appel send_notifications:", txt);
       }
+    );
 
-      Toast.show({
-        type: 'success',
-        text1: 'Invitation envoyée 🎉',
-        text2: `${friend.username} a reçu une invitation.`,
-        position: 'top',
-        topOffset: 50,
-      });
+    // 5️⃣ Retirer l’ami de la liste
+    setFriends(prev => prev.filter(f => f.id !== friend.id));
 
-      // 5️⃣ Retirer l’ami de la liste locale
-      setFriends(prev => prev.filter(f => f.id !== friend.id));
+    // 6️⃣ Feedback clair
+    Alert.alert(
+      'Invitation envoyée',
+      `${friend.username} a reçu une invitation.`
+    );
 
-    } catch (e) {
-      Alert.alert('Erreur', e.message);
-    }
+  } catch (e) {
+    Alert.alert('Erreur', e.message);
   }
+}
 
   if (loading) {
     return (
@@ -175,8 +168,30 @@ export default function InviteFriendsToSession() {
     );
   }
 
+  function inviteFriend(friend) {
+  Alert.alert(
+    'Inviter un coéquipier',
+    `Es-tu sûr de vouloir inviter ${friend.username} à rejoindre cette session ?`,
+    [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Inviter',
+        style: 'default',
+        onPress: () => sendInvite(friend),
+      },
+    ],
+    { cancelable: true }
+  );
+}
+
   return (
     <View style={styles.container}>
+      <View style={styles.infoBox}>
+  <Ionicons name="information-circle-outline" size={18} color="#FF6C4A" />
+  <Text style={styles.infoText}>
+    Invite des coéquipiers pour remplir la session plus vite et partager l’expérience avec des personnes que tu connais.
+  </Text>
+</View>
       {friends.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="people-outline" size={60} color="#aaa" />
@@ -191,14 +206,10 @@ export default function InviteFriendsToSession() {
               <Image source={{ uri: item.avatar }} style={styles.avatar} />
               <Text style={styles.username}>{item.username}</Text>
               <TouchableOpacity onPress={() => inviteFriend(item)} activeOpacity={0.85}>
-                <LinearGradient
-                  colors={['#FF9A6C', '#FF5E62']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.inviteBtn}
-                >
+                <View
+                  style={[styles.inviteBtn]} >
                   <Text style={styles.inviteTxt}>Inviter</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
           )}
@@ -225,6 +236,22 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 7,
     paddingHorizontal: 14,
+    backgroundColor: '#FE5D02'
   },
   inviteTxt: { color: '#fff', fontWeight: 'bold' },
+  infoBox: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  backgroundColor: '#FFF3EE',
+  borderRadius: 12,
+  padding: 12,
+  marginBottom: 12,
+},
+infoText: {
+  flex: 1,
+  marginLeft: 8,
+  fontSize: 14,
+  color: '#444',
+  lineHeight: 20,
+},
 });

@@ -1,1174 +1,776 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
- View,
- Text,
- StyleSheet,
- TouchableOpacity,
- TextInput,
- ScrollView,
- Platform,
- SafeAreaView,
- KeyboardAvoidingView,
- Alert,
- StatusBar,
- ActivityIndicator,
- Keyboard,
- TouchableWithoutFeedback,
- Modal,
+  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  ScrollView, Platform, SafeAreaView, KeyboardAvoidingView,
+  Alert, StatusBar, Modal, ActivityIndicator, Keyboard,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AntDesign, MaterialCommunityIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Calendar } from 'react-native-calendars';
-import PlaceSearchField, { GOOGLE_MAPS_API_KEY } from '../components/PlaceSearchField';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
+import PlaceSearchField from '../components/PlaceSearchField';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  notifySessionUpdatedCreator,
-  notifySessionUpdatedParticipants,
-  notifySessionDeletedCreator,
-  notifySessionDeletedParticipants
+  notifySessionUpdatedCreator, notifySessionUpdatedParticipants,
+  notifySessionDeletedCreator, notifySessionDeletedParticipants,
 } from '../helpers/notifications';
-import Toast from 'react-native-toast-message';
 
+// ─── Calendrier en français ────────────────────────────────────────────────
+LocaleConfig.locales['fr'] = {
+  monthNames: ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+  monthNamesShort: ['Janv.','Févr.','Mars','Avr.','Mai','Juin','Juil.','Août','Sept.','Oct.','Nov.','Déc.'],
+  dayNames: ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'],
+  dayNamesShort: ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'],
+  today: "Aujourd'hui",
+};
+LocaleConfig.defaultLocale = 'fr';
 
-
-const FONT = Platform.select({ ios: 'System', android: 'Roboto' });
-
-/* ---------- Données sport (identiques à Création) ---------- */
+// ─── Sports ────────────────────────────────────────────────────────────────
 const sportData = [
- { label: 'Football', icon: <FontAwesome5 name="futbol" size={17} color="#3888FF" /> },
- { label: 'Basketball', icon: <MaterialCommunityIcons name="basketball" size={17} color="#FFA726" /> },
- { label: 'Tennis', icon: <MaterialCommunityIcons name="tennis" size={17} color="#2ECC71" /> },
- { label: 'Running', icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
- { label: 'Cyclisme', icon: <MaterialCommunityIcons name="bike" size={17} color="#3CD6E6" /> },
- { label: 'Natation', icon: <MaterialCommunityIcons name="swim" size={17} color="#1469B9" /> },
- { label: 'Musculation', icon: <MaterialCommunityIcons name="dumbbell" size={20} color="#7367F0" /> },
- { label: 'Autres', icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" /> },
- { label: '+ de sports', icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" /> },
+  { label: 'Football',        icon: <FontAwesome5 name="futbol" size={hp('2.1%')} color="#3888FF" /> },
+  { label: 'Basketball',      icon: <MaterialCommunityIcons name="basketball" size={hp('2.1%')} color="#FFA726" /> },
+  { label: 'Tennis',          icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#2ECC71" /> },
+  { label: 'Padel',           icon: <MaterialCommunityIcons name="tennis" size={hp('2.1%')} color="#FFD600" /> },
+  { label: 'Running',         icon: <MaterialCommunityIcons name="run-fast" size={hp('2.3%')} color="#E9436D" /> },
+  { label: 'Cyclisme',        icon: <MaterialCommunityIcons name="bike" size={hp('2.1%')} color="#3CD6E6" /> },
+  { label: 'Natation',        icon: <MaterialCommunityIcons name="swim" size={hp('2.1%')} color="#1469B9" /> },
+  { label: 'Musculation',     icon: <MaterialCommunityIcons name="dumbbell" size={hp('2.4%')} color="#7367F0" /> },
+  { label: 'Fitness',         icon: <MaterialCommunityIcons name="weight-lifter" size={hp('2.3%')} color="#7C4DFF" /> },
+  { label: 'Randonnée/Trail', icon: <MaterialCommunityIcons name="hiking" size={hp('2.1%')} color="#43A047" /> },
+  { label: '+ de sports',     icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" /> },
 ];
-
-
-const otherSports = [
- 'Yoga','Padel','Handball','Tennis de table','Volleyball','Badminton','Ski','Snow','Skate','Surf','Escalade',
- 'Parapente','CrossFit','Callisthénie','Golf','Arts Martiaux','Boxe','Football américain','Baseball','Danse',
- 'Pilate','Échecs','Pétanque','Randonnée/Trail','VTT'
-];
-
 
 const sportIcons = {
- Football: { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
- Basketball: { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
- Tennis: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
- Running: { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
- Cyclisme: { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
- Natation: { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
- Musculation: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
- Yoga: { icon: <MaterialCommunityIcons name="yoga" size={20} color="#A259F7" />, color: '#A259F7' },
- Padel: { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
- Handball: { icon: <MaterialCommunityIcons name="handball" size={18} color="#F57C00" />, color: '#F57C00' },
- Autres: { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
- 'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
- Volleyball: { icon: <MaterialCommunityIcons name="volleyball" size={18} color="#E57373" />, color: '#E57373' },
- Badminton: { icon: <MaterialCommunityIcons name="badminton" size={18} color="#49beb7" />, color: '#49beb7' },
- Ski: { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
- Snow: { icon: <MaterialCommunityIcons name="snowboard" size={18} color="#5f95de" />, color: '#5f95de' },
- Skate: { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
- Surf: { icon: <MaterialCommunityIcons name="wave" size={18} color="#26C6DA" />, color: '#26C6DA' },
- Escalade: { icon: <MaterialCommunityIcons name="hiking" size={18} color="#689F38" />, color: '#689F38' },
- Parapente: { icon: <MaterialCommunityIcons name="parachute" size={18} color="#1976D2" />, color: '#1976D2' },
- CrossFit: { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
- Callisthénie: { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
- Golf: { icon: <MaterialCommunityIcons name="golf" size={18} color="#43A047" />, color: '#43A047' },
- 'Arts Martiaux': { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
- Boxe: { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#C62828" />, color: '#C62828' },
- 'Football américain': { icon: <MaterialCommunityIcons name="football" size={18} color="#FF7043" />, color: '#FF7043' },
- Baseball: { icon: <MaterialCommunityIcons name="baseball" size={18} color="#FFD600" />, color: '#FFD600' },
- Danse: { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
- Pilate: { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
- Échecs: { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
- Pétanque: { icon: <MaterialCommunityIcons name="bowling" size={18} color="#757575" />, color: '#757575' },
- 'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
- VTT: { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
- '+ de sports': { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
+  Football:          { icon: <FontAwesome5 name="futbol" size={18} color="#3888FF" />, color: '#3888FF' },
+  Basketball:        { icon: <MaterialCommunityIcons name="basketball" size={18} color="#FFA726" />, color: '#FFA726' },
+  Tennis:            { icon: <MaterialCommunityIcons name="tennis" size={18} color="#2ECC71" />, color: '#2ECC71' },
+  Running:           { icon: <MaterialCommunityIcons name="run-fast" size={18} color="#E9436D" />, color: '#E9436D' },
+  Cyclisme:          { icon: <MaterialCommunityIcons name="bike" size={18} color="#3CD6E6" />, color: '#3CD6E6' },
+  Natation:          { icon: <MaterialCommunityIcons name="swim" size={18} color="#1469B9" />, color: '#1469B9' },
+  Musculation:       { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#7367F0" />, color: '#7367F0' },
+  Fitness:           { icon: <MaterialCommunityIcons name="weight-lifter" size={18} color="#7C4DFF" />, color: '#7C4DFF' },
+  Autres:            { icon: <Ionicons name="ellipsis-horizontal" size={19} color="#999" />, color: '#999' },
+  Yoga:              { icon: <MaterialCommunityIcons name="yoga" size={18} color="#A259F7" />, color: '#A259F7' },
+  Danse:             { icon: <MaterialCommunityIcons name="human-female-dance" size={18} color="#F48FB1" />, color: '#F48FB1' },
+  Pilates:           { icon: <MaterialCommunityIcons name="meditation" size={18} color="#BA68C8" />, color: '#BA68C8' },
+  Padel:             { icon: <MaterialCommunityIcons name="tennis" size={18} color="#FFD600" />, color: '#FFD600' },
+  'Tennis de table': { icon: <MaterialCommunityIcons name="table-tennis" size={18} color="#00B8D4" />, color: '#00B8D4' },
+  'Randonnée/Trail': { icon: <MaterialCommunityIcons name="hiking" size={18} color="#43A047" />, color: '#43A047' },
+  'Ski de randonnée':{ icon: <MaterialCommunityIcons name="ski-cross-country" size={18} color="#4FC3F7" />, color: '#4FC3F7' },
+  'Ski/Snow':        { icon: <MaterialCommunityIcons name="ski" size={18} color="#32C5FF" />, color: '#32C5FF' },
+  VTT:               { icon: <MaterialCommunityIcons name="bike" size={18} color="#009688" />, color: '#009688' },
+  Marche:            { icon: <MaterialCommunityIcons name="walk" size={18} color="#00A676" />, color: '#00A676' },
+  Kayak:             { icon: <MaterialCommunityIcons name="kayaking" size={18} color="#0277BD" />, color: '#0277BD' },
+  Surf:              { icon: <MaterialCommunityIcons name="surfing" size={18} color="#26C6DA" />, color: '#26C6DA' },
+  Kitesurf:          { icon: <MaterialCommunityIcons name="kitesurfing" size={18} color="#29B6F6" />, color: '#29B6F6' },
+  Windsurf:          { icon: <MaterialCommunityIcons name="windsock" size={18} color="#42A5F5" />, color: '#42A5F5' },
+  'Stand Up Paddle': { icon: <MaterialCommunityIcons name="wave" size={18} color="#26A69A" />, color: '#26A69A' },
+  Skate:             { icon: <MaterialCommunityIcons name="skateboard" size={18} color="#EB984E" />, color: '#EB984E' },
+  Roller:            { icon: <MaterialCommunityIcons name="roller-skate" size={18} color="#FF8A65" />, color: '#FF8A65' },
+  Escalade:          { icon: <MaterialCommunityIcons name="terrain" size={18} color="#689F38" />, color: '#689F38' },
+  Parapente:         { icon: <MaterialCommunityIcons name="paragliding" size={18} color="#1976D2" />, color: '#1976D2' },
+  CrossFit:          { icon: <MaterialCommunityIcons name="dumbbell" size={18} color="#536DFE" />, color: '#536DFE' },
+  Callisthénie:      { icon: <MaterialCommunityIcons name="arm-flex" size={18} color="#26A69A" />, color: '#26A69A' },
+  'Arts Martiaux':   { icon: <MaterialCommunityIcons name="boxing-glove" size={18} color="#FF3D00" />, color: '#FF3D00' },
+  Échecs:            { icon: <MaterialCommunityIcons name="chess-queen" size={18} color="#4E342E" />, color: '#4E342E' },
+  '+ de sports':     { icon: <MaterialCommunityIcons name="plus-circle" size={22} color="#1877F2" />, color: '#1877F2' },
 };
 
+const otherSports = [
+  'CrossFit','Yoga','Pilates','Danse','Marche','VTT','Kayak','Surf',
+  'Kitesurf','Stand Up Paddle','Ski/Snow','Ski de randonnée','Skate',
+  'Roller','Escalade','Parapente','Callisthénie','Arts Martiaux',
+  'Tennis de table','Échecs','Autres',
+];
 
 const levels = ["Pour s'amuser", 'Débutant', 'Intermédiaire', 'Avancé'];
-const participants = Array.from({ length: 14 }, (_, i) => i + 2);
 
-
-/* ---------- Helpers date/heure (identiques à Création) ---------- */
-function pad2(n) { return n < 10 ? `0${n}` : `${n}`; }
-function formatDateYYYYMMDD(d) {
- return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-function formatTimeHHMM(d) {
- return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-function combineLocalDateAndTime(dateOnly, timeOnly) {
- const combined = new Date(dateOnly);
- combined.setHours(timeOnly.getHours(), timeOnly.getMinutes(), 0, 0);
- return combined;
-}
-function isAllowedStartTime(localDate) {
- const h = localDate.getHours();
- const m = localDate.getMinutes();
- if (h < 6) return false;
- if (h > 21) return false;
- if (h === 21 && m > 0) return false;
- return true;
-}
-const getClampedDefaultHour = () => {
- const now = new Date();
- const futureHour = new Date(now.getTime() + 60 * 60 * 1000);
- futureHour.setSeconds(0);
- futureHour.setMilliseconds(0);
- const hour = futureHour.getHours();
- if (hour < 6) {
-   futureHour.setHours(6, 0, 0, 0);
- } else if (hour > 21) {
-   const tomorrow = new Date(futureHour);
-   tomorrow.setDate(tomorrow.getDate() + 1);
-   tomorrow.setHours(6, 0, 0, 0);
-   return tomorrow;
- }
- return futureHour;
+const levelMeta = {
+  "Pour s'amuser": { icon: 'emoticon-happy-outline', color: '#FFA726', bg: '#FFF5E5' },
+  'Débutant':      { icon: 'sprout-outline',         color: '#2ECC71', bg: '#EDFBF3' },
+  'Intermédiaire': { icon: 'lightning-bolt',         color: '#3888FF', bg: '#EBF2FF' },
+  'Avancé':        { icon: 'fire',                   color: '#FE5D02', bg: '#FFF3EE' },
 };
 
-
-const EditSessionScreen = () => {
- const navigation = useNavigation();
- const route = useRoute();
- const { sessionId } = route.params || {};
-
-
- // États UI
- const [loading, setLoading] = useState(false);
- const [loadingInit, setLoadingInit] = useState(true);
-
-
- // Champs
- const [selectedSport, setSelectedSport] = useState('');
- const [showOtherSports, setShowOtherSports] = useState(false);
-
-
- const [selectedLevel, setSelectedLevel] = useState('');
- const [maxParticipants, setMaxParticipants] = useState(null); // affichage
- const [selectedParticipants, setSelectedParticipants] = useState(''); // compat Supabase (string)
-
-
- const [selectedDate, setSelectedDate] = useState(new Date());
- const [showCalendar, setShowCalendar] = useState(false);
-
-
- const [selectedHour, setSelectedHour] = useState(getClampedDefaultHour());
- const [timePickerVisible, setTimePickerVisible] = useState(false);
-
-
- const [title, setTitle] = useState('');
- const [comments, setComments] = useState('');
-
-
- const [location, setLocation] = useState('');
- const [latitude, setLatitude] = useState(null);
- const [longitude, setLongitude] = useState(null);
-
-
- // Modal Adresse
-const [addressModalVisible, setAddressModalVisible] = useState(false);
-
-
- // Modals
- const [sportPickerVisible, setSportPickerVisible] = useState(false);
- const [levelPickerVisible, setLevelPickerVisible] = useState(false);
- const [participantsPickerVisible, setParticipantsPickerVisible] = useState(false);
-
-
- const insets = useSafeAreaInsets();
- const [kbOpen, setKbOpen] = useState(false);
-
-
- const [tempLocation, setTempLocation] = useState('');
- const [tempLat, setTempLat] = useState(null);
- const [tempLng, setTempLng] = useState(null);
-
-
-
-
- useEffect(() => {
- const s = Keyboard.addListener('keyboardDidShow', () => setKbOpen(true));
- const h = Keyboard.addListener('keyboardDidHide', () => setKbOpen(false));
- return () => { s.remove(); h.remove(); };
-}, []);
-
-
- // Charger la session
- useEffect(() => {
-   const fetchSession = async () => {
-     if (!sessionId) return;
-     setLoadingInit(true);
-     const { data, error } = await supabase
-       .from('sessions')
-       .select('*')
-       .eq('id', sessionId)
-       .single();
-
-
-     if (error || !data) {
-       Alert.alert('Erreur', error?.message || "Impossible de charger la session.");
-       setLoadingInit(false);
-       return;
-     }
-
-
-     setSelectedSport(data.sport || '');
-     setSelectedLevel(data.level || '');
-     setSelectedParticipants(String(data.participants_max || ''));
-     setMaxParticipants(data.participants_max || null);
-
-
-     setTitle(data.title || '');
-     setComments(data.description || '');
-     setLocation(data.location || '');
-     setLatitude(Number(data.lat));
-     setLongitude(Number(data.lng));
-
-
-     // Dates/heures locales et sûres
-     const dateOnly = data.date ? new Date(data.date) : new Date();
-     const timeObj = data.time ? new Date(`${data.date}T${data.time}`) : getClampedDefaultHour();
-     // combine proprement
-     setSelectedDate(dateOnly);
-     if (data.time) {
-       const combined = combineLocalDateAndTime(dateOnly, timeObj);
-       setSelectedHour(combined);
-     } else {
-       setSelectedHour(getClampedDefaultHour());
-     }
-
-
-     setLoadingInit(false);
-   };
-   fetchSession();
- }, [sessionId]);
-
-
- const capitalizeFirst = (str) => (!str ? '' : str.charAt(0).toUpperCase() + str.slice(1));
-
-
- /* ----- TimePicker handlers (style Création) ----- */
- const showTimePicker = () => setTimePickerVisible(true);
- const hideTimePicker = () => setTimePickerVisible(false);
-
-
- const handleConfirmTime = (pickedTime) => {
-   if (!(pickedTime instanceof Date) || isNaN(pickedTime)) {
-     hideTimePicker();
-     return;
-   }
-   const combinedDateTime = new Date(selectedDate);
-   combinedDateTime.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
-
-
-   const now = new Date();
-   const isToday = selectedDate.toDateString() === now.toDateString();
-
-
-   if (!isAllowedStartTime(combinedDateTime)) {
-     Alert.alert('Heure non autorisée', 'Choisis entre 06:00 et 21:00.');
-     hideTimePicker();
-     return;
-   }
-   if (isToday && combinedDateTime <= now) {
-     Alert.alert('Heure invalide', 'Choisis une heure dans le futur.');
-     hideTimePicker();
-     return;
-   }
-
-
-   setSelectedHour(combinedDateTime);
-   hideTimePicker();
- };
-
-
- /* ----- Edit session ----- */
-const handleEditSession = async () => {
-  if (
-    !selectedSport || !location || latitude === null || longitude === null ||
-    !selectedLevel || !selectedParticipants || !title
-  ) {
-    Alert.alert('Champs manquants', 'Merci de remplir tous les champs obligatoires.');
-    return;
-  }
-
-  // validations date/heure (comme Création)
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const sessionDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-  if (sessionDateOnly < today) {
-    Alert.alert('Erreur', 'Tu ne peux pas mettre une session dans le passé.');
-    return;
-  }
+// ─── Date helpers ──────────────────────────────────────────────────────────
+function pad2(n) { return n < 10 ? `0${n}` : `${n}`; }
+function formatDateYYYYMMDD(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function formatTimeHHMM(d) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+function combineLocalDateAndTime(dateOnly, timeOnly) {
+  const c = new Date(dateOnly);
+  c.setHours(timeOnly.getHours(), timeOnly.getMinutes(), 0, 0);
+  return c;
+}
+function formatHour(date) {
+  if (!(date instanceof Date)) return 'Heure';
+  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+function isAllowedStartTime(d) {
+  const h = d.getHours(), m = d.getMinutes();
+  return !(h < 6 || h > 21 || (h === 21 && m > 0));
+}
+function getClampedDefaultHour() {
   const now = new Date();
-  if (sessionDateOnly.getTime() === today.getTime()) {
-    const startLocal = combineLocalDateAndTime(sessionDateOnly, selectedHour);
-    if (startLocal < now) {
-      Alert.alert('Erreur', "Tu ne peux pas sélectionner une heure passée pour aujourd'hui.");
-      return;
+  const f = new Date(now.getTime() + 60 * 60 * 1000);
+  f.setSeconds(0); f.setMilliseconds(0);
+  const h = f.getHours();
+  if (h < 6) { f.setHours(6, 0, 0, 0); }
+  else if (h > 21) { f.setDate(f.getDate() + 1); f.setHours(6, 0, 0, 0); }
+  return f;
+}
+function capitalizeFirst(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+const EditSessionScreen = () => {
+  const navigation = useNavigation();
+  const route      = useRoute();
+  const { sessionId } = route.params || {};
+
+  const [loading,      setLoading]      = useState(false);
+  const [loadingInit,  setLoadingInit]  = useState(true);
+  const [selectedSport,       setSelectedSport]       = useState('');
+  const [showOtherSports,     setShowOtherSports]     = useState(false);
+  const [selectedLevel,       setSelectedLevel]       = useState('');
+  const [selectedDate,        setSelectedDate]        = useState(new Date());
+  const [showCalendar,        setShowCalendar]        = useState(false);
+  const [selectedHour,        setSelectedHour]        = useState(getClampedDefaultHour());
+  const [timePickerVisible,   setTimePickerVisible]   = useState(false);
+  const [title,               setTitle]               = useState('');
+  const [comments,            setComments]            = useState('');
+  const [location,            setLocation]            = useState('');
+  const [latitude,            setLatitude]            = useState(null);
+  const [longitude,           setLongitude]           = useState(null);
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [tempLocation,        setTempLocation]        = useState('');
+  const [tempLat,             setTempLat]             = useState(null);
+  const [tempLng,             setTempLng]             = useState(null);
+  const [maxParticipants,     setMaxParticipants]     = useState(null);
+  const [maxPickerVisible,    setMaxPickerVisible]    = useState(false);
+  const [sportPickerVisible,  setSportPickerVisible]  = useState(false);
+  const [levelPickerVisible,  setLevelPickerVisible]  = useState(false);
+
+  // ── Chargement session ───────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchSession = async () => {
+      if (!sessionId) return;
+      setLoadingInit(true);
+      const { data, error } = await supabase.from('sessions').select('*').eq('id', sessionId).single();
+      if (error || !data) {
+        Alert.alert('Erreur', error?.message || "Impossible de charger la session.");
+        setLoadingInit(false); return;
+      }
+      setSelectedSport(data.sport || '');
+      setSelectedLevel(data.level || '');
+      setTitle(data.title || '');
+      setComments(data.description || '');
+      setLocation(data.location || '');
+      setLatitude(Number(data.lat));
+      setLongitude(Number(data.lng));
+      setMaxParticipants(data.max_participants === null ? null : Number(data.max_participants));
+      const dateOnly = data.date ? new Date(data.date) : new Date();
+      setSelectedDate(dateOnly);
+      if (data.time) {
+        const timeObj = new Date(`${data.date}T${data.time}`);
+        setSelectedHour(combineLocalDateAndTime(dateOnly, timeObj));
+      } else {
+        setSelectedHour(getClampedDefaultHour());
+      }
+      setLoadingInit(false);
+    };
+    fetchSession();
+  }, [sessionId]);
+
+  // ── Heure ─────────────────────────────────────────────────────────────────
+  const handleConfirmTime = (pickedTime) => {
+    if (!(pickedTime instanceof Date) || isNaN(pickedTime)) { setTimePickerVisible(false); return; }
+    const combined = new Date(selectedDate);
+    combined.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
+    const now = new Date();
+    if (!isAllowedStartTime(combined)) { Alert.alert('Heure non autorisée', 'Choisis entre 06:00 et 21:00.'); setTimePickerVisible(false); return; }
+    if (selectedDate.toDateString() === now.toDateString() && combined <= now) {
+      Alert.alert('Heure invalide', 'Choisis une heure dans le futur.'); setTimePickerVisible(false); return;
     }
-  }
-  const candidateStart = combineLocalDateAndTime(sessionDateOnly, selectedHour);
-  if (!isAllowedStartTime(candidateStart)) {
-    Alert.alert('Heure non autorisée', 'Heure uniquement entre 6h00 et 21h00.');
-    return;
-  }
-
-  setLoading(true);
-
-  const sessionData = {
-    sport: selectedSport,
-    location,
-    lat: latitude,
-    lng: longitude,
-    level: selectedLevel,
-    participants_max: parseInt(String(selectedParticipants), 10),
-    date: formatDateYYYYMMDD(selectedDate),
-    time: formatTimeHHMM(selectedHour),
-    title,
-    description: comments,
+    setSelectedHour(combined); setTimePickerVisible(false);
   };
 
-  const { error } = await supabase.from('sessions').update(sessionData).eq('id', sessionId);
-  if (error) {
+  // ── Modification ──────────────────────────────────────────────────────────
+  const handleEditSession = async () => {
+    if (!selectedSport || !location || latitude === null || longitude === null || !selectedLevel || !title) {
+      Alert.alert('Champs manquants', 'Merci de remplir tous les champs obligatoires.'); return;
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const sessionDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    if (sessionDateOnly < today) { Alert.alert('Erreur', 'Tu ne peux pas mettre une session dans le passé.'); return; }
+    const now = new Date();
+    if (sessionDateOnly.getTime() === today.getTime()) {
+      const startLocal = combineLocalDateAndTime(sessionDateOnly, selectedHour);
+      if (startLocal < now) { Alert.alert('Erreur', "Tu ne peux pas sélectionner une heure passée pour aujourd'hui."); return; }
+    }
+    const candidateStart = combineLocalDateAndTime(sessionDateOnly, selectedHour);
+    if (!isAllowedStartTime(candidateStart)) { Alert.alert('Heure non autorisée', 'Heure entre 6h00 et 21h00.'); return; }
+
+    setLoading(true);
+    const sessionData = {
+      sport: selectedSport, location, lat: latitude, lng: longitude,
+      level: selectedLevel, date: formatDateYYYYMMDD(selectedDate),
+      time: formatTimeHHMM(selectedHour), title, description: comments,
+      max_participants: maxParticipants === null ? null : Number(maxParticipants),
+    };
+
+    const { error } = await supabase.from('sessions').update(sessionData).eq('id', sessionId);
+    if (error) { setLoading(false); Alert.alert('Erreur', error.message || 'Impossible de modifier.'); return; }
+
+    const { data: participantsData } = await supabase.from('session_participants').select('user_id').eq('session_id', sessionId);
+    const { data: sessionInfo } = await supabase.from('sessions').select('creator_id, title').eq('id', sessionId).single();
+    const participantIds = (participantsData || []).map(p => p.user_id).filter(uid => uid !== sessionInfo?.creator_id);
+
+    await notifySessionUpdatedCreator({ creatorId: sessionInfo?.creator_id, sessionTitle: title, sessionId });
+    await notifySessionUpdatedParticipants({ participantIds, sessionTitle: title, sessionId });
+
     setLoading(false);
-    Alert.alert('Erreur', error.message || 'Impossible de modifier la session.');
-    return;
+    Alert.alert('Session modifiée !', 'Les participants ont été notifiés.', [
+      { text: 'OK', onPress: () => navigation.navigate('MainTabs', { screen: 'Sessions', params: { tab: 'created' } }) },
+    ]);
+  };
+
+  // ── Suppression ───────────────────────────────────────────────────────────
+  const handleCancelSession = async () => {
+    Alert.alert(
+      'Supprimer la session',
+      'Cette action est irréversible. Tous les participants seront notifiés.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer', style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            const { data: participantsData } = await supabase.from('session_participants').select('user_id').eq('session_id', sessionId);
+            const { data: sessionInfo } = await supabase.from('sessions').select('creator_id, title').eq('id', sessionId).single();
+            const participantIds = (participantsData || []).map(p => p.user_id).filter(uid => uid !== sessionInfo?.creator_id);
+
+            await supabase.from('session_participants').delete().eq('session_id', sessionId);
+            await supabase.from('messages').delete().eq('session_id', sessionId);
+            await supabase.from('notifications').delete().eq('session_id', sessionId);
+
+            const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
+            if (error) { setLoading(false); Alert.alert('Erreur', error.message); return; }
+
+            await notifySessionDeletedCreator({ creatorId: sessionInfo?.creator_id, sessionTitle: sessionInfo?.title || 'Session', sessionId });
+            await notifySessionDeletedParticipants({ participantIds, sessionTitle: sessionInfo?.title || 'Session', sessionId });
+
+            setLoading(false);
+            Alert.alert('Session supprimée', 'Tous les participants ont été notifiés.', [
+              { text: 'OK', onPress: () => navigation.navigate('MainTabs') },
+            ]);
+          },
+        },
+      ]
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  if (loadingInit) {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F7FA' }}>
+        <ActivityIndicator size="large" color="#FE5D02" />
+        <Text style={{ color: '#AAA', marginTop: 12, fontSize: 14 }}>Chargement…</Text>
+      </SafeAreaView>
+    );
   }
 
-  // 🔍 Récupérer participants & créateur
-  const { data: participantsData } = await supabase
-    .from('session_participants')
-    .select('user_id')
-    .eq('session_id', sessionId);
+  return (
+    <View style={{ flex: 1, backgroundColor: '#F6F7FA' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-  const { data: sessionInfo } = await supabase
-    .from('sessions')
-    .select('creator_id, title')
-    .eq('id', sessionId)
-    .single();
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
 
-  const participantIds = (participantsData || [])
-    .map(p => p.user_id)
-    .filter(uid => uid !== sessionInfo?.creator_id);
+            {/* ── L'essentiel ─────────────────────────────────────── */}
+            <Text style={styles.sectionLabel}>L'essentiel <Text style={styles.required}>*</Text></Text>
+            <View style={styles.card}>
 
-  // 🔔 Notifications
-  await notifySessionUpdatedCreator({
-    creatorId: sessionInfo?.creator_id,
-    sessionTitle: title,
-    sessionId,
-  });
+              <TouchableOpacity style={styles.row} onPress={() => setSportPickerVisible(true)} activeOpacity={0.7}>
+                <View style={[styles.rowIcon, { backgroundColor: selectedSport ? (sportIcons[selectedSport]?.color + '18') : '#F5F5F7' }]}>
+                  {selectedSport ? sportIcons[selectedSport]?.icon : <Ionicons name="bicycle-outline" size={18} color="#AAAAAA" />}
+                </View>
+                <Text style={[styles.rowValue, !selectedSport && styles.rowPlaceholder]}>{selectedSport || 'Sport'}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+              </TouchableOpacity>
 
-  await notifySessionUpdatedParticipants({
-    participantIds,
-    sessionTitle: title,
-    sessionId,
-  });
+              <View style={styles.sep} />
 
-  setLoading(false);
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => { setTempLocation(location || ''); setTempLat(latitude); setTempLng(longitude); setAddressModalVisible(true); }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: location ? '#FFF3EE' : '#F5F5F7' }]}>
+                  <Ionicons name="location-outline" size={18} color={location ? '#FE5D02' : '#AAAAAA'} />
+                </View>
+                <Text style={[styles.rowValue, !location && styles.rowPlaceholder]} numberOfLines={1}>
+                  {location || 'Point de rencontre'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+              </TouchableOpacity>
 
-  // ✅ Feedback visuel
-  Toast.show({
-    type: 'success',
-    text1: 'Session modifiée ✅',
-    text2: `Ta session "${title}" a bien été mise à jour.`,
-    position: 'top',
-    topOffset: 48,
-    visibilityTime: 2800,
-  });
+              <View style={styles.sep} />
 
-Alert.alert('Session modifiée !', 'Les participants ont été notifiés.', [
-  { 
-    text: 'OK', 
-    onPress: () => navigation.navigate('MainTabs', { 
-      screen: 'Activités', 
-      params: { tab: 'created' } 
-    }) 
-  },
-]);
-};
+              <TouchableOpacity style={styles.row} onPress={() => setLevelPickerVisible(true)} activeOpacity={0.7}>
+                <View style={[styles.rowIcon, { backgroundColor: selectedLevel ? (levelMeta[selectedLevel]?.bg || '#F5F5F7') : '#F5F5F7' }]}>
+                  {selectedLevel
+                    ? <MaterialCommunityIcons name={levelMeta[selectedLevel]?.icon} size={18} color={levelMeta[selectedLevel]?.color} />
+                    : <Ionicons name="trending-up-outline" size={18} color="#AAAAAA" />
+                  }
+                </View>
+                <Text style={[styles.rowValue, !selectedLevel && styles.rowPlaceholder]}>{selectedLevel || 'Niveau'}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+              </TouchableOpacity>
 
+            </View>
 
-const handleCancelSession = async () => {
-  Alert.alert(
-    'Annuler la session',
-    'Es-tu sûr de vouloir supprimer définitivement cette session ?',
-    [
-      { text: 'Non', style: 'cancel' },
-      {
-        text: 'Oui, supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          setLoading(true);
+            {/* ── Quand ───────────────────────────────────────────── */}
+            <Text style={styles.sectionLabel}>Quand <Text style={styles.required}>*</Text></Text>
+            <View style={styles.card}>
 
-          // 🔍 Récupérer participants & infos session
-          const { data: participantsData } = await supabase
-            .from('session_participants')
-            .select('user_id')
-            .eq('session_id', sessionId);
+              <TouchableOpacity style={styles.row} onPress={() => setShowCalendar(true)} activeOpacity={0.7}>
+                <View style={[styles.rowIcon, { backgroundColor: '#FFF5E5' }]}>
+                  <Ionicons name="calendar-outline" size={18} color="#FFA726" />
+                </View>
+                <Text style={styles.rowValue}>
+                  {capitalizeFirst(selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+              </TouchableOpacity>
 
-          const { data: sessionInfo } = await supabase
-            .from('sessions')
-            .select('creator_id, title')
-            .eq('id', sessionId)
-            .single();
+              <View style={styles.sep} />
 
-          const participantIds = (participantsData || [])
-            .map(p => p.user_id)
-            .filter(uid => uid !== sessionInfo?.creator_id); // ✅ exclut le créateur
+              <TouchableOpacity style={styles.row} onPress={() => setTimePickerVisible(true)} activeOpacity={0.7}>
+                <View style={[styles.rowIcon, { backgroundColor: '#EBF2FF' }]}>
+                  <Ionicons name="time-outline" size={18} color="#3888FF" />
+                </View>
+                <Text style={styles.rowValue}>{formatHour(selectedHour)}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+              </TouchableOpacity>
 
-          // 🗑️ Purge liée à la session
-          await supabase.from('session_participants').delete().eq('session_id', sessionId);
-          await supabase.from('messages').delete().eq('session_id', sessionId);
-          await supabase.from('notifications').delete().eq('session_id', sessionId);
+            </View>
 
-          // ❌ Supprimer la session
-          const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
+            {/* ── Informations ────────────────────────────────────── */}
+            <Text style={styles.sectionLabel}>Informations <Text style={styles.required}>*</Text></Text>
+            <View style={styles.card}>
 
-          if (error) {
-            setLoading(false);
-            Alert.alert('Erreur', error.message || 'Impossible de supprimer la session.');
-            return;
+              <View style={styles.row}>
+                <View style={[styles.rowIcon, { backgroundColor: '#F3F1FF' }]}>
+                  <Ionicons name="text-outline" size={18} color="#7367F0" />
+                </View>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Titre de la session"
+                  placeholderTextColor="#C8C8C8"
+                  value={title}
+                  onChangeText={setTitle}
+                  autoCorrect autoCapitalize="sentences"
+                  returnKeyType="next"
+                />
+              </View>
+
+              <View style={styles.sep} />
+
+              <View style={[styles.row, { alignItems: 'flex-start', paddingTop: hp('1.5%') }]}>
+                <View style={[styles.rowIcon, { backgroundColor: '#F5F5F7', marginTop: 2 }]}>
+                  <Ionicons name="document-text-outline" size={18} color="#AAAAAA" />
+                </View>
+                <TextInput
+                  style={[styles.textInput, { height: hp('9%'), textAlignVertical: 'top' }]}
+                  placeholder="Décrivez rapidement le déroulé…"
+                  placeholderTextColor="#C8C8C8"
+                  value={comments}
+                  onChangeText={setComments}
+                  multiline
+                  autoCorrect autoCapitalize="sentences"
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={Keyboard.dismiss}
+                />
+              </View>
+
+            </View>
+
+            {/* ── Options ─────────────────────────────────────────── */}
+            <Text style={styles.sectionLabel}>Options <Text style={styles.optional}>(optionnel)</Text></Text>
+            <View style={styles.card}>
+
+              <TouchableOpacity style={styles.row} onPress={() => setMaxPickerVisible(true)} activeOpacity={0.7}>
+                <View style={[styles.rowIcon, { backgroundColor: '#EDFBF3' }]}>
+                  <Ionicons name="people-outline" size={18} color="#2ECC71" />
+                </View>
+                <Text style={[styles.rowValue, maxParticipants === null && styles.rowPlaceholder]}>
+                  {maxParticipants === null ? 'Participants max' : `${maxParticipants} participants max`}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#D0D0D0" />
+              </TouchableOpacity>
+
+            </View>
+
+            {/* ── Danger zone ─────────────────────────────────────── */}
+            <Text style={styles.sectionLabel}>Zone de danger</Text>
+            <View style={styles.card}>
+              <TouchableOpacity
+                style={styles.row}
+                onPress={handleCancelSession}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: '#FFF0F0' }]}>
+                  <Ionicons name="trash-outline" size={18} color="#EB1E1E" />
+                </View>
+                <Text style={[styles.rowValue, { color: '#EB1E1E' }]}>Supprimer la session</Text>
+                <Ionicons name="chevron-forward" size={16} color="#FFAAAA" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 12 }} />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+
+      {/* ── Barre CTA sticky ─────────────────────────────────────────── */}
+      <View style={styles.stickyBar}>
+        <TouchableOpacity
+          style={[styles.ctaBtn, loading && styles.ctaBtnDisabled]}
+          onPress={handleEditSession}
+          disabled={loading}
+          activeOpacity={0.85}
+        >
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.ctaBtnText}>Enregistrer les modifications</Text>
           }
+        </TouchableOpacity>
+      </View>
 
-          // ✅ Réinsérer uniquement les notifs d’annulation
-          await notifySessionDeletedCreator({
-            creatorId: sessionInfo?.creator_id,
-            sessionTitle: sessionInfo?.title || 'Session',
-            sessionId,
-          });
+      {/* ── Modal Sport ──────────────────────────────────────────────── */}
+      <Modal transparent visible={sportPickerVisible} animationType="fade"
+        onRequestClose={() => { setSportPickerVisible(false); setShowOtherSports(false); }}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1}
+          onPress={() => { setSportPickerVisible(false); setShowOtherSports(false); }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={[styles.centeredBox, { paddingHorizontal: 0, maxHeight: hp('65%') }]}>
+              <Text style={[styles.boxTitle, { paddingHorizontal: wp('5%') }]}>
+                {showOtherSports ? 'Autres sports' : 'Choisir un sport'}
+              </Text>
+              <ScrollView style={{ width: '100%' }} showsVerticalScrollIndicator={false}>
+                {(!showOtherSports ? sportData : otherSports.map(l => ({ label: l }))).map((item) => {
+                  const label = item.label;
+                  const active = selectedSport === label;
+                  return (
+                    <TouchableOpacity
+                      key={label}
+                      style={[styles.listItem, active && styles.listItemActive]}
+                      onPress={() => {
+                        if (label === '+ de sports') { setShowOtherSports(true); return; }
+                        setSelectedSport(label); setSportPickerVisible(false); setShowOtherSports(false);
+                      }}
+                    >
+                      <View style={{ marginRight: 12 }}>{item.icon || sportIcons[label]?.icon}</View>
+                      <Text style={[styles.listItemText, active && styles.listItemTextActive]}>{label}</Text>
+                      {active && <View style={styles.check}><AntDesign name="check" size={11} color="#fff" /></View>}
+                    </TouchableOpacity>
+                  );
+                })}
+                <View style={{ height: 8 }} />
+              </ScrollView>
+              <TouchableOpacity
+                style={[styles.boxBtn, { marginHorizontal: wp('5%') }]}
+                onPress={() => showOtherSports ? setShowOtherSports(false) : setSportPickerVisible(false)}
+              >
+                <Text style={styles.boxBtnText}>{showOtherSports ? '← Retour' : 'Fermer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
-          await notifySessionDeletedParticipants({
-            participantIds,
-            sessionTitle: sessionInfo?.title || 'Session',
-            sessionId,
-          });
+      {/* ── Modal Niveau ─────────────────────────────────────────────── */}
+      <Modal transparent visible={levelPickerVisible} animationType="fade" onRequestClose={() => setLevelPickerVisible(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setLevelPickerVisible(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={styles.centeredBox}>
+              <Text style={styles.boxTitle}>Niveau</Text>
+              {levels.map((level) => {
+                const meta = levelMeta[level];
+                const active = selectedLevel === level;
+                return (
+                  <TouchableOpacity
+                    key={level}
+                    style={[styles.listItem, active && styles.listItemActive]}
+                    onPress={() => { setSelectedLevel(level); setLevelPickerVisible(false); }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.levelIconBox, { backgroundColor: meta.bg }]}>
+                      <MaterialCommunityIcons name={meta.icon} size={18} color={meta.color} />
+                    </View>
+                    <Text style={[styles.listItemText, active && styles.listItemTextActive]}>{level}</Text>
+                    {active && <View style={styles.check}><AntDesign name="check" size={11} color="#fff" /></View>}
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity style={[styles.boxBtn, { marginHorizontal: wp('5%') }]} onPress={() => setLevelPickerVisible(false)}>
+                <Text style={styles.boxBtnText}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
-          setLoading(false);
+      {/* ── Modal Calendrier ─────────────────────────────────────────── */}
+      <Modal transparent animationType="fade" visible={showCalendar} onRequestClose={() => setShowCalendar(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowCalendar(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={[styles.centeredBox, { paddingHorizontal: wp('3%') }]}>
+              <Text style={styles.boxTitle}>Choisir une date</Text>
+              <Calendar
+                onDayPress={(day) => {
+                  const [y, m, d] = day.dateString.split('-').map(Number);
+                  setSelectedDate(new Date(y, m - 1, d));
+                  setShowCalendar(false);
+                }}
+                markedDates={{ [formatDateYYYYMMDD(selectedDate)]: { selected: true, selectedColor: '#FE5D02' } }}
+                minDate={formatDateYYYYMMDD(new Date())}
+                theme={{
+                  selectedDayBackgroundColor: '#FE5D02',
+                  todayTextColor: '#FE5D02',
+                  arrowColor: '#FE5D02',
+                  textDayFontSize: 15, textMonthFontSize: 15, textDayHeaderFontSize: 12,
+                  textDayFontWeight: '500', textMonthFontWeight: '700',
+                }}
+                style={{ borderRadius: 12, width: '100%' }}
+              />
+              <TouchableOpacity style={styles.boxBtn} onPress={() => setShowCalendar(false)}>
+                <Text style={styles.boxBtnText}>Valider</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
-          // ✅ Feedback visuel
-          Toast.show({
-            type: 'success',
-            text1: 'Session supprimée ❌',
-            text2: `Ta session "${sessionInfo?.title || title}" a bien été annulée.`,
-            position: 'top',
-            topOffset: 48,
-            visibilityTime: 2800,
-          });
+      {/* ── Modal Heure ──────────────────────────────────────────────── */}
+      {timePickerVisible && (
+        Platform.OS === 'ios' ? (
+          <Modal transparent visible animationType="fade" onRequestClose={() => setTimePickerVisible(false)}>
+            <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setTimePickerVisible(false)}>
+              <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+                <View style={styles.centeredBox}>
+                  <Text style={styles.boxTitle}>Heure de la session</Text>
+                  <DateTimePicker
+                    value={selectedHour || new Date()} mode="time" is24Hour display="spinner"
+                    onChange={(e, d) => { if (d) setSelectedHour(d); }}
+                    style={{ alignSelf: 'center', width: '100%' }}
+                  />
+                  <TouchableOpacity style={styles.boxBtn} onPress={() => handleConfirmTime(selectedHour)}>
+                    <Text style={styles.boxBtnText}>Valider</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={selectedHour || new Date()} mode="time" is24Hour display="spinner"
+            onChange={(event, date) => {
+              if (event.type === 'set' && date) handleConfirmTime(date);
+              else setTimePickerVisible(false);
+            }}
+          />
+        )
+      )}
 
-          Alert.alert('Session supprimée', 'Tous les participants ont été notifiés.', [
-            { text: 'OK', onPress: () => navigation.navigate('MainTabs') },
-          ]);
-        },
-      },
-    ]
+      {/* ── Modal Max Participants ────────────────────────────────────── */}
+      <Modal transparent visible={maxPickerVisible} animationType="fade" onRequestClose={() => setMaxPickerVisible(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setMaxPickerVisible(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={[styles.centeredBox, { paddingHorizontal: 0, maxHeight: hp('55%') }]}>
+              <Text style={[styles.boxTitle, { paddingHorizontal: wp('5%') }]}>Participants maximum</Text>
+              <ScrollView style={{ width: '100%' }} showsVerticalScrollIndicator={false}>
+                {[null, ...Array.from({ length: 20 }, (_, i) => i + 2)].map((num) => {
+                  const active = maxParticipants === num;
+                  return (
+                    <TouchableOpacity
+                      key={String(num)}
+                      style={[styles.listItem, active && styles.listItemActive]}
+                      onPress={() => { setMaxParticipants(num); setMaxPickerVisible(false); }}
+                    >
+                      <Ionicons
+                        name={num === null ? 'infinite-outline' : 'people-outline'}
+                        size={18} color={active ? '#FE5D02' : '#AAAAAA'}
+                        style={{ marginRight: 12 }}
+                      />
+                      <Text style={[styles.listItemText, active && styles.listItemTextActive]}>
+                        {num === null ? 'Illimité' : `${num} participants`}
+                      </Text>
+                      {active && <View style={styles.check}><AntDesign name="check" size={11} color="#fff" /></View>}
+                    </TouchableOpacity>
+                  );
+                })}
+                <View style={{ height: 8 }} />
+              </ScrollView>
+              <TouchableOpacity style={[styles.boxBtn, { marginHorizontal: wp('5%') }]} onPress={() => setMaxPickerVisible(false)}>
+                <Text style={styles.boxBtnText}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Modal Adresse ─────────────────────────────────────────────── */}
+      <Modal visible={addressModalVisible} animationType="slide" transparent onRequestClose={() => setAddressModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+            <View style={styles.addressHeader}>
+              <TouchableOpacity onPress={() => setAddressModalVisible(false)} style={styles.addressCloseBtn}>
+                <Ionicons name="close" size={18} color="#555" />
+              </TouchableOpacity>
+              <Text style={styles.addressTitle}>Choisir un lieu</Text>
+              <TouchableOpacity
+                disabled={!Number.isFinite(tempLat)}
+                style={[styles.addressValidateBtn, { opacity: Number.isFinite(tempLat) ? 1 : 0.4 }]}
+                onPress={() => { setLocation(tempLocation.trim()); setLatitude(tempLat); setLongitude(tempLng); setAddressModalVisible(false); }}
+              >
+                <Text style={styles.addressValidateText}>Valider</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1 }}>
+              <PlaceSearchField
+                autoFocus value={tempLocation}
+                onChange={(txt) => { setTempLocation(txt); setTempLat(null); setTempLng(null); }}
+                onPick={({ description, lat, lng }) => { setTempLocation(description); setTempLat(lat); setTempLng(lng); }}
+                placeholder="Ex : Parc Monceau, Paris"
+                boxStyle={{ marginTop: 12, marginHorizontal: 16 }}
+                suggestionContainerStyle={{ flex: 1, marginTop: 8, paddingHorizontal: 16 }}
+                keyboardShouldPersistTaps="handled"
+              />
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+    </View>
   );
 };
 
- if (loadingInit) {
-   return (
-     <SafeAreaView style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#fff' }}>
-       <ActivityIndicator
-  size={Platform.OS === 'ios' ? 'large' : 50}
-  color="#5B4EFF"
-/>
-       <Text style={{ fontSize: 16, color: '#666', marginTop: 12 }}>Chargement...</Text>
-     </SafeAreaView>
-   );
- }
-
-
- return (
-   <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-     <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-
-
-           {/* Sport (style Création avec modal) */}
-           <TouchableOpacity style={[styles.input, { marginTop: 10 }]} onPress={() => setSportPickerVisible(true)}>
-             {selectedSport ? (
-               <View style={{ flexDirection:'row', alignItems:'center' }}>
-                 <View style={{ marginRight: 10 }}>{sportIcons[selectedSport]?.icon || null}</View>
-                 <Text style={styles.inputText}>{selectedSport}</Text>
-               </View>
-             ) : (
-               <Text style={styles.dropdownText}>Sport...</Text>
-             )}
-           </TouchableOpacity>
-
-
-           {/* Modal Sport */}
-           <Modal
-             transparent
-             visible={sportPickerVisible}
-             animationType="fade"
-             onRequestClose={() => setSportPickerVisible(false)}
-           >
-             <View style={styles.modalOverlay}>
-               <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
-                 <Text style={styles.modalTitle}>
-                   {showOtherSports ? "Autres sports" : "Choisir un sport"}
-                 </Text>
-
-
-                 <ScrollView style={{ width:'100%' }}>
-                   {!showOtherSports ? (
-                     sportData.map((item) => (
-                       <TouchableOpacity
-                         key={item.label}
-                         style={styles.dropdownItemCentered}
-                         onPress={() => {
-                           if (item.label === '+ de sports') {
-                             setShowOtherSports(true);
-                           } else {
-                             setSelectedSport(item.label);
-                             setSportPickerVisible(false);
-                           }
-                         }}
-                       >
-                         <View style={{ flexDirection:'row', alignItems:'center' }}>
-                           <View style={{ marginRight:10 }}>{item.icon}</View>
-                           <Text style={styles.dropdownItemTextCentered}>{item.label}</Text>
-                         </View>
-                       </TouchableOpacity>
-                     ))
-                   ) : (
-                     otherSports.map((label) => (
-                       <TouchableOpacity
-                         key={label}
-                         style={styles.dropdownItemCentered}
-                         onPress={() => {
-                           setSelectedSport(label);
-                           setShowOtherSports(false);
-                           setSportPickerVisible(false);
-                         }}
-                       >
-                         <View style={{ flexDirection:'row', alignItems:'center' }}>
-                           <View style={{ marginRight:10 }}>{sportIcons[label]?.icon}</View>
-                           <Text style={styles.dropdownItemTextCentered}>{label}</Text>
-                         </View>
-                       </TouchableOpacity>
-                     ))
-                   )}
-                 </ScrollView>
-
-
-                 {showOtherSports ? (
-                   <TouchableOpacity style={styles.validateButton} onPress={() => setShowOtherSports(false)}>
-                     <Text style={styles.validateText}>Retour</Text>
-                   </TouchableOpacity>
-                 ) : (
-                   <TouchableOpacity style={styles.validateButton} onPress={() => setSportPickerVisible(false)}>
-                     <Text style={styles.validateText}>Fermer</Text>
-                   </TouchableOpacity>
-                 )}
-               </View>
-             </View>
-           </Modal>
-
-
-{/* Lieu */}
-<View style={{ marginTop: 5 }}>
- <TouchableOpacity
-   style={styles.input}
-   activeOpacity={0.85}
-   onPress={() => {
-     setTempLocation(location || '');
-     setTempLat(latitude);
-     setTempLng(longitude);
-     setAddressModalVisible(true);
-   }}
- >
-   <Text style={location ? styles.inputText : styles.dropdownText}>
-     {location || "Point de rencontre…"}
-   </Text>
- </TouchableOpacity>
-
-
- {location && (latitude === null || longitude === null) && (
-   <Text style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
-     Sélectionne une suggestion puis valide pour confirmer l’emplacement.
-   </Text>
- )}
-</View>
-
-
-{/* Modal Adresse */}
-<Modal
- transparent
- animationType="fade"
- visible={addressModalVisible}
- onRequestClose={() => setAddressModalVisible(false)}
- presentationStyle="overFullScreen"
- statusBarTranslucent
->
- <KeyboardAvoidingView
-   style={{ flex: 1 }}
-   behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-   keyboardVerticalOffset={insets.top}
- >
-   <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-     <View style={[styles.addressModalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
-       <View style={[styles.addressModalContainer, { width: '92%', maxHeight: kbOpen ? '65%' : '80%' }]}>
-
-
-         {/* Header : Croix + Titre + Bouton Valider */}
-         <View
-           style={{
-             flexDirection: 'row',
-             alignItems: 'center',
-             justifyContent: 'space-between',
-             marginBottom: 12,
-             paddingHorizontal: 12,
-             marginTop: 8,
-           }}
-         >
-           {/* Croix */}
-           <TouchableOpacity onPress={() => setAddressModalVisible(false)}>
-             <Ionicons name="close" size={24} color="#666" />
-           </TouchableOpacity>
-
-
-           {/* Titre */}
-           <Text style={[styles.addressModalTitle, { marginRight: 10, marginTop: 6 }]}>
-             Choisir un lieu
-           </Text>
-
-
-           {/* Bouton Valider */}
-           <TouchableOpacity
-             style={[
-               styles.addressValidateBtn,
-               {
-                 paddingHorizontal: 25,
-                 paddingVertical: 10,
-                 borderRadius: 8,
-                 marginLeft: 5,
-               },
-             ]}
-             activeOpacity={0.9}
-             onPress={async () => {
-               if (Number.isFinite(tempLat) && Number.isFinite(tempLng)) {
-                 setLocation((tempLocation || '').trim());
-                 setLatitude(tempLat);
-                 setLongitude(tempLng);
-                 setAddressModalVisible(false);
-                 return;
-               }
-
-
-               const addr = (tempLocation || '').trim();
-               if (!addr) {
-                 Alert.alert('Adresse vide', "Saisis une adresse ou choisis une suggestion.");
-                 return;
-               }
-               if (!GOOGLE_MAPS_API_KEY) {
-                 Alert.alert('Config', "Clé Google Maps absente.");
-                 return;
-               }
-
-
-               try {
-                 const url =
-                   'https://maps.googleapis.com/maps/api/geocode/json' +
-                   `?address=${encodeURIComponent(addr)}` +
-                   `&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}` +
-                   `&language=fr&components=country:FR`;
-
-
-                 const res = await fetch(url);
-                 const json = await res.json();
-
-
-                 if (json.status === 'OK' && Array.isArray(json.results) && json.results[0]) {
-                   const r = json.results[0];
-                   const lat = r?.geometry?.location?.lat;
-                   const lng = r?.geometry?.location?.lng;
-                   const label = r?.formatted_address || addr;
-
-
-                   if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                     setLocation(label);
-                     setLatitude(lat);
-                     setLongitude(lng);
-                     setAddressModalVisible(false);
-                     return;
-                   }
-                 }
-                 Alert.alert('Adresse introuvable', "Choisis une suggestion ou précise l’adresse.");
-               } catch {
-                 Alert.alert('Erreur', "Validation de l’adresse impossible pour le moment.");
-               }
-             }}
-           >
-             <Text style={styles.addressValidateText}>Valider</Text>
-           </TouchableOpacity>
-         </View>
-
-
-         {/* Champ recherche */}
-         <PlaceSearchField
-           autoFocus
-           value={tempLocation}
-           onChange={(txt) => { setTempLocation(txt); setTempLat(null); setTempLng(null); }}
-           onPick={({ description, lat, lng }) => { setTempLocation(description); setTempLat(lat); setTempLng(lng); }}
-           placeholder="Ex : Parc Monceau, Paris"
-           boxStyle={styles.addressPickerBox}
-           suggestionContainerStyle={[styles.addressSuggestBox, { maxHeight: 360, flexGrow: 0 }]}
-           keyboardShouldPersistTaps="handled"
-         />
-       </View>
-     </View>
-   </TouchableWithoutFeedback>
- </KeyboardAvoidingView>
-</Modal>
-
-
-{/* Date — même container + modal que Création */}
-<View style={{ marginTop: 5 }}>
- <TouchableOpacity
-   style={styles.input}
-   activeOpacity={0.85}
-   onPress={() => setShowCalendar(true)}
- >
-   <Text style={selectedDate ? styles.inputText : styles.placeholder}>
-     {selectedDate
-       ? capitalizeFirst(
-           selectedDate.toLocaleDateString('fr-FR', {
-             weekday: 'long',
-             year: 'numeric',
-             month: 'long',
-             day: 'numeric',
-           })
-         )
-       : 'Date de la session…'}
-   </Text>
- </TouchableOpacity>
-</View>
-
-
-{/* Modal Date — identique à Création */}
-<Modal
- transparent
- animationType="fade"
- visible={showCalendar}
- onRequestClose={() => setShowCalendar(false)}
->
- <View style={styles.modalOverlay}>
-   <View style={styles.modalContainer}>
-     <Text style={styles.modalTitle}>Choisir une date</Text>
-
-
-     <Calendar
-       onDayPress={(day) => {
-         const [y, m, d] = day.dateString.split('-').map(Number);
-         setSelectedDate(new Date(y, m - 1, d));
-         setShowCalendar(false);
-       }}
-       markedDates={{
-         [formatDateYYYYMMDD(selectedDate)]: {
-           selected: true,
-           selectedColor: '#5B4EFF',
-         },
-       }}
-       minDate={formatDateYYYYMMDD(new Date())}
-       theme={{
-         selectedDayBackgroundColor: '#5B4EFF',
-         todayTextColor: '#5B4EFF',
-         arrowColor: '#5B4EFF',
-         textDayFontFamily: FONT,
-         textMonthFontFamily: FONT,
-         textDayHeaderFontFamily: FONT,
-       }}
-       style={styles.calendarBox}
-     />
-
-
-     <TouchableOpacity
-       style={styles.validateButton}
-       onPress={() => setShowCalendar(false)}
-       activeOpacity={0.9}
-     >
-       <Text style={styles.validateText}>Fermer</Text>
-     </TouchableOpacity>
-   </View>
- </View>
-</Modal>
-
-
-           {/* Heure (modal + spinner, style Création) */}
-           <TouchableOpacity style={styles.input} onPress={showTimePicker}>
-             <Text style={selectedHour ? styles.inputText : styles.placeholder}>
-               {selectedHour
-                 ? `${selectedHour.getHours().toString().padStart(2,'0')}:${selectedHour.getMinutes().toString().padStart(2,'0')}`
-                 : "Heure de la session..."}
-             </Text>
-           </TouchableOpacity>
-
-
-           <Modal
-             transparent
-             visible={timePickerVisible}
-             animationType="fade"
-             onRequestClose={() => setTimePickerVisible(false)}
-           >
-             <View style={styles.modalOverlay}>
-               <View style={styles.modalContainer}>
-                 <Text style={styles.modalTitle}>Heure de la session</Text>
-                 <DateTimePicker
-                   value={selectedHour || new Date()}
-                   mode="time"
-                   is24Hour={true}
-                   display="spinner"
-                   onChange={(event, date) => {
-                     if (date) setSelectedHour(date);
-                   }}
-                 />
-                 <TouchableOpacity style={styles.validateButton} onPress={() => handleConfirmTime(selectedHour)}>
-                   <Text style={styles.validateText}>Valider</Text>
-                 </TouchableOpacity>
-               </View>
-             </View>
-           </Modal>
-
-
-           {/* Niveau (modal) */}
-           <TouchableOpacity style={styles.input} onPress={() => setLevelPickerVisible(true)}>
-             <Text style={selectedLevel ? styles.inputText : styles.dropdownText}>
-               {selectedLevel || "Niveau..."}
-             </Text>
-           </TouchableOpacity>
-
-
-           <Modal
-             transparent
-             visible={levelPickerVisible}
-             animationType="fade"
-             onRequestClose={() => setLevelPickerVisible(false)}
-           >
-             <View style={styles.modalOverlay}>
-               <View style={styles.modalContainer}>
-                 <Text style={styles.modalTitle}>Choisir un niveau</Text>
-                 <ScrollView style={{ maxHeight: 250, width:'100%' }}>
-                   {levels.map((level) => (
-                     <TouchableOpacity
-                       key={level}
-                       style={styles.dropdownItemCentered}
-                       onPress={() => {
-                         setSelectedLevel(level);
-                         setLevelPickerVisible(false);
-                       }}
-                     >
-                       <Text style={styles.dropdownItemTextCentered}>{level}</Text>
-                     </TouchableOpacity>
-                   ))}
-                 </ScrollView>
-                 <TouchableOpacity style={styles.validateButton} onPress={() => setLevelPickerVisible(false)}>
-                   <Text style={styles.validateText}>Fermer</Text>
-                 </TouchableOpacity>
-               </View>
-             </View>
-           </Modal>
-
-
-           {/* Participants (modal) */}
-           <TouchableOpacity style={styles.input} onPress={() => setParticipantsPickerVisible(true)}>
-             <Text style={maxParticipants ? styles.inputText : styles.dropdownText}>
-               {maxParticipants ? `${maxParticipants} participants` : "Participants max..."}
-             </Text>
-           </TouchableOpacity>
-
-
-           <Modal
-             transparent
-             visible={participantsPickerVisible}
-             animationType="fade"
-             onRequestClose={() => setParticipantsPickerVisible(false)}
-           >
-             <View style={styles.modalOverlay}>
-               <View style={styles.modalContainer}>
-                 <Text style={styles.modalTitle}>Participants maximum</Text>
-                 <ScrollView style={{ maxHeight: 250, width:'100%' }}>
-                   {participants.map((p) => (
-                     <TouchableOpacity
-                       key={p}
-                       style={styles.dropdownItemCentered}
-                       onPress={() => {
-                         setMaxParticipants(p);
-                         setSelectedParticipants(String(p));
-                         setParticipantsPickerVisible(false);
-                       }}
-                     >
-                       <Text style={styles.dropdownItemTextCentered}>{p}</Text>
-                     </TouchableOpacity>
-                   ))}
-                 </ScrollView>
-                 <TouchableOpacity style={styles.validateButton} onPress={() => setParticipantsPickerVisible(false)}>
-                   <Text style={styles.validateText}>Fermer</Text>
-                 </TouchableOpacity>
-               </View>
-             </View>
-           </Modal>
-
-
-           {/* Titre */}
-           <TextInput
-             style={[styles.input, styles.inputText]}
-             placeholder="Titre de la session..."
-             placeholderTextColor="#bababa"
-             value={title}
-             onChangeText={setTitle}
-             autoCorrect
-             autoCapitalize="sentences"
-             spellCheck
-             autoComplete="off"
-             returnKeyType="done"
-             blurOnSubmit
-             onSubmitEditing={Keyboard.dismiss}
-           />
-
-
-           {/* Description */}
-           <TextInput
-             style={[styles.input, styles.inputText, { height: 110, textAlignVertical: 'top', paddingTop: 12 }]}
-             placeholder="Décrivez rapidement le déroulé de la session..."
-             placeholderTextColor="#bababa"
-             value={comments}
-             onChangeText={setComments}
-             multiline
-             autoCorrect
-             autoCapitalize="sentences"
-             spellCheck
-             autoComplete="off"
-             returnKeyType="done"
-             blurOnSubmit
-             onSubmitEditing={Keyboard.dismiss}
-           />
-
-
-           {/* CTA Modifier */}
-           <TouchableOpacity
-             style={{ borderRadius: 16, overflow: 'hidden', marginTop: 12, marginBottom: 12 }}
-             onPress={handleEditSession}
-             disabled={loading}
-           >
-             <LinearGradient
-               colors={['#6dd5ed', '#2193b0']}
-               start={{ x: 0, y: 0 }}
-               end={{ x: 1, y: 1 }}
-               style={styles.buttonGradient}
-             >
-               <Text style={styles.buttonText}>{loading ? '...' : 'Modifier la session'}</Text>
-             </LinearGradient>
-           </TouchableOpacity>
-
-
-           {/* CTA Annuler la session */}
-<TouchableOpacity
-  style={{
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 40,
-  }}
-  onPress={handleCancelSession}
-  disabled={loading}
-  activeOpacity={0.86}
->
-  <LinearGradient
-    colors={['#FF5E62', '#FF5E62']}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 1 }}
-    style={styles.buttonGradient}
-  >
-    <Text style={[styles.buttonText, { color: '#fff', fontWeight: 'bold' }]}>
-      {loading ? '...' : 'Annuler la session'}
-    </Text>
-  </LinearGradient>
-</TouchableOpacity>
-
-
-
-         </ScrollView>
-       </TouchableWithoutFeedback>
-     </KeyboardAvoidingView>
-   </SafeAreaView>
- );
-};
-
-
-/* ---------- Styles alignés avec Création ---------- */
-const styles = StyleSheet.create({
- container: {
-   paddingHorizontal: 18,
-   paddingTop: 12,
-   paddingBottom: 10,
-   backgroundColor: '#fff',
-   minHeight: hp('100%'),
- },
- input: {
-   height: 52,
-   borderWidth: 1,
-   borderColor: '#E7E7ED',
-   borderRadius: 12,
-   paddingHorizontal: 14,
-   backgroundColor: '#fff',
-   justifyContent: 'center',
-   marginBottom: 14,
- },
- inputText: {
-   fontSize: 15,
-   color: '#333',
-   fontFamily: FONT,
- },
- dropdownText: {
-   fontSize: 15,
-   color: '#333',
-   fontFamily: FONT,
- },
- buttonGradient: {
-   height: 45,
-   alignItems: 'center',
-   justifyContent: 'center',
-   borderRadius: 14,
- },
- buttonText: {
-   color: '#fff',
-   fontSize: 16,
-   fontWeight: '700',
-   fontFamily: FONT,
- },
- placeholder: {
-   fontSize: 15,
-   color: '#bababa',
-   fontFamily: FONT,
- },
- modalOverlay: {
-   flex: 1,
-   backgroundColor: 'rgba(0,0,0,0.4)',
-   justifyContent: 'center',
-   alignItems: 'center',
- },
- modalContainer: {
-   width: '85%',
-   backgroundColor: '#fff',
-   borderRadius: 16,
-   paddingVertical: 20,
-   alignItems: 'center',
-   shadowColor: '#000',
-   shadowOpacity: 0.25,
-   shadowOffset: { width: 0, height: 2 },
-   shadowRadius: 6,
-   elevation: 5,
- },
- modalTitle: {
-   fontSize: 18,
-   fontWeight: '600',
-   marginBottom: 10,
-   color: '#000',
-   fontFamily: FONT,
- },
- validateButton: {
-   marginTop: 10,
-   backgroundColor: '#3A6BFF',
-   paddingVertical: 10,
-   paddingHorizontal: 30,
-   borderRadius: 10,
- },
- validateText: {
-   color: '#fff',
-   fontSize: 16,
-   fontWeight: '600',
-   fontFamily: FONT,
- },
- dropdownItemCentered: {
-   paddingVertical: 12,
-   justifyContent: 'center',
-   alignItems: 'center',
-   borderBottomWidth: 1,
-   borderBottomColor: '#eee',
-   backgroundColor: '#fff',
-   width: '100%',
- },
- dropdownItemTextCentered: {
-   fontSize: 16,
-   fontWeight: '500',
-   color: '#333',
-   textAlign: 'center',
-   fontFamily: FONT,
- },
- addressModalOverlay: {
- flex: 1,
- backgroundColor: 'rgba(0,0,0,0.35)',
-},
-addressModalContainer: {
- backgroundColor: '#fff',
- borderRadius: 16,
- padding: 14,
- elevation: 8,
- shadowColor: '#000',
- shadowOpacity: 0.15,
- shadowRadius: 12,
- shadowOffset: { width: 0, height: 6 },
-},
-addressModalTitle: {
- fontSize: 18,
- fontWeight: '700',
- marginBottom: 8,
-},
-addressPickerBox: {
- borderRadius: 12,
- borderWidth: 1,
- borderColor: '#eee',
- paddingHorizontal: 12,
- paddingVertical: 10,
- marginBottom: 10,
-},
-addressSuggestBox: {},
-addressModalFooter: {
- flexDirection: 'row',
- justifyContent: 'flex-end',
- marginTop: 12,
- gap: 12,
-},
-addressCancelBtn: {
- paddingHorizontal: 14,
- paddingVertical: 10,
- borderRadius: 10,
- backgroundColor: '#f2f2f2',
-},
-addressValidateBtn: {
- paddingHorizontal: 16,
- paddingVertical: 10,
- borderRadius: 10,
- backgroundColor: '#5B4EFF',
-},
-calendarBox: {
- width: '100%',
- borderRadius: 12,
- backgroundColor: '#fff',
- elevation: 2,                // Android shadow
- shadowColor: '#000',         // iOS shadow
- shadowOpacity: 0.08,
- shadowRadius: 6,
- shadowOffset: { width: 0, height: 3 },
- marginBottom: 12,
-},
-addressCancelText: { fontWeight: '600', color: '#444' },
-addressValidateText: { fontWeight: '700', color: '#fff' },
-});
-
-
 export default EditSessionScreen;
+
+// ─────────────────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+
+  scroll: {
+    paddingHorizontal: wp('4.5%'),
+    paddingTop: hp('1.5%'),
+    paddingBottom: hp('1%'),
+  },
+
+  sectionLabel: {
+    fontSize: wp('3%'), fontWeight: '700', color: '#ABABAB',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+    marginLeft: wp('1.5%'), marginTop: hp('2%'), marginBottom: hp('1%'),
+  },
+  required: { color: '#FF3B30', fontWeight: '700' },
+  optional: { fontSize: wp('2.8%'), color: '#C0C0C0', fontWeight: '400', textTransform: 'none' },
+
+  card: {
+    backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  },
+  sep: {
+    height: 1, backgroundColor: '#F5F5F7',
+    marginLeft: wp('4%') + 40 + wp('3.5%'),
+  },
+
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: hp('1.6%'), paddingHorizontal: wp('4%'),
+    minHeight: hp('7%'),
+  },
+  rowIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: wp('3.5%'), flexShrink: 0,
+  },
+  rowValue: { flex: 1, fontSize: wp('4%'), fontWeight: '500', color: '#1A1A1A' },
+  rowPlaceholder: { color: '#C8C8C8', fontWeight: '400' },
+
+  textInput: {
+    flex: 1, fontSize: wp('4%'), color: '#1A1A1A',
+    padding: 0, fontWeight: '400',
+  },
+
+  // ── Sticky bar ────────────────────────────────────────────────────────────
+ctaBtn: {
+  height: hp('5%'),
+  backgroundColor: '#FE5D02',
+  borderRadius: 16,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginTop: hp('2%'),
+  marginBottom: hp('2.5%'),
+  marginHorizontal: 20,
+},
+  ctaBtnDisabled: { backgroundColor: '#E0E0E0', shadowOpacity: 0 },
+  ctaBtnText: { color: '#fff', fontWeight: '700', fontSize: wp('4.2%') },
+
+stickyBar: {
+  paddingHorizontal: wp('4.5%'),
+  paddingTop: hp('1%'),
+  paddingBottom: hp('2%'),
+  backgroundColor: '#fff',
+  borderTopWidth: 1,
+  borderTopColor: '#F0F0F2',
+},
+
+  // ── Modals ────────────────────────────────────────────────────────────────
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.42)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: wp('5%'),
+  },
+  centeredBox: {
+    backgroundColor: '#fff', borderRadius: 20,
+    paddingTop: hp('2.5%'), paddingBottom: hp('2%'), paddingHorizontal: wp('5%'),
+    width: wp('88%'),
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 12,
+  },
+  boxTitle: { fontSize: wp('4.4%'), fontWeight: '700', color: '#111', textAlign: 'center', marginBottom: hp('1.8%') },
+    boxBtn: { height: hp('4.5%'), backgroundColor: '#FE5D02', borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginTop: hp('1.5%'), marginHorizontal: 20, },
+  boxBtnText: { color: '#fff', fontWeight: '700', fontSize: wp('3.9%') },
+  listItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: hp('1.5%'), paddingHorizontal: wp('5%'), borderBottomWidth: 1, borderBottomColor: '#F5F5F7' },
+  listItemActive: { backgroundColor: '#FFF8F5' },
+  listItemText: { flex: 1, fontSize: wp('3.9%'), fontWeight: '500', color: '#222' },
+  listItemTextActive: { color: '#FE5D02', fontWeight: '700' },
+  check: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FE5D02', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  levelIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: wp('3.5%'), flexShrink: 0 },
+
+  // ── Modal adresse ─────────────────────────────────────────────────────────
+  addressHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: wp('4.5%'), paddingVertical: hp('1.5%'),
+    borderBottomWidth: 1, borderBottomColor: '#F0F0F2',
+  },
+  addressCloseBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  addressTitle: { fontSize: wp('4.3%'), fontWeight: '700', color: '#111' },
+  addressValidateBtn: { backgroundColor: '#FE5D02', paddingHorizontal: wp('4%'), paddingVertical: hp('0.9%'), borderRadius: 12 },
+  addressValidateText: { color: '#fff', fontWeight: '700', fontSize: wp('3.6%') },
+});

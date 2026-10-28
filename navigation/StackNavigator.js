@@ -1,10 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainTabs from './MainTabs.js';
-import { Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-
+import { Platform, StatusBar } from 'react-native';
 
 import EditProfileScreen from '../screens/EditProfileScreen';
 import LocationScreen from '../screens/LocationScreen';
@@ -32,9 +29,19 @@ import SessionFeedbackScreen from '../screens/SessionFeedbackScreen.js';
 import SessionCancelledScreen from '../screens/SessionCancelledScreen';
 import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import MentionsLegalesScreen from '../screens/MentionsLegalesScreen.js';
-
+import GroupsScreen from '../screens/GroupsScreen';
+import CreateGroupScreen from '../screens/CreateGroupScreen';
+import GroupDetailScreen from '../screens/GroupDetailScreen';
+import EditGroupScreen from "../screens/EditGroupScreen";
+import GroupChatScreen from '../screens/GroupChatScreen.js';
+import CreateSessionScreen from "../screens/CreateSessionScreen";
+import UnitePlusScreen from '../screens/UnitePlusScreen.js';
+import UnitePlusCompareScreen from '../screens/UnitePlusCompareScreen.js';
 import GradientTitle from '../components/GradientTitle';
 import BienvenueScreen from '../screens/BienvenueScreen.js';
+import FAQScreen from '../screens/FAQScreen';
+import RoutineDetailScreen from '../screens/RoutineDetailScreen';
+import CreateRoutineScreen from '../screens/CreateRoutineScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,18 +54,38 @@ const gradientHeader = (title) => ({
   ),
   headerTitleAlign: 'center',
   headerBackTitleVisible: false,
-  headerTintColor: '#3F4FFF',
+  headerTintColor: '#3F4FFF', // 💙💜 dégradé bleu-violet rétabli
   headerStyle: {
     backgroundColor: '#fff',
     borderBottomColor: '#EEE',
     borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
+
+    // 🌫️ ombre restaurée identique à MiniAppBar
     shadowColor: '#000',
-    shadowOpacity: Platform.OS === 'ios' ? 0.06 : 0,
-    shadowRadius: Platform.OS === 'ios' ? 6 : 0,
-    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 3 } : undefined,
-    elevation: Platform.OS === 'android' ? 3 : 0,
+    shadowOpacity: Platform.OS === 'ios' ? 0.05 : 0.12,
+    shadowRadius: Platform.OS === 'ios' ? 5 : 6,
+    shadowOffset: Platform.OS === 'ios'
+      ? { width: 0, height: 2 }
+      : { width: 0, height: 3 },
+    elevation: Platform.OS === 'android' ? 5 : 0,
+
+    // ✅ hauteur identique à MiniAppBar
+    minHeight: Platform.OS === 'ios' ? 45 : 52,
+  },
+  headerTitleStyle: {
+    fontWeight: 'bold',
+    fontSize: Platform.OS === 'ios' ? 18 : 20,
+    color: '#111',
+    letterSpacing: 0.15,
   },
   headerShadowVisible: false,
+
+  // ✅ supprime le surplus d’espace Android
+  contentStyle: {
+    backgroundColor: '#fff',
+    paddingTop: 0,
+  },
+
 });
 
 export default function StackNavigator() {
@@ -127,14 +154,19 @@ export default function StackNavigator() {
         options={gradientHeader('Messages')}
       />
       <Stack.Screen
+        name="GroupChat"
+        component={GroupChatScreen}
+        options={gradientHeader('Groupes')}
+      />
+      <Stack.Screen
         name="EditSession"
         component={EditSessionScreen}
         options={gradientHeader('Modifier la session')}
       />
       <Stack.Screen
-        name="Activities"
+        name="Sessions"
         component={ActivitiesScreen}
-        options={gradientHeader('Activités')}
+        options={gradientHeader('Sessions')}
       />
 
       {/* Autres */}
@@ -204,14 +236,64 @@ export default function StackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen 
-      name="VerifyEmail" 
-      component={VerifyEmailScreen} 
-      options={gradientHeader('Vérification e-mail')}
+        name="VerifyEmail" 
+        component={VerifyEmailScreen} 
+        options={gradientHeader('Vérification e-mail')}
       />
       <Stack.Screen 
-      name="MentionsLegales" 
-      component={MentionsLegalesScreen} 
-      options={gradientHeader('Mentions Légales')}
+        name="MentionsLegales" 
+        component={MentionsLegalesScreen} 
+        options={gradientHeader('Mentions Légales')}
+      />
+      <Stack.Screen
+        name="Groups"
+        component={GroupsScreen}
+        options={gradientHeader('Groupes')}
+      />
+      <Stack.Screen
+        name="CreateGroup"
+        component={CreateGroupScreen}
+        options={gradientHeader('Créer un groupe')}
+      />
+      <Stack.Screen
+        name="GroupDetail"
+        component={GroupDetailScreen}
+        options={gradientHeader('Détail du groupe')}
+      />
+      <Stack.Screen
+        name="EditGroup"
+        component={EditGroupScreen}
+        options={gradientHeader("Modifier le groupe")}
+      />
+      <Stack.Screen
+        name="CreateSession"
+        component={CreateSessionScreen}
+        options={gradientHeader("Créer session groupe")}
+      />
+      <Stack.Screen
+        name="UnitePlusScreen"
+        component={UnitePlusScreen}
+        options={gradientHeader('Unite+')}
+      />
+      <Stack.Screen 
+      name="UnitePlusCompare" 
+      component={UnitePlusCompareScreen} 
+      options={gradientHeader('Comparer Abonnement')}
+      />
+      <Stack.Screen
+      name="FAQ" 
+      component={FAQScreen}
+      options={gradientHeader('FAQ & Aide')}
+      />
+      <Stack.Screen
+      name="RoutineDetail"
+      component={RoutineDetailScreen}
+      options={gradientHeader('Routine')}
+      />
+      <Stack.Screen
+      name="CreateRoutine"
+      component={CreateRoutineScreen}
+      options={gradientHeader('Nouvelle routine')}
       />
     </Stack.Navigator>
   );

@@ -23,9 +23,11 @@ import * as FileSystem from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Buffer } from 'buffer';
-import { notifyNewMessage } from '../helpers/notifications';
+import { notifySessionNewMessage } from '../helpers/notifications';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from '@react-navigation/native';
+import { useChatActivity } from '../context/ChatActivityContext';
 
 const BUBBLE_MY = '#1877F2';
 const BUBBLE_OTHER = '#fff';
@@ -96,6 +98,12 @@ const flatListRef = useRef();
 const [showImageModal, setShowImageModal] = useState(false);
 const [modalImageUrl, setModalImageUrl] = useState('');
 
+const lastMessageAtRef = useRef(null);
+
+const pollingRef = useRef(null);
+
+const { setActiveSessionChatId } = useChatActivity();
+
 const insets = useSafeAreaInsets();
 const APPBAR_H = 56;
 
@@ -103,6 +111,9 @@ const APPBAR_H = 56;
 const headerOffset = Platform.OS === "ios"
   ? insets.top + APPBAR_H   // iOS → notch + header
   : APPBAR_H;               // Android → juste header
+
+  const iosKeyboardOffset = APPBAR_H;
+const androidKeyboardOffset = 30;
 
 useLayoutEffect(() => {
   navigation.setOptions({ headerShown: false });
@@ -124,62 +135,160 @@ const fetchMessages = async () => {
   const { data, error } = await supabase
     .from('messages')
     .select(`
-      *,
-      users:users!messages_sender_id_fkey(id, username, profile_photo)
+      id,
+      content,
+      image_url,
+      created_at,
+      sender_id,
+      users:users!messages_sender_id_fkey (
+        id,
+        username,
+        profile_photo
+      )
     `)
     .eq('session_id', sessionId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   if (error) {
-    Alert.alert("Erreur", "Impossible de récupérer les messages : " + error.message);
+    Alert.alert("Erreur", error.message);
     return;
   }
+
   setMessages(data || []);
 
-  // ✅ Enregistre le vrai dernier message comme "vu"
-  if (data && data.length > 0 && user) {
-    const lastMsg = data[data.length - 1];
+  if (data && data.length > 0) {
+    const lastMsg = data[0]; // inverted → le plus récent
+    lastMessageAtRef.current = lastMsg.created_at;
+
     await AsyncStorage.setItem(
-      `last_seen_${sessionId}_${user.id}`,
+      `last_seen_session_${sessionId}_${user.id}`,
       lastMsg.created_at
     );
   }
 };
 
-useEffect(() => {
-  fetchMessages();
-  const channel = supabase
-    .channel('public:messages')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'messages', filter: `session_id=eq.${sessionId}` },
-      payload => {
-        if (payload.eventType === 'INSERT') {
-          fetchMessages();
-        }
-      }
-    )
-    .subscribe();
+useFocusEffect(
+  React.useCallback(() => {
+    // ✅ on entre dans le chat
+    setActiveSessionChatId(sessionId);
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [sessionId]);
+    return () => {
+      // ❌ on quitte le chat
+      setActiveSessionChatId(null);
+    };
+  }, [sessionId])
+);
+
+useFocusEffect(
+  React.useCallback(() => {
+    let isActive = true;
+
+    fetchMessages();
+
+    const channel = supabase
+      .channel(`session-messages-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        async (payload) => {
+          if (!isActive) return;
+
+          // 🔥 IGNORE TES PROPRES MESSAGES (optimistic déjà affiché)
+          if (payload.new.sender_id === user.id) {
+            return;
+          }
+
+          const { data } = await supabase
+            .from('messages')
+.select(`
+    id,
+    content,
+    image_url,
+    created_at,
+    sender_id,
+    users:users!messages_sender_id_fkey (
+      id,
+      username,
+      profile_photo
+    )
+  `)
+            .eq('id', payload.new.id)
+            .single();
+
+          if (!data) return;
+
+          setMessages(prev => {
+            if (prev.some(m => m.id === data.id)) return prev;
+            return [data, ...prev];
+          });
+
+          requestAnimationFrame(() => {
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isActive = false;
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId, user?.id])
+);
+
+useFocusEffect(
+  React.useCallback(() => {
+    let isActive = true;
+
+    pollingRef.current = setInterval(async () => {
+      if (!isActive) return;
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          content,
+          image_url,
+          created_at,
+          sender_id,
+          users:users!messages_sender_id_fkey (
+            id,
+            username,
+            profile_photo
+          )
+        `)
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error || !data || data.length === 0) return;
+
+      const latest = data[0];
+
+      setMessages(prev => {
+        if (prev.some(m => m.id === latest.id)) return prev;
+        return [latest, ...prev];
+      });
+    }, 3000); // ⏱ toutes les 3 secondes
+
+    return () => {
+      isActive = false;
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [sessionId])
+);
 
 useEffect(() => {
   if (!messages.length || !user || !sessionId) return;
   const lastMessage = messages[messages.length - 1];
   if (lastMessage.sender_id !== user.id) {
-    AsyncStorage.getItem(`last_seen_${sessionId}_${user.id}`).then(lastSeen => {
+    AsyncStorage.getItem(`last_seen_session_${sessionId}_${user.id}`).then(lastSeen => {
       if (!lastSeen || new Date(lastMessage.created_at) > new Date(lastSeen)) {
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Nouveau message dans une session',
-            body: lastMessage.content || 'Tu as reçu un nouveau message',
-            data: { sessionId },
-          },
-          trigger: null,
-        });
       }
     });
   }
@@ -188,69 +297,84 @@ useEffect(() => {
 // --------- FONCTION ENVOI MESSAGE TEXTE ---------
 const sendMessage = async () => {
   const trimmed = input.trim();
-  if (trimmed === '') return;
+  if (!trimmed) return;
 
   if (containsBadWord(trimmed)) {
     Alert.alert(
       "Message bloqué",
-      "Ton message contient des propos insultants, haineux ou inappropriés.\nMerci de reformuler."
+      "Ton message contient des propos insultants."
     );
     return;
   }
 
-  // Blocage des liens
   if (containsLink(trimmed)) {
     Alert.alert(
       "Message bloqué",
-      "L’envoi de liens ou d’URL est interdit dans les messages pour des raisons de sécurité."
+      "L’envoi de liens est interdit."
     );
     return;
   }
 
+  console.log('🚀 CALLING notifySessionNewMessage', sessionId);
+try {
+  await notifySessionNewMessage({
+    sessionId,
+    senderId: user.id,
+    senderName: user?.username ?? 'Utilisateur',
+  });
+} catch (e) {
+  console.error('💥 threw:', e?.message);
+}
+
+  // ✅ OPTIMISTIC MESSAGE TEXTE
+  const tempId = `tmp-${Date.now()}`;
+
+  const optimisticMessage = {
+    id: tempId,
+    session_id: sessionId,
+    sender_id: user.id,
+    content: trimmed,
+    created_at: new Date().toISOString(),
+    users: {
+      id: user.id,
+      username: user.username,
+      profile_photo: user.profile_photo,
+    },
+  };
+
+  setMessages(prev => [optimisticMessage, ...prev]);
   setInput('');
 
-  const { error: msgErr } = await supabase.from('messages').insert([
-    {
-      session_id: sessionId,
-      sender_id: user.id,
-      receiver_id: user.id,
-      content: trimmed,
-    }
-  ]);
-  if (msgErr) {
-    Alert.alert("Erreur", "Erreur lors de l'envoi du message : " + msgErr.message);
-    return;
-  }
+const { data: inserted, error } = await supabase
+  .from('messages')
+  .insert({
+    session_id: sessionId,
+    sender_id: user.id,
+    content: trimmed,
+  })
+  .select()
+  .single();
+
+if (error) {
+  setMessages(prev => prev.filter(m => m.id !== tempId));
+  Alert.alert("Erreur", "Message non envoyé");
+  return;
+}
+
+// 🔥 REMPLACE le message optimistic par le vrai
+setMessages(prev =>
+  prev.map(m => (m.id === tempId ? inserted : m))
+);
+
+// Analytics
+supabase.from('analytics_events').insert({
+  user_id: user.id,
+  event_name: 'message_sent',
+  properties: { type: 'text', session_id: sessionId },
+  platform: Platform.OS,
+});
 
   // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
-  const { data: participants, error: partErr } = await supabase
-    .from('session_participants')
-    .select('user_id')
-    .eq('session_id', sessionId);
-
-  const senderPseudo = user?.username || "Utilisateur";
-  const messagePreview = trimmed.slice(0, 100);
-
-  if (partErr) {
-    console.error("Erreur récupération participants :", partErr);
-  } else {
-for (const participant of (participants || [])) {
-  if (participant.user_id !== user.id) {
-    await notifyNewMessage({
-      recipientId: participant.user_id,
-      senderId: user.id,
-      senderName: senderPseudo,
-      sessionTitle: session.title,
-      sessionId,
-    });
-  }
-}
-  }
-
-  await fetchMessages();
-  setTimeout(() => {
-    flatListRef.current?.scrollToEnd({ animated: true });
-  }, 100);
 };
 
 // --------- ENVOI MESSAGE IMAGE ---------
@@ -273,6 +397,23 @@ const sendImageMessage = async () => {
 
   try {
     const asset = result.assets[0];
+    const tempId = `tmp-img-${Date.now()}`;
+
+const optimisticImage = {
+  id: tempId,
+  session_id: sessionId,
+  sender_id: user.id,
+  image_url: asset.uri, // preview locale
+  created_at: new Date().toISOString(),
+  users: {
+    id: user.id,
+    username: user.username,
+    profile_photo: user.profile_photo,
+  },
+};
+
+setMessages(prev => [optimisticImage, ...prev]);
+
     const fileUri = asset.uri;
     const fileExt = fileUri.split('.').pop() || 'jpg';
     const fileName = `${user.id}_${Date.now()}.${fileExt}`;
@@ -294,45 +435,52 @@ const sendImageMessage = async () => {
 
     const imageUrl = urlData.publicUrl;
 
-    const { error: msgErr } = await supabase.from('messages').insert([
-      {
-        session_id: sessionId,
-        sender_id: user.id,
-        receiver_id: user.id,
-        content: '',
-        image_url: imageUrl,
-      }
-    ]);
-    if (msgErr) throw msgErr;
+const { data: inserted, error: msgErr } = await supabase
+  .from('messages')
+  .insert({
+    session_id: sessionId,
+    sender_id: user.id,
+    content: '',
+    image_url: imageUrl,
+  })
+.select(`
+  id,
+  content,
+  image_url,
+  created_at,
+  sender_id,
+  users:users!messages_sender_id_fkey (
+    id,
+    username,
+    profile_photo
+  )
+`)
+.single();
+
+if (msgErr) {
+  setMessages(prev => prev.filter(m => m.id !== tempId));
+  throw msgErr;
+}
+
+// 🔥 REMPLACE l'image optimistic par la vraie
+setMessages(prev =>
+  prev.map(m => (m.id === tempId ? inserted : m))
+);
+
+// Analytics
+supabase.from('analytics_events').insert({
+  user_id: user.id,
+  event_name: 'message_sent',
+  properties: { type: 'image', session_id: sessionId },
+  platform: Platform.OS,
+});
 
     // === NOTIFS EDGE FUNCTION POUR LES AUTRES PARTICIPANTS ===
-    const { data: participants, error: partErr } = await supabase
-      .from('session_participants')
-      .select('user_id')
-      .eq('session_id', sessionId);
-
-    const senderPseudo = user?.username || "Utilisateur";
-
-    if (partErr) {
-      console.error("Erreur récupération participants (image):", partErr);
-    } else {
-for (const participant of (participants || [])) {
-  if (participant.user_id !== user.id) {
-    await notifyNewMessage({
-      recipientId: participant.user_id,
-      senderId: user.id,
-      senderName: senderPseudo,
-      sessionTitle: session.title,
-      sessionId,
-    });
-  }
-}
-    }
-
-    await fetchMessages();
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+await notifySessionNewMessage({
+  sessionId,
+  senderId: user.id,
+  senderName: user?.username ?? 'Utilisateur',
+});
   } catch (err) {
     Alert.alert("Erreur", "Erreur lors de l'envoi de l'image : " + (err.message || err));
   }
@@ -365,7 +513,7 @@ const renderItem = ({ item }) => {
           {!isMe &&
             <Text style={styles.pseudo}>{item.users?.username || "Utilisateur"}</Text>
           }
-          <View style={isMe ? styles.myBubble : styles.otherBubble}>
+          <View style={styles.imageBubble}>
             <TouchableOpacity
               activeOpacity={0.93}
               onPress={() => {
@@ -399,6 +547,7 @@ const renderItem = ({ item }) => {
       </View>
     );
   }
+  
   return (
     <View style={styles.rowLeft}>
       <TouchableOpacity
@@ -430,15 +579,15 @@ const renderItem = ({ item }) => {
 return (
   <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
     {/* HEADER */}
-    <View
-      style={[
-        styles.header,
-        {
-          paddingTop: Platform.OS === 'ios' ? insets.top : 0,
-          height: headerOffset,
-        },
-      ]}
-    >
+<View
+  style={[
+    styles.header,
+    {
+      paddingTop: 0,
+      height: APPBAR_H, // 56
+    },
+  ]}
+>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
         <Ionicons name="chevron-back" size={26} color="#232323" />
       </TouchableOpacity>
@@ -467,23 +616,20 @@ return (
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"
-        keyboardVerticalOffset={headerOffset}
+        keyboardVerticalOffset={iosKeyboardOffset}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          style={styles.messagesList}
+<FlatList
+  ref={flatListRef}
+  inverted
+  data={messages}
+  renderItem={renderItem}
+  keyExtractor={(item) => String(item.id)}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
-            paddingBottom: hp('8%'),
-            paddingTop: headerOffset - 30,
+  paddingBottom: hp('2%'),
+  paddingTop: Platform.OS === 'ios' ? 12 : headerOffset - 30,
           }}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: true })
-          }
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         />
 
         {/* Input fixé */}
@@ -530,21 +676,18 @@ return (
   behavior={Platform.OS === "android" ? "height" : "padding"}
   keyboardVerticalOffset={Platform.OS === "ios" ? headerOffset : 30}
 >
-  <FlatList
-    ref={flatListRef}
-    data={messages}
-    renderItem={renderItem}
-    keyExtractor={(item) => item.id}
-    style={styles.messagesList}
+<FlatList
+  ref={flatListRef}
+  inverted
+  data={messages}
+  renderItem={renderItem}
+  keyExtractor={(item) => String(item.id)}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
     contentContainerStyle={{
-      paddingBottom: hp('10%'),
+      paddingBottom: hp('2,5%'),
       paddingTop: headerOffset - 30,
     }}
-    onContentSizeChange={() =>
-      flatListRef.current?.scrollToEnd({ animated: true })
-    }
-    showsVerticalScrollIndicator={false}
-    keyboardShouldPersistTaps="handled"
   />
 
   {/* Barre input fixée */}
@@ -619,16 +762,14 @@ return (
 }
 
 const styles = StyleSheet.create({
-  header: {
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: wp('3.5%'),   // 13
-    paddingTop: hp('1.4%'),          // 11
-    paddingBottom: hp('1.1%'),       // 9
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F1F2',
-  },
+header: {
+  backgroundColor: '#fff',
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: wp('3.5%'),
+  borderBottomWidth: 1,
+  borderBottomColor: '#F1F1F2',
+},
   headerBack: { 
     padding: wp('0.5%'),             // 2
     marginRight: wp('2%')            // 8
@@ -793,4 +934,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  imageBubble: {
+  borderRadius: wp('4.8%'),
+  backgroundColor: 'transparent',
+  padding: 0,
+  overflow: 'hidden',
+}
 });

@@ -1,4 +1,4 @@
-package com.collectif.uniteapp
+package com.uniteapp.collectif
 
 import android.app.Application
 import android.content.res.Configuration

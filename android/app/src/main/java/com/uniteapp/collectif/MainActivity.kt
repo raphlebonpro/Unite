@@ -1,4 +1,4 @@
-package com.collectif.uniteapp
+package com.uniteapp.collectif
 
 import android.os.Build
 import android.os.Bundle

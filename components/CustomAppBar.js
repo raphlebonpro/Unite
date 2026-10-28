@@ -1,14 +1,10 @@
 import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, Platform, Pressable, StatusBar } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const BAR_H = Platform.OS === 'ios' ? 45 : 52; // 👈 identique à MiniAppBar
-const BTN_BOX   = wp('10%');
-const ICON_SIZE = wp('6.1%');
-const TITLE_FS  = wp('4.8%');
-
+// 🔹 Même logique que MiniAppBar (paddingTop + minHeight)
 const CustomAppBar = ({
   title,
   showBack = true,
@@ -17,84 +13,120 @@ const CustomAppBar = ({
   onRightPress,
 }) => {
   const navigation = useNavigation();
-  const androidTop = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
+  const insets = useSafeAreaInsets();
+
+  const BASE_H = Platform.OS === 'ios' ? 45 : 52;
+const topOffset = Platform.OS === 'android' ? insets.top : 0;
+
+  // ✅ Touchable unifié (comme dans MiniAppBar)
+  const TouchableItem = ({ onPress, children, style }) => {
+    if (Platform.OS === 'android') {
+      return (
+        <Pressable
+          onPress={onPress}
+          android_ripple={{ borderless: true }}
+          style={style}
+          hitSlop={6}
+        >
+          {children}
+        </Pressable>
+      );
+    }
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        style={style}
+        activeOpacity={0.7}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        {children}
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <View style={[styles.shadowWrapper, Platform.OS === 'android' && { paddingTop: androidTop * 0.55 }]}>
-      <View style={styles.appBar}>
-        <View style={{ height: BAR_H, flexDirection: 'row', alignItems: 'center' }}>
+    <View style={{ backgroundColor: '#fff' }}>
+      <View
+        style={{
+          minHeight: BASE_H + topOffset,
+          paddingTop: topOffset,
+          backgroundColor: '#fff',
+          borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
+          borderBottomColor: '#EEE',
+          justifyContent: 'center',
+          paddingHorizontal: 12,
+          shadowColor: '#000',
+          shadowOpacity: Platform.OS === 'ios' ? 0.05 : 0,
+          shadowRadius: Platform.OS === 'ios' ? 5 : 0,
+          shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 2 } : undefined,
+          elevation: Platform.OS === 'android' ? 4 : 0,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: BASE_H,
+          }}
+        >
+          {/* 🔙 Bouton retour */}
           {showBack ? (
-            <TouchableOpacity
-              style={styles.btn}
+            <TouchableItem
               onPress={onBack || (() => navigation.goBack())}
-              hitSlop={{ top: 7, bottom: 7, left: 7, right: 7 }}
-              accessibilityRole="button"
-              accessibilityLabel="Revenir en arrière"
-              activeOpacity={0.7}
+              style={{
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: 4,
+              }}
             >
-              <Feather name="arrow-left" size={ICON_SIZE} color="#FF8269" />
-            </TouchableOpacity>
+              <Feather name="arrow-left" size={22} color="#FF8269" />
+            </TouchableItem>
           ) : (
-            <View style={styles.btn} />
+            <View style={{ width: 40 }} />
           )}
 
-          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
+          {/* 🏷️ Titre centré */}
+          <Text
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontWeight: 'bold',
+              fontSize: Platform.OS === 'ios' ? 18 : 20,
+              color: '#111',
+              letterSpacing: 0.15,
+              marginHorizontal: 8,
+              includeFontPadding: false,
+            }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
             {title}
           </Text>
 
+          {/* ⚙️ Bouton droit */}
           {rightIcon ? (
-            <TouchableOpacity
-              style={styles.btn}
+            <TouchableItem
               onPress={onRightPress}
-              hitSlop={{ top: 7, bottom: 7, left: 7, right: 7 }}
-              accessibilityRole="button"
-              accessibilityLabel="Action"
-              activeOpacity={0.7}
+              style={{
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 4,
+              }}
             >
-              <Feather name={rightIcon} size={ICON_SIZE} color="#FF8269" />
-            </TouchableOpacity>
+              <Feather name={rightIcon} size={22} color="#FF8269" />
+            </TouchableItem>
           ) : (
-            <View style={styles.btn} />
+            <View style={{ width: 40 }} />
           )}
         </View>
       </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  shadowWrapper: {
-    backgroundColor: '#fff',
-    // ✅ Même style que AppBar de Profil
-    shadowColor: '#000',
-    shadowOpacity: Platform.OS === 'ios' ? 0.05 : 0,
-    shadowRadius: Platform.OS === 'ios' ? 5 : 0,
-    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 2 } : undefined,
-    elevation: Platform.OS === 'android' ? 3 : 0,
-    borderBottomColor: '#EEE',
-    borderBottomWidth: Platform.OS === 'ios' ? 0.3 : 0,
-  },
-  appBar: {
-    backgroundColor: '#fff',
-    paddingHorizontal: wp('2.1%'),
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    fontWeight: '700',
-    fontSize: TITLE_FS,
-    lineHeight: TITLE_FS * 1.1,
-    color: '#111',
-    letterSpacing: 0.15,
-    marginHorizontal: wp('1.2%'),
-    includeFontPadding: false,
-  },
-  btn: {
-    width: BTN_BOX,
-    height: BTN_BOX,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
 
 export default memo(CustomAppBar);

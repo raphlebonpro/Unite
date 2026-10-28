@@ -22,7 +22,7 @@ Données d’inscription :
 - Adresse e-mail
 - Nom ou pseudonyme
 - Photo de profil (si ajoutée)
-- Âge (minimum 15 ans)
+- Âge (minimum 16 ans)
 - Genre (facultatif)
 
 Données de localisation :
@@ -90,7 +90,7 @@ L’éditeur de Unite n’est pas responsable du comportement des utilisateurs l
   },
   {
     title: '10. Utilisation par les mineurs',
-    content: `L’accès à Unite est réservé aux personnes âgées de 15 ans ou plus. Aucune collecte volontaire de données n’est effectuée auprès des mineurs de moins de 15 ans.`
+    content: `L’accès à Unite est réservé aux personnes âgées de 16 ans ou plus. Aucune collecte volontaire de données n’est effectuée auprès des mineurs de moins de 15 ans.`
   },
   {
     title: '11. Propriété intellectuelle',

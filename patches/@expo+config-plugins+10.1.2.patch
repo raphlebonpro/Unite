@@ -1,0 +1,18 @@
+diff --git a/node_modules/@expo/config-plugins/build/ios/Maps.js b/node_modules/@expo/config-plugins/build/ios/Maps.js
+index 5f5b366..f55cc34 100644
+--- a/node_modules/@expo/config-plugins/build/ios/Maps.js
++++ b/node_modules/@expo/config-plugins/build/ios/Maps.js
+@@ -190,9 +190,10 @@ const withGoogleMapsAppDelegate = (config, {
+       config.modResults.contents = removeGoogleMapsAppDelegateInit(config.modResults.contents).contents;
+       return config;
+     }
+-    if (config.modResults.language !== 'swift') {
+-      throw new Error(`Cannot setup Google Maps because the project AppDelegate is not a supported language: ${config.modResults.language}`);
+-    }
++if (config.modResults.language !== 'swift') {
++  console.log('[Expo Patch] Skipping Google Maps setup for Swift AppDelegate');
++  return config;
++}
+     try {
+       config.modResults.contents = addGoogleMapsAppDelegateImport(config.modResults.contents).contents;
+       config.modResults.contents = addGoogleMapsAppDelegateInit(config.modResults.contents, apiKey).contents;

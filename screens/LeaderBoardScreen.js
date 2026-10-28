@@ -1,10 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Image, SafeAreaView, ActivityIndicator, StyleSheet, Platform, Dimensions, ScrollView} from 'react-native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAppForeground } from '../context/AppForegroundContext';
+
+const LETTER_COLORS = [
+  '#4A90E2', // A-B
+  '#50E3C2', // C-D
+  '#F5A623', // E-F
+  '#9013FE', // G-H
+  '#D0021B', // I-J
+  '#7ED321', // K-L
+  '#F8E71C', // M-N
+  '#B8E986', // O-P
+  '#417505', // Q-R
+  '#BD10E0', // S-T
+  '#FF3366', // U-V
+  '#00BCD4', // W-X
+  '#FF9800', // Y-Z
+];
+
+function getColorFromUsername(username = '') {
+  if (!username) return '#4A90E2';
+  const firstLetter = username.charAt(0).toUpperCase();
+  const index = (firstLetter.charCodeAt(0) - 65) % LETTER_COLORS.length;
+  return LETTER_COLORS[index];
+}
 
 const TABS = [
   { key: 'created', label: 'Créateurs', title: "Les Constructeurs de Unite" },
@@ -29,15 +52,12 @@ function GeneralCollectiveBanner() {
         { opacity: 0.9 } // effet visuel "désactivé"
       ]}
     >
-      <LinearGradient
-        colors={['#5371ff', '#a259f7']}
-        style={styles.heroBannerCompact}
-        start={{ x: 0.08, y: 0.13 }}
-        end={{ x: 1, y: 0.9 }}
+      <View
+        style={[styles.heroBannerCompact, {backgroundColor: '#888'}]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
           <MaterialCommunityIcons
-            name="trophy"
+            name="medal"
             size={18}
             color="#fff"
             style={{ marginRight: 8, marginTop: 1 }}
@@ -51,25 +71,82 @@ function GeneralCollectiveBanner() {
         </Text>
 
         {/* Message Bientôt dispo en gras et blanc */}
-        <Text style={[styles.heroDescCompact, { marginTop: 4, fontWeight: 'bold', color: '#fff', fontSize: 13 }]}>
-          🚧 Bientôt disponible !
+        <Text style={[styles.heroDescCompact, { marginTop: 4, fontWeight: 'bold', color: '#fff', fontSize: 11 }]}>
+          Bientôt disponible !
         </Text>
-      </LinearGradient>
+      </View>
     </View>
   );
 }
 
+function getCurrentMonthRange() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0); // dernier jour réel
+
+  const monthName = now.toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric'
+  });
+
+  return {
+    start: String(firstDay.getDate()).padStart(2, '0'),
+    end: String(lastDay.getDate()).padStart(2, '0'),
+    monthLabel: monthName
+  };
+}
+
+  const Avatar = ({ photo, username, size = 48, style }) => {
+  if (photo) {
+    return (
+      <Image
+        source={{ uri: photo }}
+        style={[
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+          },
+          style,
+        ]}
+      />
+    );
+  }
+
+  return (
+    <View
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: getColorFromUsername(username),
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        style,
+      ]}
+    >
+      <Text
+        style={{
+          color: '#fff',
+          fontWeight: '700',
+          fontSize: size * 0.45,
+        }}
+      >
+        {username?.charAt(0)?.toUpperCase() || 'U'}
+      </Text>
+    </View>
+  );
+};
 
 function getMonthStartDate() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-}
-
-function getMedal(rank) {
-  if (rank === 1) return '🥇';
-  if (rank === 2) return '🥈';
-  if (rank === 3) return '🥉';
-  return null;
 }
 
 function getPodiumColor(rank) {
@@ -79,14 +156,11 @@ function getPodiumColor(rank) {
   return COLORS.gray;
 }
 
-function PodiumUser({ user, userId, rank, count, onPress }) {
+function PodiumUser({ user, userId, rank, count, selectedTab, onPress }) {
   if (!user) {
     return (
       <View style={[styles.podiumUser, { opacity: 0.5 }]}>
         <View style={[styles.podiumAvatar, rank === 1 && styles.podiumGoldAvatar, { backgroundColor: "#eee", borderColor: getPodiumColor(rank) }]} />
-        <Text style={[styles.medal, { color: getPodiumColor(rank), fontSize: rank === 1 ? 19 : 15 }]}>
-          {getMedal(rank)}
-        </Text>
         <Text style={[styles.podiumName, { fontWeight: '700', fontSize: rank === 1 ? 13 : 11, marginTop: 1 }]}>—</Text>
       </View>
     );
@@ -104,35 +178,42 @@ function PodiumUser({ user, userId, rank, count, onPress }) {
         rank === 1 && styles.podiumGoldAvatar,
         {
           borderColor: getPodiumColor(rank),
-          shadowColor: getPodiumColor(rank),
-          shadowOpacity: 0.22,
-          shadowRadius: 14,
           elevation: 9,
           width: rank === 1 ? 66 : 48,
           height: rank === 1 ? 66 : 48,
         }
       ]}>
-        <Image
-          source={user.profile_photo ? { uri: user.profile_photo } : require('../assets/logo.jpg')}
-          style={{ width: '100%', height: '100%', borderRadius: 100 }}
-        />
-      </View>
+<Avatar
+  photo={user.profile_photo}
+  username={user.username}
+  size={rank === 1 ? 66 : 48}
+/>
+</View>
 
-      <View style={{ marginTop: 3, alignItems: 'center' }}>
-        {getMedal(rank) && (
-          <View style={styles.podiumMedalBox}>
-            <Text style={[styles.medal, { color: getPodiumColor(rank), fontSize: rank === 1 ? 19 : 15 }]}>
-              {getMedal(rank)}
-            </Text>
-          </View>
-        )}
-        <Text style={[styles.podiumName, { fontWeight: '700', fontSize: rank === 1 ? 13 : 11, marginTop: 1 }]}>
-          {user.prenom || user.username}
-        </Text>
-        <View style={styles.podiumScoreBox}>
-          <Text style={styles.podiumScore}>{count || 0}</Text>
-        </View>
-      </View>
+<View style={{ marginTop: 3, alignItems: 'center' }}>
+
+  {/* Badge de rang PRO */}
+  <View
+    style={[
+      styles.rankBadge,
+      { backgroundColor: getPodiumColor(rank) }
+    ]}
+  >
+    <Text style={styles.rankBadgeText}>{rank}</Text>
+  </View>
+
+  {/* Pseudo (1 ligne max, stable) */}
+  <Text
+    style={styles.podiumName}
+    numberOfLines={1}
+    ellipsizeMode="tail"
+  >
+    {user.username}
+  </Text>
+<Text style={styles.podiumSessionCount}>
+  {count} {selectedTab === 'created' ? 'créées' : 'rejointes'}
+</Text>
+</View>
     </TouchableOpacity>
   );
 }
@@ -142,47 +223,68 @@ export default function LeaderBoardScreen({ navigation, userId }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [myRank, setMyRank] = useState(null);
   const [loading, setLoading] = useState(true);
+  const monthRange = getCurrentMonthRange();
 
 const goToProfile = (uid) => {
   if (!uid) return;
   navigation.navigate('UserProfile', { userId: uid });
 };
 
-  // Fetch leaderboard
-  const fetchLeaderboard = async () => {
-    setLoading(true);
-    const monthStart = getMonthStartDate();
+const fetchLeaderboard = async (silent = false) => {
+  if (!silent) setLoading(true);
 
-    const { data, error } = await supabase
+  const monthStart = getMonthStartDate();
+
+  // 1️⃣ TOP 30 – affichage du classement
+  const { data, error } = await supabase
+    .from('monthly_leaderboard')
+    .select(`
+      count,
+      user_id,
+      users:user_id (
+        username,
+        profile_photo
+      )
+    `)
+    .eq('type', selectedTab)
+    .eq('month', monthStart)
+    .order('count', { ascending: false })
+    .limit(30);
+
+  if (error) {
+    console.error('Erreur leaderboard:', error);
+  }
+
+  // 2️⃣ Calcul du rang personnel (tous les utilisateurs)
+  let myData = null;
+
+  if (userId) {
+    const { data: all, error: allError } = await supabase
       .from('monthly_leaderboard')
-      .select(`
-        count, user_id,
-        users:user_id (username, profile_photo)
-      `)
+      .select('user_id, count')
       .eq('type', selectedTab)
       .eq('month', monthStart)
-      .order('count', { ascending: false })
-      .limit(30);
+      .order('count', { ascending: false });
 
-    let myData = null;
-    if (userId) {
-      const { data: all } = await supabase
-        .from('monthly_leaderboard')
-        .select('user_id, count')
-        .eq('type', selectedTab)
-        .eq('month', monthStart)
-        .order('count', { ascending: false });
-      if (all && all.length > 0) {
-        const foundIndex = all.findIndex(x => x.user_id === userId);
-if (foundIndex > -1) {
-  myData = { rank: foundIndex + 1, count: all[foundIndex].count };
-}
+    if (allError) {
+      console.error('Erreur rang perso:', allError);
+    }
+
+    if (all && all.length > 0) {
+      const foundIndex = all.findIndex(x => x.user_id === userId);
+      if (foundIndex > -1) {
+        myData = {
+          rank: foundIndex + 1,
+          count: all[foundIndex].count,
+        };
       }
     }
-    setLeaderboard(data || []);
-    setMyRank(myData);
-    setLoading(false);
-  };
+  }
+
+  setLeaderboard(data || []);
+  setMyRank(myData);
+  setLoading(false);
+};
 
   useEffect(() => {
     fetchLeaderboard();
@@ -193,6 +295,8 @@ useFocusEffect(
     fetchLeaderboard();
   }, [selectedTab])
 );
+
+useAppForeground(() => fetchLeaderboard(true));
 
   // ==== Podium extraction (places 1 à 3) ====
   const podium = [
@@ -219,14 +323,23 @@ const LeaderboardRow = ({ user, userId, rank, count }) => (
     <View style={styles.rankBox}>
       <Text style={[styles.rankNum, rank < 3 && { color: getPodiumColor(rank + 1) }]}>{rank + 1}</Text>
     </View>
-    <Image
-      source={user?.profile_photo ? { uri: user.profile_photo } : require('../assets/logo.jpg')}
-      style={styles.listAvatar}
-    />
+<Avatar
+  photo={user?.profile_photo}
+  username={user?.username || user?.prenom}
+  size={36}
+  style={styles.listAvatar}
+/>
     <Text style={styles.listName} numberOfLines={1}>{user?.prenom || user?.username || '—'}</Text>
-    <View style={styles.listScoreBox}>
-      <Text style={styles.listScore}>{count}</Text>
-    </View>
+<View style={styles.sessionBadge}>
+  <MaterialCommunityIcons
+    name={selectedTab === 'created' ? 'plus-circle-outline' : 'account-group-outline'}
+    size={14}
+    color={COLORS.accent}
+  />
+  <Text style={styles.sessionBadgeText}>
+    {count}
+  </Text>
+</View>
   </TouchableOpacity>
 );
 
@@ -244,18 +357,15 @@ const maxContainerHeight = windowHeight * 0.82;
 
 return (
   <SafeAreaView style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
-    <GeneralCollectiveBanner onPress={() => navigation.navigate('CollectiveChallenges')} />
-<LinearGradient
-  colors={['#fffefa', '#fff6e7', '#f7f3ff']}
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 1 }}
-  style={[
+  <View
+    style={[
     styles.floatContainer,
     {
       maxHeight: maxContainerHeight,
       flexShrink: 1,
       marginTop: 10,
       marginBottom: 4,
+      backgroundColor: '#FFFFFF',
     }
   ]}
 >
@@ -268,21 +378,16 @@ return (
         key={tab.key}
         onPress={() => setSelectedTab(tab.key)}
         activeOpacity={0.9}
-        style={{ flex: 1, marginHorizontal: 6 }}
+        style={{ flex: 1 }}
       >
         {isActive ? (
-          <LinearGradient
-            colors={['#FF914D', '#FF4D97']} // 🔥 Dégradé Unite
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.tabBtnGradient}
-          >
-            <Text style={[styles.tabLabel, { color: '#fff', fontWeight: '700' }]}>
+          <View style={[styles.segmentActive]}>
+            <Text style={[styles.tabLabel, { color: '#F62DAE', fontWeight: '700' }]}>
               {tab.label}
             </Text>
-          </LinearGradient>
+          </View>
         ) : (
-          <View style={styles.tabBtn}>
+          <View style={styles.segmentInactive}>
             <Text style={[styles.tabLabel, { color: '#555' }]}>{tab.label}</Text>
           </View>
         )}
@@ -291,12 +396,25 @@ return (
   })}
 </View>
 
+<View style={styles.monthRangeContainer}>
+  <MaterialCommunityIcons
+    name="calendar-month-outline"
+    size={16}
+    color="#FE5D02"
+    style={{ marginRight: 6 }}
+  />
+  <Text style={styles.monthRangeStyledText}>
+    {monthRange.start} – {monthRange.end} {monthRange.monthLabel}
+  </Text>
+</View>
+
 <View style={styles.podiumContainer}>
   <PodiumUser
     user={podium[0]?.users}
     userId={podium[0]?.user_id}
     rank={2}
     count={podium[0]?.count}
+    selectedTab={selectedTab}
     onPress={goToProfile}
   />
   <PodiumUser
@@ -304,6 +422,7 @@ return (
     userId={podium[1]?.user_id}
     rank={1}
     count={podium[1]?.count}
+    selectedTab={selectedTab}
     onPress={goToProfile}
   />
   <PodiumUser
@@ -311,6 +430,7 @@ return (
     userId={podium[2]?.user_id}
     rank={3}
     count={podium[2]?.count}
+    selectedTab={selectedTab}
     onPress={goToProfile}
   />
 </View>
@@ -343,7 +463,7 @@ return (
           )}
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
     {myRank && (
       <View style={styles.stickyMyRank}>
         <Text style={{ fontWeight: 'bold', color: COLORS.accent, fontSize: 15 }}>
@@ -352,6 +472,7 @@ return (
         <Text style={{ color: '#555', fontSize: 13 }}>Sessions ce mois : {myRank.count}</Text>
       </View>
     )}
+     <GeneralCollectiveBanner onPress={() => navigation.navigate('CollectiveChallenges')} />
   </SafeAreaView>
 );
 }
@@ -379,13 +500,14 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
     marginBottom: hp('0.3%'),
   },
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: hp('1.5%'),
-    marginTop: hp('1.2%'),
-    gap: wp('2.7%'),
-  },
+tabBar: {
+  flexDirection: 'row',
+  backgroundColor: '#EFEFF4',
+  borderRadius: 30,
+  padding: 4,
+  marginHorizontal: wp('4%'),
+  marginBottom: hp('1.5%'),
+},
   tabBtn: {
     paddingHorizontal: wp('4.5%'),
     paddingVertical: hp('0.7%'),
@@ -441,9 +563,6 @@ const styles = StyleSheet.create({
     borderRadius: wp('9%'),
     borderWidth: 4,
     borderColor: COLORS.gold,
-    shadowColor: COLORS.gold,
-    shadowOpacity: 0.22,
-    shadowRadius: wp('3.9%'),
     marginBottom: hp('0.2%'),
     backgroundColor: "#fff",
     alignItems: 'center',
@@ -552,7 +671,6 @@ const styles = StyleSheet.create({
     width: wp('9.2%'),
     height: wp('9.2%'),
     borderRadius: wp('4.7%'),
-    backgroundColor: "#eee",
     marginRight: wp('3.4%'),
     borderWidth: 1,
     borderColor: "#fff"
@@ -608,32 +726,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
-  heroBannerCompact: {
-    width: wp('86%'),
-    alignSelf: 'center',
-    borderRadius: wp('4.5%'),
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: hp('1%'),
-    paddingHorizontal: wp('4.5%'),
-    minHeight: hp('5%'),
-    elevation: 1,
-    shadowColor: '#8f50ff',
-    shadowOpacity: 0.10,
-    shadowRadius: wp('2.4%'),
-    shadowOffset: { width: 0, height: 2 },
-  },
+heroBannerCompact: {
+  width: wp('85%'),
+  alignSelf: 'center',
+  borderRadius: wp('4.5%'),
+  alignItems: "center",
+  justifyContent: "center",
+  paddingVertical: hp('1%'),
+  paddingHorizontal: wp('4.5%'),
+  minHeight: hp('5%'),
+  backgroundColor: '#888',
+  overflow: 'hidden', // 🔥 IMPORTANT Android
+},
   heroTitleCompact: {
     color: "#fff",
     fontWeight: 'bold',
-    fontSize: wp('3.7%'),
+    fontSize: wp('3.1%'),
     marginBottom: 0,
     marginTop: hp('0.1%'),
     textAlign: "center",
   },
   heroDescCompact: {
     color: "#eae6ff",
-    fontSize: wp('2.6%'),
+    fontSize: wp('2.3%'),
     fontWeight: "600",
     letterSpacing: 0.01,
     textAlign: "center",
@@ -660,6 +775,95 @@ tabLabel: {
   fontSize: 15,
   fontWeight: '700',
 },
+podiumStat: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#F3F4F6',
+  paddingHorizontal: 8,
+  paddingVertical: 3,
+  borderRadius: 12,
+  marginTop: 4,
+},
+podiumStatText: {
+  fontSize: 12,
+  fontWeight: '600',
+  color: '#333',
+  marginLeft: 4,
+},
+rankBadge: {
+  width: 22,
+  height: 22,
+  borderRadius: 11,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginTop: 4,
+},
+rankBadgeText: {
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: '700',
+},
+podiumName: {
+  maxWidth: 80, // clé de la stabilité
+  textAlign: 'center',
+  fontWeight: '600',
+  fontSize: 12,
+  color: '#222',
+},
+sessionBadge: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#FFF4EB',
+  borderRadius: 16,
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  minWidth: 44,
+  marginRight: wp('3.8%'),
+},
 
+sessionBadgeText: {
+  marginLeft: 4,
+  fontSize: wp('3.6%'),
+  fontWeight: '700',
+  color: COLORS.accent,
+},
+podiumSessionCount: {
+  fontSize: 11,
+  color: '#666',
+  marginTop: 2,
+  fontWeight: '600',
+},
+monthRangeContainer: {
+  alignSelf: 'center',
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#FFF4EB',
+  paddingHorizontal: 14,
+  paddingVertical: 6,
+  borderRadius: 20,
+  marginBottom: 12,
+},
+monthRangeStyledText: {
+  fontSize: 13,
+  fontWeight: '600',
+  color: '#FE5D02',
+},
+segmentActive: {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 26,
+  paddingVertical: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+  elevation: 2,
+},
+segmentInactive: {
+  paddingVertical: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+tabLabel: {
+  fontSize: 15,
+  fontWeight: '700',
+},
 });
-

@@ -21,6 +21,8 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-nat
 import { LinearGradient } from 'expo-linear-gradient';
 import { Animated, TouchableWithoutFeedback } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Linking, Platform } from 'react-native';
+import { useAppForeground } from '../context/AppForegroundContext';
 
 // ---------- Icônes par type
 const ICONS = {
@@ -87,105 +89,155 @@ const ICONS = {
  review_updated: { name: 'pencil-outline', color: '#4caf50' },
  review_deleted: { name: 'trash-can-outline', color: '#f44336' },
 
+ // Groupes
+group_created: { name: 'account-group', color: '#3f4fff' },
+group_joined_self: { name: 'account-check', color: '#27ae60' },
+group_left_self: { name: 'exit-to-app', color: '#f57c00' },
+group_deleted: { name: 'trash-can-outline', color: '#e53935' },
+group_updated: { name: 'pencil-outline', color: '#f9a825' },
+group_member_joined: { name: 'account-multiple-plus', color: '#42a5f5' },
+group_member_left: { name: 'exit-to-app', color: '#ffb300' },
+group_excluded_self: { name: 'account-cancel', color: '#d32f2f' },
+group_exclusion_done: { name: 'account-remove', color: '#d32f2f' },
+group_excluded_others: { name: 'account-cancel', color: '#d32f2f' },
+group_request_received: { name: "account-clock", color: "#F5A623" },
+
+// Paiement
+payment_success: { name: 'credit-card-check-outline', color: '#27ae60' },
 
  // Défaut
  default: { name: 'bell-outline', color: '#999' },
  newsletter_subscribed: { name: 'email-check-outline', color: '#2196f3' },
  report_confirmation: { name: 'alert-circle-check-outline', color: '#f57c00' },
  feedback_received: { name: 'comment-check-outline', color: '#4caf50' },
-};
 
+ //Mise à jour
+ app_update: { name: 'update', color: '#3f4fff' },
+
+group_request_accepted:         { name: "account-check",          color: "#27ae60" },
+group_request_accepted_creator: { name: "account-check-outline",  color: "#27ae60" },
+group_request_rejected:         { name: "account-remove",         color: "#d32f2f" },
+friend_removed_sender:          { name: 'account-minus',          color: '#607d8b' },
+friend_removed_receiver:        { name: 'account-minus-outline',  color: '#607d8b' },
+group_session_created:          { name: 'calendar-plus',          color: '#00B8D9' },
+group_session_joined:           { name: 'account-check',          color: '#00B8D9' },
+friend_invited_session:         { name: 'account-arrow-right',    color: '#42a5f5' },
+
+};
 
 // ---------- Thèmes par type
 const TYPE_THEME = {
- success:   { tint: '#27ae60', bg: '#E9F7EF' },
- info:      { tint: '#3f4fff', bg: '#EEF0FF' },
- warning:   { tint: '#ffb300', bg: '#FFF6E0' },
- danger:    { tint: '#e53935', bg: '#FDEBEC' },
- neutral:   { tint: '#8892a6', bg: '#F2F4F7' },
+  session:   { tint: '#3F4FFF', bg: '#EEF0FF' },       // bleu
+  group: { tint: '#00B8D9', bg: '#E0F8FB' },  // turquoise
+  message:   { tint: '#FF6F3C', bg: '#FFF1E8' },       // orange
+  friend:    { tint: '#27AE60', bg: '#E9F7EF' },       // vert
+  progress:  { tint: '#FFC107', bg: '#FFF8E1' },       // or
+  profile:   { tint: '#00ACC1', bg: '#E0F7FA' },       // cyan
+  payment:   { tint: '#FFD54F', bg: '#FFF8E1' },       // doré
+  danger:    { tint: '#E53935', bg: '#FDEBEC' },       // rouge
+  neutral:   { tint: '#757575', bg: '#EEEEEE' },       // gris (pour rares cas)
 };
-
 
 const TYPE_MAP = {
- // Sessions
- session_created: 'info',
- session_deleted_creator: 'neutral',
- session_deleted_participant: 'neutral',
- session_updated_creator: 'warning',
- session_updated_participant: 'warning',
- session_joined: 'success',
- session_start_soon: 'info',
- start: 'info',
- leave_review: 'warning',
- session_full: 'success',
+  // 🏀 Sessions classiques
+  session_created: 'session',
+  session_deleted_creator: 'session',
+  session_deleted_participant: 'session',
+  session_updated_creator: 'session',
+  session_updated_participant: 'session',
+  session_joined: 'session',
+  session_start_soon: 'session',
+  session_full: 'session',
+  start: 'session',
+  leave_review: 'progress',
+  new_session_nearby: 'session',
 
+  // 👥 Participants (fait partie des sessions)
+  participant_joined_creator: 'session',
+  participant_joined_participant: 'session',
+  participant_left_creator: 'session',
+  participant_left_participant: 'session',
+  participant_left_self: 'session',
+  excluded_from_session: 'danger',
+  excluded_participant: 'danger',
+  exclude_user: 'danger',
+  group_request_received: "group",
 
- // Participants
- participant_joined_creator: 'info',
- participant_joined_participant: 'info',
- participant_left_creator: 'warning',
- participant_left_participant: 'warning',
- participant_left_self: 'neutral',
- excluded_from_session: 'danger',
- exclude_user: 'danger',
- excluded_participant: 'danger',
+  // 💬 Messages
+  new_message: 'message',
 
+  // 🟣 Groupes & Sessions de groupe
+  group_created: 'group',
+  group_joined_self: 'group',
+  group_left_self: 'group',
+  group_deleted: 'danger',
+  group_updated: 'group',
+  group_member_joined: 'group',
+  group_member_left: 'group',
+  group_excluded_self: 'danger',
+  group_exclusion_done: 'danger',
+  group_excluded_others: 'danger',
+  group_session_created: 'group',
+  group_session_updated: 'group',
+  group_new_message: 'group',
+  group_session_created_self: 'group',
 
- // Messages
- new_message: 'info',
+  // 🤝 Amis
+  friend_request: 'friend',
+  friend_request_sent: 'friend',
+  friend_request_accepted: 'friend',
+  friend_request_accepted_self: 'friend',
+  friend_request_rejected: 'danger',
+  friend_joined_session: 'friend',
+  friend_created_session: 'friend',
 
+  // 🏅 Progression / Social
+  badge_awarded: 'progress',
+  collective_challenge: 'progress',
+  review_received: 'progress',
+  review_published: 'progress',
+  review_updated: 'progress',
+  review_deleted: 'danger',
 
- // Amis
- friend_request: 'info',
- friend_request_sent: 'info',
- friend_request_accepted: 'success',
- friend_request_accepted_self: 'success',
- friend_request_rejected: 'danger',
- friend_joined_session: 'info',
- friend_created_session: 'info',
+  // ⚙️ Profil / Préférences / Système
+  profile_updated: 'profile',
+  location_preferences_updated: 'profile',
+  notification_preferences_updated: 'profile',
+  verify_email_prompt: 'profile',
+  verify_email_confirmed: 'profile',
+  feedback_received: 'profile',
+  newsletter_subscribed: 'profile',
+  reminder: 'profile',
+  reminder_2h: 'profile',
+  welcome: 'profile',
 
+  // 💳 Paiement
+  payment_success: 'payment',
 
- // Social / Progression
- badge_awarded: 'success',
- new_session_nearby: 'info',
- collective_challenge: 'info',
- review_received: 'success',
+  // ⚠️ Signalements / alertes / erreurs
+  user_reported: 'danger',
+  report_confirmation: 'danger',
 
+  // Défaut
+  default: 'neutral',
 
- // Profil & préférences
- profile_updated: 'success',
- location_preferences_updated: 'info',
- notification_preferences_updated: 'info',
+  //Mise à jour
+  app_update: 'profile',
 
+  group_request_accepted:         "friend",   // vert — bonne nouvelle
+  group_request_accepted_creator: "group",    // turquoise — confirmation
+  group_request_rejected:         "danger",   // rouge — refus
 
- // Divers
- reminder: 'warning',
- reminder_2h: 'warning',
- welcome: 'info',
- user_reported: 'danger',
- verify_email_prompt: 'warning',
- verify_email_confirmed: 'success',
-
-
- // Reviews
- review_published: 'success',
- review_updated: 'info',
- review_deleted: 'danger',
-
-
- // Défaut
- default: 'neutral',
- newsletter_subscribed: 'success',
- report_confirmation: 'info',
- feedback_received: 'info',
+friend_removed_sender:   'neutral',
+friend_removed_receiver: 'neutral',
+group_session_joined:    'group',
+friend_invited_session:  'friend',
 };
-
 
 function themeFor(type) {
  const key = TYPE_MAP[type] || 'neutral';
  return TYPE_THEME[key] || TYPE_THEME.neutral;
 }
-
 
 // ---------- Helpers de grouping (Aujourd’hui / Hier / Cette semaine / Plus ancien)
 function sectionLabel(dateISO) {
@@ -247,6 +299,20 @@ const fetchNotifications = useCallback(async (opts = { spinner: false }) => {
 
   if (opts.spinner) setLoading(false);
 }, []);
+
+const openStoreUpdate = () => {
+  const iosUrl = 'https://apps.apple.com/us/app/uniteapp/id6755112837';
+  const androidUrl = 'https://play.google.com/store/apps/details?id=com.uniteapp.collectif';
+
+  const url = Platform.OS === 'ios' ? iosUrl : androidUrl;
+
+  Linking.openURL(url).catch(() => {
+    Alert.alert(
+      'Erreur',
+      'Impossible d’ouvrir le store. Essaie manuellement depuis le store.'
+    );
+  });
+};
 
 const markAllAsRead = useCallback(async () => {
   const { data: { user } } = await supabase.auth.getUser();
@@ -350,6 +416,8 @@ useFocusEffect(
   }, [fetchNotifications, triggerRefreshNotifs])
 );
 
+useAppForeground(() => fetchNotifications({ spinner: false }));
+
  // Utils
  async function getToken() {
    const { data: { session } } = await supabase.auth.getSession();
@@ -433,12 +501,6 @@ if (notif.type === 'review_received') {
       return;
     }
 
-    // ⭐ Avis reçu
-    if (notif.type === 'review_received' && notif.sender_id) {
-      navigation.navigate('UserProfile', { userId: notif.sender_id });
-      return;
-    }
-
     // 💥 Ami a rejoint une session
 if (notif.type === 'friend_joined_session' && notif.session_id) {
   navigation.navigate('SessionDetail', {
@@ -448,9 +510,59 @@ if (notif.type === 'friend_joined_session' && notif.session_id) {
   return;
 }
 
+// 💬 Nouveau message dans un groupe
+if (notif.type === 'group_new_message') {
+  const groupId =
+    notif.group_id ||
+    notif.data?.group_id ||
+    notif.metadata?.group_id ||
+    null;
+
+  if (!groupId) {
+    console.warn("⚠️ group_id manquant pour group_new_message");
+    return;
+  }
+
+  navigation.navigate('GroupChat', {
+    groupId,
+    fromNotification: true,
+  });
+  return;
+}
+
     //Notif compte vérifié
     if (notif.type === 'verify_email_prompt') {
   navigation.navigate('VerifyEmail'); // écran qu’on fera ensuite
+  return;
+}
+
+// 🔹 Notifs liées aux groupes
+const groupTypes = [
+  'group_created',
+  'group_joined_self',
+  'group_left_self',
+  'group_deleted',
+  'group_updated',
+  'group_member_joined',
+  'group_member_left',
+  'group_excluded_self',
+  'group_exclusion_done',
+  'group_excluded_others',
+  'group_request_accepted',
+  'group_request_accepted_creator',
+  'group_request_rejected',
+  'group_request_received',
+];
+
+if (groupTypes.includes(notif.type)) {
+  const groupId =
+    notif.group_id ||
+    notif.data?.group_id ||
+    notif.metadata?.group_id ||
+    null;
+
+  if (!groupId) return;
+  navigation.navigate('GroupDetail', { groupId, fromNotification: true });
   return;
 }
 
@@ -470,30 +582,42 @@ if (notif.type === 'friend_joined_session' && notif.session_id) {
       return;
     }
 
-    // 🔥 Tous les types liés à une session
-    const sessionTypes = [
-      'session_created',
-      'session_joined',
-      'participant_joined_creator',
-      'participant_joined_participant',
-      'session_updated_creator',
-      'session_updated_participant',
-      'session_deleted_creator',
-      'session_deleted_participant',
-      'session_start_soon',
-      'start',
-      'reminder_2h',
-      
-      'excluded_from_session',
-      'exclude_user',
-      'participant_left_creator',
-      'participant_left_participant',
-      'participant_left_self',
-      'session_full',
-      'new_session_nearby',
-      'friend_invited_session',
-      'friend_joined_session',
-    ];
+    if (notif.type === 'friend_request_sent') return;
+
+if (notif.type === 'app_update') return;
+
+if (['friend_removed_sender', 'friend_removed_receiver'].includes(notif.type)) {
+  navigation.navigate('MainTabs', { screen: 'Profile' });
+  return;
+}
+
+// 🔥 Tous les types liés à une session
+const sessionTypes = [
+  'session_created',
+  'session_joined',
+  'participant_joined_creator',
+  'participant_joined_participant',
+  'session_updated_creator',
+  'session_updated_participant',
+  'session_deleted_creator',
+  'session_deleted_participant',
+  'session_start_soon',
+  'start',
+  'reminder_2h',
+  'excluded_from_session',
+  'exclude_user',
+  'participant_left_creator',
+  'participant_left_participant',
+  'participant_left_self',
+  'session_full',
+  'new_session_nearby',
+  'friend_invited_session',
+  'friend_joined_session',
+  'group_session_created',
+  'group_session_created_self',
+  'group_session_updated',
+  'group_session_joined',
+];
 
 if (sessionTypes.includes(notif.type)) {
   const sessionId =
@@ -507,7 +631,7 @@ if (sessionTypes.includes(notif.type)) {
     return;
   }
 
-  // Redirection unique pour tous les cas liés à une session
+  // ✅ Retour à la logique d’origine : toujours SessionDetail
   navigation.navigate('SessionDetail', {
     sessionId,
     fromNotification: true,
@@ -631,6 +755,26 @@ const Card = ({ onPress }) => {
               </View>
 
               <Text style={styles.body} numberOfLines={3}>{item.body}</Text>
+              {item.type === 'app_update' && (
+  <TouchableOpacity
+    onPress={openStoreUpdate}
+    style={{
+      marginTop: 10,
+      alignSelf: 'flex-start',
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 16,
+      backgroundColor: theme.bg,
+      borderWidth: 1,
+      borderColor: theme.tint,
+    }}
+    activeOpacity={0.85}
+  >
+    <Text style={{ color: theme.tint, fontWeight: '600' }}>
+      Mettre à jour
+    </Text>
+  </TouchableOpacity>
+)}
 
               {isNewSinceLastOpen && (
                 <View style={[styles.chip, { backgroundColor: theme.bg, borderColor: theme.tint }]}>
@@ -799,8 +943,6 @@ time: {
    color: '#3A4152',
    lineHeight: hp('2.5%'),
  },
-
-
  chip: {
    alignSelf: 'flex-start',
    marginTop: 8,
@@ -810,11 +952,7 @@ time: {
    borderWidth: 1,
  },
  chipText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
-
-
  trailing: { paddingLeft: 6, paddingTop: 2, alignSelf: 'flex-start' },
-
-
  // État vide
  emptyBox: { alignItems: 'center', marginTop: hp('10.2%') },
  emptyText: { color: '#8a8c96', fontSize: wp('4.2%'), marginTop: hp('2.3%'), fontWeight: '500' },

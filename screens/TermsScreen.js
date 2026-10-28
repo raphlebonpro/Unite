@@ -18,7 +18,7 @@ SIREN : 989852413
   },
   {
     title: '3. Accès réservé',
-    content: `Unite est réservée aux personnes âgées de 15 ans ou plus. Toute inscription frauduleuse entraînera la suppression immédiate du compte.`
+    content: `Unite est réservée aux personnes âgées de 16 ans ou plus. Toute inscription frauduleuse entraînera la suppression immédiate du compte.`
   },
   {
     title: '4. Création et suppression du compte',
