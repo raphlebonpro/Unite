@@ -265,14 +265,12 @@ const loadSessionData = useCallback(async (silent = false) => {
   const fillRatio = totalSlots > 0 ? Math.min(usedSlots / totalSlots, 1) : 0;
 
   // ── Share ──
-  const shareSession = async () => {
-    try {
-      const url = `https://uniteapp.fr/session?id=${session.id}`;
-      await Share.share({
-        message: `${session.title} — ${session.sport}\n📅 ${formatDate(session.date)} à ${formatTime(session.time)}\n📍 ${session.location}\n\nRejoins la session sur UNITE 👇\n${url}`,
-      });
-    } catch {}
-  };
+const shareSession = async () => {
+  try {
+    const url = `https://unite-session-page.netlify.app/session?id=${session.id}`;
+    await Share.share({ message: url });
+  } catch {}
+};
 
   // ── Join ──
   const confirmJoin = () =>

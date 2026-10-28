@@ -100,10 +100,15 @@ const MessagesGroupsScreen = () => {
         .eq('user_id', user.id);
       if (error) throw error;
 
-      const { data: lastMessages } = await supabase
-        .from('messages')
-        .select('session_id, created_at, sender_id, content')
-        .order('created_at', { ascending: false });
+      const sessionIds = (sessionsData || [])
+  .filter(i => i.sessions)
+  .map(i => i.sessions.id);
+
+const { data: lastMessages } = await supabase
+  .from('messages')
+  .select('session_id, created_at, sender_id, content')
+  .in('session_id', sessionIds)
+  .order('created_at', { ascending: false });
 
       // Dernier message par session
       const lastMessageMap = {};
@@ -185,11 +190,15 @@ const MessagesGroupsScreen = () => {
   // ── Actions ────────────────────────────────────────────────────────────────
   const onRefresh = async () => { setRefreshing(true); await fetchSessions(); setRefreshing(false); };
 
-  const handleGroupPress = async (sessionId) => {
-    await AsyncStorage.setItem(`last_seen_${sessionId}`, new Date().toISOString());
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, hasUnread: false } : s));
-    navigation.navigate('SessionMessages', { sessionId });
-  };
+const handleGroupPress = async (sessionId) => {
+  const session = sessions.find(s => s.id === sessionId);
+  const lastSeenTime = session?.lastMessageAt
+    ? new Date(new Date(session.lastMessageAt).getTime() + 1000).toISOString()
+    : new Date().toISOString();
+  await AsyncStorage.setItem(`last_seen_${sessionId}`, lastSeenTime);
+  setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, hasUnread: false } : s));
+  navigation.navigate('SessionMessages', { sessionId });
+};
 
   const handleDeleteGroup = (sessionId, title) => {
     Alert.alert(

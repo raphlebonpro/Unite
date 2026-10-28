@@ -276,6 +276,35 @@ useEffect(() => {
   checkAppVersion();
 }, []);
 
+useEffect(() => {
+  // Gère le deep link si l'app est déjà ouverte
+  const subscription = Linking.addEventListener('url', ({ url }) => {
+    handleDeepLink(url);
+  });
+
+  // Gère le deep link si l'app était fermée
+  Linking.getInitialURL().then((url) => {
+    if (url) handleDeepLink(url);
+  });
+
+  return () => subscription.remove();
+}, []);
+
+const handleDeepLink = (url) => {
+  if (!url) return;
+  const parsed = Linking.parse(url);
+  // unite://session/ID
+  if (parsed.scheme === 'unite' && parsed.hostname === 'session' && parsed.path) {
+    const sessionId = parsed.path.replace(/^\//, '');
+    navigate('SessionDetail', { sessionId });
+  }
+  // unite://group/ID
+  if (parsed.scheme === 'unite' && parsed.hostname === 'group' && parsed.path) {
+    const groupId = parsed.path.replace(/^\//, '');
+    navigate('GroupDetail', { groupId });
+  }
+};
+
 return (
     <SafeAreaProvider>
       <SafeTop>

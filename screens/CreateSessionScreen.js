@@ -200,28 +200,34 @@ const CreateSessionScreen = () => {
     })();
   }, [groupId]);
 
-  useFocusEffect(useCallback(() => {
-    const hasPrefill = Number.isFinite(route.params?.prefillLat) && Number.isFinite(route.params?.prefillLng);
-    cameFromMapRef.current = hasPrefill;
-    if (hasPrefill) {
-      setLatitude(route.params.prefillLat);
-      setLongitude(route.params.prefillLng);
-      if (route.params?.prefillAddress) setLocation(route.params.prefillAddress);
-      requestAnimationFrame(() => navigation.setParams({ prefillLat: undefined, prefillLng: undefined, prefillAddress: undefined }));
-    }
-  }, [route.params]));
+const prefillHandled = useRef(false);
 
-  useFocusEffect(useCallback(() => {
-    if (cameFromMapRef.current) return;
-    if (!isGroupSession) setSelectedSport('');
-    setShowOtherSports(false); setSelectedLevel('');
-    setSelectedDate(new Date()); setSelectedHour(getClampedDefaultHour());
-    setShowCalendar(false); setTimePickerVisible(false);
-    setTitle(''); setComments(''); setAddressModalVisible(false);
-    setTempLocation(''); setTempLat(null); setTempLng(null);
-    setIsGirlsOnly(false); setMaxParticipants(null);
-    setLocation(''); setLatitude(null); setLongitude(null); setSessionLink('');
-  }, [route.params?.prefillLat, route.params?.prefillLng, isGroupSession]));
+useEffect(() => {
+  if (!Number.isFinite(route.params?.prefillLat) || !Number.isFinite(route.params?.prefillLng)) return;
+  
+  cameFromMapRef.current = true;
+  setLatitude(route.params.prefillLat);
+  setLongitude(route.params.prefillLng);
+  if (route.params?.prefillAddress) setLocation(route.params.prefillAddress);
+  
+  navigation.setParams({ prefillLat: undefined, prefillLng: undefined, prefillAddress: undefined });
+}, [route.params?.prefillLat, route.params?.prefillLng]);
+
+useFocusEffect(useCallback(() => {
+  if (cameFromMapRef.current) {
+    cameFromMapRef.current = false;
+    return;
+  }
+  
+  if (!isGroupSession) setSelectedSport('');
+  setShowOtherSports(false); setSelectedLevel('');
+  setSelectedDate(new Date()); setSelectedHour(getClampedDefaultHour());
+  setShowCalendar(false); setTimePickerVisible(false);
+  setTitle(''); setComments(''); setAddressModalVisible(false);
+  setTempLocation(''); setTempLat(null); setTempLng(null);
+  setIsGirlsOnly(false); setMaxParticipants(null);
+  setLocation(''); setLatitude(null); setLongitude(null); setSessionLink('');
+}, [isGroupSession]));
 
   // ── Création ──────────────────────────────────────────────────────────────
   const handleCreateSession = async () => {

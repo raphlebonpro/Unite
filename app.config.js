@@ -6,7 +6,7 @@ export default {
     name: "Unite",
     slug: "Unite",
     owner: "raphlebon",
-    version: "1.1.7",
+    version: "1.1.9",
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: false,
@@ -31,7 +31,7 @@ export default {
 
     ios: {
       bundleIdentifier: "com.uniteapp.collectif",
-      buildNumber: "131",
+      buildNumber: "138",
       icon: "./assets/icon1.png",
       supportsTablet: false,
       associatedDomains: ["applinks:uniteapp.fr"],
@@ -55,7 +55,7 @@ export default {
 
     android: {
       package: "com.uniteapp.collectif",
-      versionCode: 85,
+      versionCode: 88,
       supportsTablet: false,
       forceDarkAllowed: false,
       blockedDeviceModels: ["*Tab*", "*Pad*", "*Tablet*"],
@@ -78,7 +78,7 @@ config: {
     apiKey: process.env.ANDROID_GOOGLE_MAPS_SDK_KEY,
   },
 },
-intentFilters: [   // ✅ ICI, AVANT la fermeture du bloc android
+intentFilters: [
     {
       action: "VIEW",
       autoVerify: true,
