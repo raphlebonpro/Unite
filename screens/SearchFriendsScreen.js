@@ -233,7 +233,7 @@ const SearchFriendsScreen = () => {
 
       {/* Pills de suggestion visuelles */}
       <View style={styles.suggestionRow}>
-        {['⚽ Footballeur', '🏃 Runner', '🎾 Tennisman'].map(label => (
+        {[].map(label => (
           <View key={label} style={styles.suggestionPill}>
             <Text style={styles.suggestionText}>{label}</Text>
           </View>

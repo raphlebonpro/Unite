@@ -53,6 +53,8 @@ export default function MapViewUnite({
 }) {
   if (!region) return <View style={StyleSheet.absoluteFill} />;
 
+  console.log('>>> MapViewUnite region :', region);
+
   const handleSessionPress = (session) => {
     InteractionManager.runAfterInteractions(() => { onSelectSession?.(session); });
   };
@@ -85,7 +87,10 @@ export default function MapViewUnite({
               key={`session-${session.id}`}
               coordinate={{ latitude: Number(session.lat), longitude: Number(session.lng) }}
               tracksViewChanges={false}
-              onPress={(e) => { e.stopPropagation(); handleSessionPress(session); }}
+              onClick={(e) => {
+                e.originalEvent?.stopPropagation();
+                onPress?.({ stopPropagation: () => {}, nativeEvent: {} });
+              }}
             >
               <View style={styles.sessionMarker}>{session.icon}</View>
             </Marker>

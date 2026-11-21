@@ -105,3 +105,5 @@ yarn-error.*
 android/app/debug.keystore
 
 # @end expo-cli
+# Local Netlify folder
+.netlify

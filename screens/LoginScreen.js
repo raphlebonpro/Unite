@@ -46,7 +46,7 @@ const LoginScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+      <Pressable style={{ flex: 1 }} onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
       <View style={styles.wrapper}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDFDFD" />
 

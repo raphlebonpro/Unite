@@ -13,7 +13,6 @@ import { Buffer } from 'buffer';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useUser } from '../context/UserContext';
 import * as Linking from 'expo-linking';
-import { AppEventsLogger } from 'react-native-fbsdk-next';
 
 if (typeof global !== 'undefined') global.Buffer = Buffer;
 

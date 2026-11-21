@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<script>
+  if (navigator.maxTouchPoints > 0) {
+    location.replace('/');
+  }
+</script>
+<title>UniteApp</title>
+<meta name="apple-mobile-web-app-title" content="UniteApp">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.json">
+<style>
+  :root {
+    --ecran-w: 402px;   /* iPhone 17 / 17 Pro */
+    --ecran-h: 874px;
+    --bordure: 12px;
+    --barre-statut: 54px;
+    --fond-statut: #FFFFFF;  /* mets la couleur du haut de ton app */
+  }
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #F6F7FA;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .telephone {
+    position: relative;
+    width: var(--ecran-w);
+    height: var(--ecran-h);
+    padding: var(--bordure);
+    background: #111;
+    border-radius: 64px;
+    box-shadow: 0 0 0 2px #2A2A2E, 0 40px 90px rgba(0,0,0,.22);
+    transform-origin: center;
+  }
+  /* boutons latéraux */
+  .telephone::before, .telephone::after {
+    content: "";
+    position: absolute;
+    width: 4px;
+    background: #2A2A2E;
+    border-radius: 2px;
+  }
+  .telephone::before { left: -5px; top: 170px; height: 64px; }
+  .telephone::after  { right: -5px; top: 220px; height: 96px; }
+  .ecran {
+    width: 100%;
+    height: 100%;
+    border-radius: 52px;
+    overflow: hidden;
+    background: var(--fond-statut);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .statut {
+    height: var(--barre-statut);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 30px 0 44px;
+    box-sizing: border-box;
+    font-size: 16px;
+    font-weight: 600;
+    color: #111;
+  }
+  .ilot {
+    position: absolute;
+    top: 11px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 124px;
+    height: 36px;
+    background: #000;
+    border-radius: 20px;
+  }
+  .icones { display: flex; gap: 6px; align-items: center; }
+  iframe {
+    width: var(--ecran-w);
+    flex: 1;
+    border: 0;
+    display: block;
+  }
+  .accueil {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.accueil span {
+  width: 134px;
+  height: 5px;
+  border-radius: 3px;
+  background: #111;
+}
+body { gap: 80px; }
+.panneau { max-width: 300px; color: #111; }
+.panneau-logo { width: 64px; height: 64px; border-radius: 16px; }
+.panneau h1 { font-size: 32px; margin: 16px 0 8px; }
+.panneau ol { padding-left: 18px; line-height: 1.5; color: #444; }
+@media (max-width: 900px) { .panneau { display: none; } }
+@media (display-mode: standalone) { .panneau { display: none; } }
+</style>
+</head>
+<body>
+  <aside class="panneau">
+  <img src="/apple-touch-icon.png" alt="" class="panneau-logo">
+  <h1>UniteApp</h1>
+  <p>Courir ensemble, quand on veut, près de chez soi.</p>
+  <p class="panneau-titre">Installe l'app sur ton téléphone</p>
+  <ol>
+    <li><strong>iPhone</strong> : ouvre le lien dans Safari, touche Partager puis « Sur l'écran d'accueil ».</li>
+    <li><strong>Android</strong> : ouvre le lien dans Chrome, menu ⋮ puis « Installer l'application ».</li>
+    <li><strong>Ordinateur</strong> : dans Safari sur Mac, menu Fichier puis « Ajouter au Dock ». Dans Chrome, clique sur l'icône d'installation à droite de la barre d'adresse.</li>
+  </ol>
+</aside>
+  <div class="telephone" id="telephone">
+    <div class="ecran">
+      <div class="statut">
+        <span>9:41</span>
+        <div class="icones">
+          <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="#111"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#111"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#111"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#111"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 11.5l2.2-2.6a3.2 3.2 0 00-4.4 0zM3.4 6.4a6.8 6.8 0 019.2 0l1.4-1.7a9 9 0 00-12 0zM.6 3.2a11 11 0 0114.8 0L16 2.5A12 12 0 000 2.5z" fill="#111"/></svg>
+          <svg width="27" height="13" viewBox="0 0 27 13" aria-hidden="true"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="#111" opacity=".4"/><rect x="2" y="2" width="20" height="9" rx="2" fill="#111"/><rect x="24.5" y="4.5" width="1.5" height="4" rx=".75" fill="#111" opacity=".4"/></svg>
+        </div>
+      </div>
+      <div class="ilot"></div>
+            <iframe id="app" title="Unite" allow="geolocation"></iframe>
+      <script>
+        document.getElementById('app').src =
+          location.port === '3000' ? 'http://localhost:8081' : '/';
+      </script>
+      <div class="accueil"><span></span></div>
+    </div>
+  </div>
+
+<script>
+  // Réduit le téléphone si l'écran de l'ordinateur est trop petit
+  const tel = document.getElementById('telephone');
+  function ajuster() {
+    const h = tel.offsetHeight + 60;
+    const w = tel.offsetWidth + 60;
+    const echelle = Math.min(1, window.innerHeight / h, window.innerWidth / w);
+    tel.style.transform = `scale(${echelle})`;
+  }
+  window.addEventListener('resize', ajuster);
+  ajuster();
+</script>
+</body>
+</html>
